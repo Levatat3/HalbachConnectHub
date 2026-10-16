@@ -154,7 +154,25 @@ class TestPublisher(Base):
             p.start(preview=True)
         self.assertEqual(wait_done(p)["state"], "done")
         self.assertEqual(calls[0][2], "preview")
-        self.assertEqual([x["change"] for x in self.s.pending()], ["add"])
+        self.assertEqual([x["change"] for x in self.s.pending() if x["id"] != "__site__"], ["add"])
+        self.assertTrue(any(x["id"] == "__site__" for x in self.s.pending()))
+
+    def test_site_edits_become_pending_until_published(self):
+        self.assertEqual([x["id"] for x in self.s.pending()], ["__site__"])   # never published
+        p, _ = self.make()
+        with mock.patch.object(pub, "find_npx", return_value="npx"):
+            p.start()
+        wait_done(p)
+        self.assertEqual(self.s.pending(), [])
+        time.sleep(1.1)
+        (self.site / "index.html").write_text("<h1>edited, and longer than before</h1>")
+        self.assertEqual([x["id"] for x in self.s.pending()], ["__site__"])
+        (self.site / "README.md").write_text("notes change; never published")
+        self.s.mark_published()
+        self.assertEqual(self.s.pending(), [])                     # README edits are ignored
+
+    def test_view_returns_pending_objects(self):
+        self.assertEqual(self.s.view()["pending"][0]["name"], "Site files")
 
     def test_failure_keeps_changes_pending(self):
         self.mod("Demo", {"index.html": "x", "a.js": "y"})
@@ -166,7 +184,7 @@ class TestPublisher(Base):
             p.start()
         s = wait_done(p)
         self.assertEqual((s["state"], s["message"]), ("error", "Not signed in to Cloudflare."))
-        self.assertEqual([x["change"] for x in self.s.pending()], ["add"])
+        self.assertEqual([x["change"] for x in self.s.pending() if x["id"] != "__site__"], ["add"])
 
     def test_unexpected_exception_does_not_hang(self):
         def boom(*a):

@@ -221,6 +221,10 @@ def make_handler(hub):
             s = hub.store
             changes = s.pending()
             files = []
+            site_dir = (s.state.get("settings") or {}).get("site_dir")
+            if site_dir and Path(site_dir).is_dir():
+                fl, _ = collect_files(site_dir, ("readme.md",))
+                files += [{"module": "site", "path": rel, "bytes": size} for _, rel, size in fl]
             for m in s.state["modules"]:
                 if m["kind"] == "static" and m["on"]:
                     fl, _ = collect_files(m["source"])

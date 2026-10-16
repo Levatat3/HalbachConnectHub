@@ -12,7 +12,7 @@
   │        │                     │       static ──► site host (Pages)  ──► visitors
   │  publisher  ─────────────────┼──────────────┘
   │                              │
-  │  live hub (planned) ─────────┼── tunnel ──► visitors   (only while the PC is on)
+  │  live hub ───────────────────┼── tunnel ──► visitors   (only while the PC is on)
   └──────────────────────────────┘
 ```
 
@@ -33,19 +33,35 @@ A static module has `on` (what you chose) and `published_fp` (a fingerprint of w
 
 Editing a file inside a watched folder therefore makes the change appear by itself.
 
-## Planned: static publish
+## Static publish
 
-1. Copy the site folder to a staging directory, skipping the never-publish list.
-2. Copy each enabled static module into `modules/<id>/`.
-3. Write `manifest.json` listing enabled modules (id, name, kind, entry path).
-4. Run `wrangler pages deploy <staging> --project-name <project>`.
-5. On success, `mark_published()` records the new fingerprints.
+1. Copy the site folder to a staging directory under the hub's data folder, skipping the never-publish list and the site's own `README.md`.
+2. Copy each switched-on static module into `modules/<id>/`, and classify it: a lone `.swf` is a game, a folder with `index.html` is a page, mostly images is a gallery, one image is an image, anything else is a file.
+3. Write `manifest.json` with a random `build` id.
+4. Run `wrangler pages deploy <stage> --project-name <project>` from the data folder (so wrangler's cache never lands in a project).
+5. On success, record fingerprints (`mark_published`), then poll `https://<domain>/manifest.json` until its `build` matches, so "published" means "visible".
 
-The site reads `manifest.json` to build its tabs, so adding a module adds a tab with no code change.
+A test publish does steps 1 to 4 on a `preview` branch: private address, live site untouched, nothing marked published.
 
-## Planned: live modules
+The site folder is fingerprinted like a module, so editing it shows up as a pending "Site files" change.
 
-A second local server (the "hub") is the only thing the tunnel points at. It serves a module only if it is switched on, and passes only the allowed fields of a JSON response, enforcing the viewer cap. The service itself stays unreachable from outside. If the PC is off, the tunnel is down and the site shows "offline" for live modules.
+## Live modules
+
+```
+visitor ──► Cloudflare ──► tunnel ──► live hub (127.0.0.1:8782) ──► your service (127.0.0.1:<port>)
+```
+
+The live hub is a separate server from the control panel and is the only thing the tunnel points at. For `GET /m/<id>` it:
+
+1. checks the `Host` header (the live host or loopback) and that the module exists and is switched on;
+2. admits the viewer if under the module's cap (viewers are identified by a hash of `CF-Connecting-IP` and the user agent, counted for 12 seconds);
+3. returns the cached payload if under a second old, otherwise calls the service (4 s timeout, 256 KB cap, JSON only, no redirects);
+4. keeps only allowed top-level fields and strips private-looking keys at every depth;
+5. answers with CORS only for your own domain, `www.`, and any extra origins you list.
+
+`GET /status` lists which live modules are on, which is how the site decides between showing data and showing "offline". Everything else is a 404, and any method other than `GET` is a 405.
+
+The tunnel manager only starts and stops an already-configured `cloudflared` named tunnel (`tunnel run --url http://127.0.0.1:<hub port> <name>`). It never downloads cloudflared and never handles a login.
 
 ## Threat model
 
@@ -57,9 +73,14 @@ A second local server (the "hub") is the only thing the tunnel points at. It ser
 | A live service leaking private fields | Allow-list only; locked names can never be allowed |
 | Pointing a live module at someone else's server (SSRF) | Only `127.0.0.1` / `localhost` accepted |
 | Pointing at a whole drive or home folder | Refused |
-| Credential theft | The hub never sees credentials; `wrangler` holds its own login |
+| Credential theft | The hub never sees credentials; `wrangler` and `cloudflared` hold their own logins |
+| Reaching the control panel through the tunnel | The tunnel points at the live hub only; the panel is a different server on a different port |
+| A service redirecting the hub elsewhere | Redirects are never followed |
+| A crowd hammering your PC | Per-module viewer cap, one-second response cache |
+| Hotlinking live data from other sites | CORS only for your own origins (a convenience, not a security boundary: the data is public by design) |
 
 ## Not handled
 
 - A hostile program already running as you on this PC can read the state file and call the hub. That is outside what a local tool can defend against.
 - The fingerprint uses whole-second mtimes, so two edits to a file of identical size within one second can be missed.
+- Anything an allowed field contains is public. Allow-listing protects what you did not choose to share, not what you did.

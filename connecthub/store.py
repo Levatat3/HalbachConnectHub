@@ -105,9 +105,9 @@ def collect_files(source, extra_exclude=()):
     return files, problems
 
 
-def fingerprint(source):
+def fingerprint(source, extra_exclude=()):
     """Cheap change detector: hash of (relative path, size, mtime) of what would be uploaded."""
-    files, _ = collect_files(source)
+    files, _ = collect_files(source, extra_exclude)
     h = hashlib.sha1()
     for p, rel, size in files:
         try:
@@ -314,9 +314,18 @@ class Store:
         return s
 
     # ---- pending changes ---------------------------------------------
+    SITE_ID = "__site__"
+
+    def _site_fp(self):
+        d = (self.state.get("settings") or {}).get("site_dir")
+        return fingerprint(d, ("readme.md",)) if d and Path(d).is_dir() else None
+
     def pending(self):
-        """Static modules whose site state differs from what you've chosen."""
+        """Things whose state on the site differs from what you've chosen."""
         out = []
+        fp = self._site_fp()
+        if fp is not None and fp != self.state.get("published_site_fp"):
+            out.append({"id": self.SITE_ID, "name": "Site files", "change": "update"})
         for m in self.state["modules"]:
             if m["kind"] != "static":
                 continue
@@ -338,11 +347,13 @@ class Store:
                 if m["kind"] == "static":
                     m["published_fp"] = fingerprint(m["source"]) if m["on"] else None
             self.state["last_deploy"] = int(time.time())
+            self.state["published_site_fp"] = self._site_fp()
             self._save()
 
     def view(self):
         """State as the UI sees it, with a status for each module."""
-        pend = {p["id"]: p["change"] for p in self.pending()}
+        plist = self.pending()
+        pend = {p["id"]: p["change"] for p in plist}
         mods = []
         for m in self.state["modules"]:
             v = dict(m)
@@ -356,4 +367,4 @@ class Store:
                 v["missing"] = not Path(m["source"]).exists()
             mods.append(v)
         return {"modules": mods, "settings": self.state["settings"],
-                "last_deploy": self.state.get("last_deploy"), "pending": list(pend.values())}
+                "last_deploy": self.state.get("last_deploy"), "pending": plist}

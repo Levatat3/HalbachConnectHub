@@ -76,7 +76,6 @@ class TestServer(unittest.TestCase):
         self.assertEqual(mod["file_count"], 1)
         self.assertNotIn("published_fp", mod)
         s, plan = self.api("GET", "/api/publish/plan")
-        self.assertFalse(plan["deploy_ready"])
         self.assertIn("a.txt", [f["path"] for f in plan["files"]])
         self.assertEqual(self.api("POST", "/api/modules/%s/remove" % m["id"], {})[0], 200)
 

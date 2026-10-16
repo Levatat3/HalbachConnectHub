@@ -2,20 +2,27 @@
 
 A small desktop control panel for your personal site. Pick what visitors can see from a window on your own PC; the site follows.
 
-> **Status: v0.1, the foundation.** The window, the module list, the safety rules and the change tracking work and are tested. **Publishing to a host and the live tunnel are not built yet.** See [Roadmap](#roadmap).
-
 ![The dashboard](design/screenshot.jpg)
 
 ## The idea
 
 Most personal sites need a code change and a push every time you want to show something new. ConnectHub flips that: you keep a list of **modules** on your PC, switch them on or off, and the site reads that list.
 
-There are two kinds of module:
-
 | Kind | What it is | Where it is served from |
 |---|---|---|
-| **Static** | A file or folder: a game, images, a page, JSON | Uploaded to your host. Stays up when your PC is off. |
-| **Live** | A web service running on your PC | Reached through a tunnel, only while your PC is on. |
+| **Static** | A file or folder: a game, images, a page, a PDF | Uploaded to Cloudflare Pages. Stays up when your PC is off. |
+| **Live** | A web service on your PC that returns JSON | Reached through a Cloudflare Tunnel, only while your PC is on. |
+
+Drop a folder in, switch it on, press **Publish**. Edits inside a folder you have added show up as pending changes on their own. Live data needs no publish: switch it on and visitors see it within seconds.
+
+## What works
+
+- Add static modules (file or folder) and live modules (a local `127.0.0.1` service), switch them on and off.
+- **Static publishing:** builds the site plus switched-on modules, writes a `manifest.json`, deploys with `wrangler pages deploy`, then checks the live site shows the new build. **Test publish** uploads to a private preview address and leaves the live site alone.
+- **Live modules:** a second local server (the "live hub") is the only thing the tunnel points at. It serves a module only while it is on, passes only the fields you allowed, caps viewers, and caches so a crowd makes one request a second to your service. **Discover fields** reads them from the service for you.
+- **Tunnel:** start and stop a Cloudflare named tunnel from the window.
+- The site shows each module by type (page, game via Ruffle, gallery, image, file) and shows "offline" for live modules when your PC is off.
+- Activity log, pending-change tracking, Quit button. It never starts with Windows.
 
 ## Run it
 
@@ -27,32 +34,61 @@ cd connecthub
 python -m connecthub
 ```
 
-It opens in its own window (Edge or Chrome app mode if you have one, otherwise your browser). `Ctrl+C` in the terminal stops it. It never starts with Windows.
+On Windows you can also double-click `Start ConnectHub.bat` (no console window). It opens in its own window (Edge or Chrome app mode if present, otherwise your browser). Use **Quit ConnectHub** in the sidebar to stop it.
 
 State is kept in `%LOCALAPPDATA%\ConnectHub` (or `~/.connecthub`). Set `CONNECTHUB_HOME` to move it.
+
+## Set it up for your site
+
+1. **Settings:** set the site folder (the folder your site is built from), the Cloudflare Pages project name, your domain, and the live host (for example `live.example.com`).
+2. **Publishing** needs [Node.js](https://nodejs.org) and a one-time `npx wrangler@4 login`. ConnectHub uses that login; it never sees your credentials.
+3. **Your site** needs to read `manifest.json` and render modules. A reference script is in [examples/](examples/); the format is below.
+4. **Live modules** need [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and a one-time setup, shown in Settings:
+   ```
+   cloudflared tunnel login
+   cloudflared tunnel create connecthub
+   cloudflared tunnel route dns connecthub live.example.com
+   ```
+   Put `cloudflared.exe` on your PATH, or in `%LOCALAPPDATA%\ConnectHub\bin`. ConnectHub never downloads it for you. Then press **Start tunnel**.
+
+### manifest.json
+
+```json
+{
+  "version": 1,
+  "build": "71abba93d035",
+  "live_base": "https://live.example.com",
+  "modules": [
+    {"id": "shots", "name": "Screenshots", "kind": "static", "type": "gallery",
+     "entry": "modules/shots/", "files": ["modules/shots/a.png"]},
+    {"id": "bot", "name": "Bot stats", "kind": "live"}
+  ]
+}
+```
+
+`type` is one of `page`, `game`, `gallery`, `image`, `file`. Live data is `GET <live_base>/status` (which modules are on) and `GET <live_base>/m/<id>` (filtered JSON).
 
 ## Safety rules (enforced in code, covered by tests)
 
 - **Deny by default.** A new module is switched off. A live module shares no fields until you allow them.
-- **Locked fields.** Anything named like `chat`, `notes`, `loot`, `account`, `password`, `token`, `secret`, `email`, `cookie` or `session` can never be allowed, even if the service returns it.
-- **Never published.** Dotfiles, `.env`, keys (`.pem`, `.key`), `id_rsa*`, logs, backups and `TIMELINE.md` are skipped from any folder you add. Files over 25 MB are reported, not included.
-- **This PC only.** Live modules must point at `127.0.0.1` or `localhost`. Anything else is refused.
-- **Local server hardening.** It binds to `127.0.0.1`, checks the `Host` header (DNS rebinding), requires a per-launch token on every API call, and rejects foreign `Origin`s.
-- **No credentials.** ConnectHub never asks for or stores a password. Deploying uses your own `wrangler` login.
-
-## Roadmap
-
-1. **Done:** window, modules, add wizard, locked fields, viewer cap setting, pending-change tracking, activity log, 28 tests.
-2. **Next:** static publishing: build the site plus enabled modules, write a `manifest.json` the site reads, and deploy to Cloudflare Pages with `wrangler`.
-3. **Then:** live modules: a hub that serves only enabled modules and filtered fields, behind a Cloudflare Tunnel, with a viewer cap and an "offline" state on the site.
-
-The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- **Locked fields.** Anything named like `chat`, `notes`, `loot`, `account`, `password`, `token`, `secret`, `email`, `cookie` or `session` can never be allowed, and is removed at every depth of the JSON, even if the service returns it.
+- **Never published.** Dotfiles, `.env`, keys, `id_rsa*`, logs, backups and `TIMELINE.md` are skipped from any folder you add. The site folder's own `README.md` is never uploaded. Files over 25 MB are reported, not included.
+- **This PC only.** Live modules must point at `127.0.0.1` or `localhost`, and the hub does not follow redirects.
+- **Small attack surface.** The tunnel reaches only the live hub (read-only `GET /status` and `GET /m/<id>`). The control panel is a separate loopback server with a per-launch token, `Host` and `Origin` checks and a strict Content-Security-Policy; it is not reachable through the tunnel.
+- **No credentials.** ConnectHub never asks for or stores a password. Publishing uses your `wrangler` login and the tunnel uses cloudflared's own certificate.
 
 ## Tests
 
 ```
 python -m unittest discover -s tests -t .
 ```
+
+## Limits
+
+- Live modules are polled JSON, not streams. Each viewer polls every few seconds; the hub caches for one second.
+- The change detector uses whole-second modification times.
+- Live data is only as available as your PC and home upload.
+- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and threat model.
 
 ## License
 
