@@ -34,7 +34,7 @@
       <button data-v="logs"><svg><use href="#i-list"/></svg><span>Activity</span></button>
       <button data-v="set"><svg><use href="#i-gear"/></svg><span>Settings</span></button>
     </nav>
-    <div class="side-foot">Nothing is public until you switch it on.</div>
+    <div class="side-foot">Nothing is public until you switch it on.<br><br><button class="btn ghost" data-act="quit" style="width:100%;justify-content:center">Quit ConnectHub</button></div>
   </aside>
 
   <header class="top">
@@ -51,7 +51,7 @@
         <div class="tile"><div class="k"><i class="dot" id="dotLive"></i>Live modules</div><div class="v" id="tLive">0 / 0</div><div class="s">switched on</div></div>
         <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-file"/></svg>Static modules</div><div class="v" id="tStatic">0 / 0</div><div class="s">switched on</div></div>
         <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-up"/></svg>Waiting to publish</div><div class="v" id="tPend">0</div><div class="s">static changes</div></div>
-        <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-pulse"/></svg>Workers quota</div><div class="v" style="color:var(--green)">not used</div><div class="s">hub runs no Workers code</div></div>
+        <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-eye"/></svg>Viewers now</div><div class="v" id="tViewers">0</div><div class="s">on live modules</div></div>
       </div>
       <div class="row" style="margin-bottom:12px"><h2 class="h2" style="margin:0">On the site right now</h2><span style="flex:1"></span><button class="btn" data-act="go:mods">Manage modules &rarr;</button></div>
       <div class="grid" id="dashGrid"></div>
@@ -90,12 +90,21 @@
         <div class="r"><div><b>Site folder</b><small>The folder your site is built from</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setSite" placeholder="folder path"></div></div>
         <div class="r"><div><b>Pages project</b><small>Name of the Cloudflare Pages project</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setProject" placeholder="my-site"></div></div>
         <div class="r"><div><b>Live host</b><small>Where live modules are served (tunnel hostname)</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setLive" placeholder="live.example.com"></div></div>
+        <div class="r"><div><b>Extra allowed sites</b><small>Other addresses that may read live data, comma separated (e.g. a preview address)</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setOrig" placeholder="https://preview.example.pages.dev"></div></div>
+        <div class="r"><div><b>Tunnel name</b><small>The name you gave 'cloudflared tunnel create'</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setTunnel" placeholder="connecthub"></div></div>
+        <div class="r"><div><b>cloudflared program</b><small>Leave empty if it is on your PATH</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setCf" placeholder="path to cloudflared.exe"></div></div>
         <div class="r"><div><b>Domain</b><small>Shown in the sidebar</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setDomain" placeholder="example.com"></div></div>
         <div class="r"><div><b>Start with Windows</b><small>Never. The hub only runs when you open it.</small></div><span style="flex:1"></span><label class="sw lock"><input type="checkbox" disabled><i></i></label></div>
         <div class="r"><span class="err" id="setErr" style="margin:0"></span><span style="flex:1"></span><button class="btn primary" data-act="saveSettings">Save settings</button></div>
       </div>
+      <h2 class="h2" style="margin-top:28px">Tunnel for live modules</h2>
+      <div class="set">
+        <div class="r"><div><b id="tunState">Stopped</b><small id="tunSub">Live modules only work while the tunnel is running.</small></div><span style="flex:1"></span><button class="btn" data-act="tunnelStop">Stop</button><button class="btn primary" data-act="tunnelStart" style="margin-left:8px">Start tunnel</button></div>
+        <div class="r"><div style="width:100%"><b>One-time setup</b><div class="code" id="tunSteps" style="margin-top:8px"></div><div class="err" id="tunErr"></div></div></div>
+      </div>
     </section>
 
+    <div class="view" id="v-tun-anchor" style="display:none"></div>
     <aside class="drawer" id="drawer">
       <div class="dh"><div class="ico" id="dIco"></div><div><div id="dName" style="font-weight:600;font-size:15px"></div><div id="dKind" style="margin-top:3px"></div></div><button class="x" data-act="drawerClose">&times;</button></div>
       <div class="db" id="dBody"></div>

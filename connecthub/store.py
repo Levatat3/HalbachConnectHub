@@ -282,7 +282,7 @@ class Store:
     def set_settings(self, **kw):
         with self.lock:
             s = self.state["settings"]
-            for k in ("site_dir", "project", "domain", "live_host"):
+            for k in ("site_dir", "project", "domain", "live_host", "tunnel_name", "cloudflared_path", "extra_origins"):
                 if k in kw and kw[k] is not None:
                     v = str(kw[k]).strip()
                     if k == "site_dir" and v:
@@ -296,6 +296,19 @@ class Store:
                         raise ValidationError("%s: a bare host name like example.com" % ("Domain" if k == "domain" else "Live host"))
                     if k in ("domain", "live_host"):
                         v = v.lower()
+                    if k == "extra_origins":
+                        items = [x.strip().rstrip("/").lower() for x in v.split(",") if x.strip()]
+                        for x in items:
+                            if not re.match(r"^https?://[a-z0-9.-]+(:\d{1,5})?$", x):
+                                raise ValidationError("Extra sites look like https://preview.example.pages.dev")
+                        v = ", ".join(items)
+                    if k == "tunnel_name" and v and not re.match(r"^[a-z0-9][a-z0-9-]{0,62}$", v):
+                        raise ValidationError("Tunnel name: lowercase letters, digits and dashes")
+                    if k == "cloudflared_path" and v:
+                        pth = Path(v.strip('"')).expanduser()
+                        if not pth.is_file() or "cloudflared" not in pth.name.lower():
+                            raise ValidationError("That isn't a cloudflared program")
+                        v = str(pth.resolve())
                     s[k] = v
             self._save()
         return s

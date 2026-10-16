@@ -33,19 +33,21 @@ def _app_window(url):
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="connecthub", description="Choose what your site shows.")
     ap.add_argument("--port", type=int, default=8780, help="local port (default 8780; 0 = any free port)")
+    ap.add_argument("--live-port", type=int, default=8782, help="port for the live hub (default 8782)")
     ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\ConnectHub)")
     ap.add_argument("--no-open", action="store_true", help="don't open a window")
     ap.add_argument("--version", action="version", version="connecthub " + __version__)
     a = ap.parse_args(argv)
 
     try:
-        srv, hub = serve(a.home, a.port)
+        srv, hub = serve(a.home, a.port, live_port=a.live_port)
     except OSError:
         print("Port %d is in use; picking a free one." % a.port)
-        srv, hub = serve(a.home, 0)
+        srv, hub = serve(a.home, 0, live_port=a.live_port)
     url = "http://127.0.0.1:%d/" % srv.server_address[1]
     hub.store.log("info", "Hub started")
     print("ConnectHub %s running at %s  (Ctrl+C to stop)" % (__version__, url))
+    print("Live hub (for the tunnel) on 127.0.0.1:%d" % hub.live_srv.server_address[1])
     if not a.no_open:
         _app_window(url)
     try:
@@ -53,6 +55,7 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
+        hub.close()
         hub.store.log("info", "Hub stopped")
         srv.server_close()
 

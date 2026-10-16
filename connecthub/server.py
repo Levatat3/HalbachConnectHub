@@ -16,8 +16,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import __version__
+from .live import UpstreamError, fetch_upstream, start_live_hub
 from .publisher import Publisher
-from .store import Store, ValidationError, collect_files
+from .store import Store, ValidationError, collect_files, is_locked_field
+from .tunnel import Tunnel
 
 UI_DIR = Path(__file__).parent / "ui"
 UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js"}
@@ -31,6 +33,22 @@ class Hub:
         self.store = store
         self.token = token or secrets.token_urlsafe(24)
         self.publisher = publisher or Publisher(store)
+        self.live_srv = None
+        self.live_state = None
+        self.tunnel = Tunnel(store, lambda: self.live_srv.server_address[1] if self.live_srv else 0)
+
+    def start_live(self, port=0):
+        try:
+            self.live_srv, self.live_state = start_live_hub(self.store, port)
+        except OSError:
+            self.live_srv, self.live_state = start_live_hub(self.store, 0)
+        return self.live_srv.server_address[1]
+
+    def close(self):
+        self.tunnel.stop()
+        if self.live_srv:
+            self.live_srv.shutdown()
+            self.live_srv.server_close()
 
 
 def make_handler(hub):
@@ -122,6 +140,10 @@ def make_handler(hub):
                 return self._json(self._plan())
             if path == "/api/publish/status":
                 return self._json(hub.publisher.status())
+            if path == "/api/live":
+                return self._json({"port": hub.live_srv.server_address[1] if hub.live_srv else None,
+                                   "stats": hub.live_state.stats() if hub.live_state else {},
+                                   "tunnel": hub.tunnel.status()})
             return self._err(404, "Not found")
 
         def do_POST(self):
@@ -137,8 +159,16 @@ def make_handler(hub):
                     m = s.add_module(b.get("kind"), b.get("name"), b.get("source"), b.get("desc", ""))
                     return self._json(m, 201)
                 parts = path.split("/")  # ['', 'api', 'modules', id, action]
+                if path in ("/api/tunnel/start", "/api/tunnel/stop"):
+                    if path.endswith("start"):
+                        hub.tunnel.start()
+                    else:
+                        hub.tunnel.stop()
+                    return self._json(hub.tunnel.status())
                 if len(parts) == 5 and parts[2] == "modules":
                     mid, act = parts[3], parts[4]
+                    if act == "discover":
+                        return self._json(self._discover(mid))
                     if act == "toggle":
                         return self._json(s.set_on(mid, b.get("on")))
                     if act == "fields":
@@ -150,10 +180,17 @@ def make_handler(hub):
                         return self._json({"ok": True})
                 if path == "/api/settings":
                     return self._json(s.set_settings(site_dir=b.get("site_dir"), project=b.get("project"),
-                                                     domain=b.get("domain")))
+                                                     domain=b.get("domain"), live_host=b.get("live_host"),
+                                                     tunnel_name=b.get("tunnel_name"), extra_origins=b.get("extra_origins"),
+                                                     cloudflared_path=b.get("cloudflared_path")))
                 if path == "/api/publish":
                     hub.publisher.start(preview=bool(b.get("preview")))
                     return self._json(hub.publisher.status(), 202)
+                if path == "/api/quit":
+                    self._json({"ok": True})
+                    s.log("info", "Quit requested from the window")
+                    threading.Thread(target=self.server.shutdown, daemon=True).start()
+                    return
                 if path == "/api/pick":
                     return self._json({"path": pick_path(b.get("kind"))})
                 return self._err(404, "Not found")
@@ -161,6 +198,23 @@ def make_handler(hub):
                 return self._err(400, str(e))
             except (TypeError, ValueError):
                 return self._err(400, "Bad request")
+
+        def _discover(self, mid):
+            """Ask the module's own service what fields it has; new ones are added switched off."""
+            s = hub.store
+            m = next((x for x in s.state["modules"] if x["id"] == mid and x["kind"] == "live"), None)
+            if not m:
+                raise ValidationError("No such live module")
+            try:
+                data = fetch_upstream(m["source"])
+            except UpstreamError as e:
+                raise ValidationError(str(e))
+            if not isinstance(data, dict):
+                raise ValidationError("The service must return a JSON object")
+            fields = [{"name": f["name"], "allowed": f["allowed"]} for f in m.get("fields", [])]
+            have = {f["name"] for f in fields}
+            fields += [{"name": k, "allowed": False} for k in data if k not in have and len(str(k)) <= 60]
+            return s.set_fields(mid, fields)
 
         def _plan(self):
             """What a publish would do right now."""
@@ -190,11 +244,13 @@ def pick_path(kind):
     return out.stdout.strip()
 
 
-def serve(home=None, port=0, token=None, publisher=None):
+def serve(home=None, port=0, token=None, publisher=None, live_port=None):
     """Start the server; returns (server, hub). Port 0 picks a free one."""
     store = Store(home)
     hub = Hub(store, token, publisher)
     srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(hub))
+    if live_port is not None:
+        hub.start_live(live_port)
     return srv, hub
 
 

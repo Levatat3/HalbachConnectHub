@@ -94,5 +94,20 @@ class TestServer(unittest.TestCase):
         self.assertEqual(c.getresponse().status, 400)
 
 
+class TestQuit(unittest.TestCase):
+    def test_quit_stops_the_server(self):
+        with tempfile.TemporaryDirectory() as t:
+            srv, hub = server.serve(Path(t) / "hub", 0, token="tok")
+            port = srv.server_address[1]
+            th = server.run_in_thread(srv)
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            c.request("POST", "/api/quit", b"{}", {"Host": "127.0.0.1:%d" % port, "X-ConnectHub-Token": "tok",
+                                                    "Content-Type": "application/json", "Content-Length": "2"})
+            self.assertEqual(c.getresponse().status, 200)
+            th.join(timeout=5)
+            self.assertFalse(th.is_alive())
+            srv.server_close()
+
+
 if __name__ == "__main__":
     unittest.main()

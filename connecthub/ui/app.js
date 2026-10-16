@@ -8,6 +8,7 @@
   var view = "dash";
   var add = { step: 1, kind: null };
   var ICON = { live: "i-eye", static: "i-file" };
+  var LV = { port: null, stats: {}, tunnel: {} };
   var busy = null;           // {preview} while a publish runs
 
   function esc(t) {
@@ -53,7 +54,10 @@
       var w = { add: "WILL PUBLISH", update: "CHANGED", remove: "WILL REMOVE" }[m.pending];
       return '<i class="dot warn"></i><span class="chg">' + w + "</span>";
     }
-    if (m.kind === "live") return m.on ? '<i class="dot ok"></i>on (tunnel not set up)' : '<i class="dot"></i>off';
+    if (m.kind === "live") {
+      var vv = (LV.stats[m.id] || {}).viewers || 0, tn = LV.tunnel || {};
+      return m.on ? '<i class="dot ' + (tn.connected ? "ok pulse" : "warn") + '"></i>' + (tn.connected ? "serving · " + vv + " viewing" : "on · tunnel not running") : '<i class="dot"></i>off';
+    }
     return m.on ? '<i class="dot ok"></i>on the site' : '<i class="dot"></i>off';
   }
 
@@ -75,6 +79,11 @@
     $("#tLive").textContent = onc(live) + " / " + live.length;
     $("#tStatic").textContent = onc(stat) + " / " + stat.length;
     $("#tPend").textContent = S.pending.length;
+    var vw = 0; Object.keys(LV.stats || {}).forEach(function (k) { vw += LV.stats[k].viewers; });
+    $("#tViewers").textContent = vw;
+    var tn = LV.tunnel || {};
+    $("#pillTunnel").textContent = tn.running ? (tn.connected ? "connected" : "starting") : (tn.installed ? "stopped" : "not set up");
+    $("#dotTunnel").className = "dot " + (tn.connected ? "ok pulse" : (tn.running ? "warn" : ""));
     $("#dotLive").className = "dot " + (onc(live) ? "ok" : "");
     $("#modGrid").innerHTML = S.modules.map(function (m) { return card(m, true); }).join("") ||
       '<p class="empty">No modules yet. Click <b>Add module</b> to put something on your site.</p>';
@@ -121,13 +130,21 @@
 
   function fillSettings() {
     var st = S.settings || {};
-    $("#setSite").value = st.site_dir || ""; $("#setProject").value = st.project || ""; $("#setDomain").value = st.domain || ""; $("#setLive").value = st.live_host || "";
+    $("#setSite").value = st.site_dir || ""; $("#setProject").value = st.project || ""; $("#setDomain").value = st.domain || ""; $("#setLive").value = st.live_host || ""; $("#setTunnel").value = st.tunnel_name || ""; $("#setOrig").value = st.extra_origins || ""; $("#setCf").value = st.cloudflared_path || "";
   }
 
   function refresh(keepDrawer) {
-    return api("/api/state").then(function (s) {
-      S = s; render(); if (keepDrawer && sel) drawer(sel);
+    return Promise.all([api("/api/state"), api("/api/live").catch(function () { return LV; })]).then(function (r) {
+      S = r[0]; LV = r[1]; render(); renderTunnel(); if (keepDrawer && sel) drawer(sel);
     }).catch(fail);
+  }
+
+  // ---------- tunnel ----------
+  function renderTunnel() {
+    var t = LV.tunnel || {};
+    $("#tunState").textContent = t.running ? (t.connected ? "Connected" : "Starting…") : (t.installed ? "Stopped" : "cloudflared not found");
+    $("#tunSub").textContent = t.running ? ((t.lines || []).slice(-1)[0] || "") : "Live modules only work while the tunnel is running.";
+    $("#tunSteps").textContent = (t.setup || []).map(function (x, i) { return (i + 1) + ". " + x; }).join("\n");
   }
 
   // ---------- publishing ----------
@@ -177,7 +194,8 @@
           ? '<div class="field blocked"><div><code>' + esc(f.name) + '</code><small>private</small></div><span class="lockbadge">🔒 LOCKED</span></div>'
           : '<div class="field"><div><code>' + esc(f.name) + '</code></div><label class="sw"><input type="checkbox" data-f="' + i + '"' + (f.allowed ? " checked" : "") + "><i></i></label></div>";
       }).join("") || '<p class="hint">No fields yet. Add the names of the values you want to share.</p>';
-      h += '<div class="field add"><input type="text" id="newField" placeholder="field name, e.g. level"><button class="btn" data-act="addField">Add</button></div>';
+      h += '<div class="field add"><input type="text" id="newField" placeholder="field name, e.g. level"><button class="btn" data-act="addField">Add</button></div>' +
+        '<button class="btn" data-act="discover" style="margin-top:8px">Discover fields from the service</button>';
       h += '<h2 class="h2" style="margin-top:22px">Viewer cap</h2><input class="range" id="capRange" type="range" min="5" max="200" value="' + m.viewer_cap + '">' +
         '<div style="color:var(--muted);font-size:12.5px" id="capLabel">' + m.viewer_cap + " viewers</div>";
       var allowed = (m.fields || []).filter(function (f) { return f.allowed; }).map(function (f) { return '  "' + esc(f.name) + '": …'; });
@@ -281,10 +299,21 @@
           fields.push({ name: v, allowed: false });
           return api("/api/modules/" + m.id + "/fields", "POST", { fields: fields }).then(function () { return refresh(true); }).catch(fail);
         }
+        case "tunnelStart": case "tunnelStop":
+          return api("/api/tunnel/" + (act === "tunnelStart" ? "start" : "stop"), "POST", {})
+            .then(function () { $("#tunErr").textContent = ""; return refresh(); })
+            .catch(function (e) { $("#tunErr").textContent = e.message; });
+        case "discover":
+          return api("/api/modules/" + sel + "/discover", "POST", {}).then(function () { toast("Fields found. Allow the ones you want to share."); return refresh(true); }).catch(fail);
+        case "quit":
+          if (!confirm("Quit ConnectHub? Live modules and the tunnel go offline.")) return;
+          return api("/api/quit", "POST", {}).then(function () {
+            document.body.innerHTML = '<p style="font:16px system-ui;color:#7f9d8b;padding:40px">ConnectHub has stopped. You can close this window.</p>';
+          }).catch(fail);
         case "publish": return startPublish(false);
         case "previewPublish": return startPublish(true);
         case "saveSettings":
-          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value })
+          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value, tunnel_name: $("#setTunnel").value, extra_origins: $("#setOrig").value, cloudflared_path: $("#setCf").value })
             .then(function () { $("#setErr").textContent = ""; toast("Settings saved"); return refresh(); })
             .catch(function (e) { $("#setErr").textContent = e.message; });
       }
