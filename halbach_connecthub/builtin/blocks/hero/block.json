@@ -1,0 +1,38 @@
+{
+  "kind": "block",
+  "id": "hero",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Hero",
+  "category": "text",
+  "description": "A big heading with an optional typed effect, a prompt line and a tagline.",
+  "fields": [
+    {
+      "key": "heading",
+      "label": "Heading",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "typed",
+      "label": "Typing effect",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "prompt",
+      "label": "Prompt line",
+      "type": "text",
+      "default": "> boot sequence complete"
+    },
+    {
+      "key": "tagline",
+      "label": "Tagline",
+      "type": "longtext"
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

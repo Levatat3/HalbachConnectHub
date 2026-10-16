@@ -1,0 +1,52 @@
+{
+  "id": "blank",
+  "name": "Blank",
+  "description": "One home page with a heading and a line of text.",
+  "model": {
+    "version": 1,
+    "brand": {
+      "name": "BLANK",
+      "mark": "H",
+      "tagline": "",
+      "handle": "",
+      "footer": ""
+    },
+    "theme": {
+      "id": "neutral-dark",
+      "vars": {}
+    },
+    "settings": {
+      "lang": "en",
+      "csp": "enforce"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "slug": "",
+        "label": "HOME",
+        "title": "HOME",
+        "description": "",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "hero",
+            "props": {
+              "heading": "Hello",
+              "typed": false
+            }
+          },
+          {
+            "id": "b2",
+            "type": "text",
+            "props": {
+              "markdown": "Write something here."
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

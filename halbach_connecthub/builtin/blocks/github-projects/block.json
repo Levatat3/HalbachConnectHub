@@ -1,0 +1,38 @@
+{
+  "kind": "block",
+  "id": "github-projects",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "GitHub projects",
+  "category": "modules",
+  "description": "Your public repositories, read live from GitHub.",
+  "fields": [
+    {
+      "key": "user",
+      "label": "GitHub user",
+      "type": "text",
+      "required": true,
+      "max": 39
+    },
+    {
+      "key": "hide",
+      "label": "Hide these repos",
+      "type": "list-text"
+    },
+    {
+      "key": "forks",
+      "label": "Show forks",
+      "type": "bool",
+      "default": false
+    }
+  ],
+  "csp": {
+    "connect-src": [
+      "https://api.github.com"
+    ]
+  },
+  "files": [
+    "render.js"
+  ]
+}

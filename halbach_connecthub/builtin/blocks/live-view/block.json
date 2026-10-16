@@ -1,0 +1,42 @@
+{
+  "kind": "block",
+  "id": "live-view",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Live data",
+  "category": "modules",
+  "description": "Live data from your PC with a chosen look (cards, or a plugin's view such as Pets).",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Live module",
+      "type": "module",
+      "required": true,
+      "modules": [
+        "live"
+      ]
+    },
+    {
+      "key": "view",
+      "label": "Look",
+      "type": "select",
+      "default": "auto",
+      "options": [
+        "auto",
+        "pets"
+      ]
+    },
+    {
+      "key": "poll",
+      "label": "Refresh (seconds)",
+      "type": "number",
+      "default": 3,
+      "min": 1,
+      "max": 60
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

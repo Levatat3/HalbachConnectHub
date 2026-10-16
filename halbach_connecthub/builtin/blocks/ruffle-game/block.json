@@ -1,0 +1,43 @@
+{
+  "kind": "block",
+  "id": "ruffle-game",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Flash game (Ruffle)",
+  "category": "media",
+  "description": "Plays a Flash file in the browser using the Ruffle emulator.",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Game file module",
+      "type": "module",
+      "help": "a static module holding the .swf",
+      "modules": [
+        "static"
+      ]
+    },
+    {
+      "key": "autoplay",
+      "label": "Autoplay",
+      "type": "select",
+      "default": "auto",
+      "options": [
+        "auto",
+        "on",
+        "off"
+      ]
+    }
+  ],
+  "csp": {
+    "script-src": [
+      "https://unpkg.com"
+    ],
+    "connect-src": [
+      "https://unpkg.com"
+    ]
+  },
+  "files": [
+    "render.js"
+  ]
+}

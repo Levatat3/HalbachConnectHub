@@ -1,0 +1,38 @@
+{
+  "kind": "block",
+  "id": "dropbox",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Drop box",
+  "category": "areas",
+  "description": "An upload box that sends files to an area's inbox for review (needs the area's passphrase).",
+  "fields": [
+    {
+      "key": "area",
+      "label": "Area",
+      "type": "area",
+      "required": true
+    },
+    {
+      "key": "title",
+      "label": "Title",
+      "type": "text",
+      "default": "Send me files"
+    },
+    {
+      "key": "text",
+      "label": "Instructions",
+      "type": "longtext"
+    }
+  ],
+  "csp": {
+    "connect-src": [
+      "LIVE_BASE"
+    ]
+  },
+  "files": [
+    "render.js"
+  ],
+  "phase": 3
+}

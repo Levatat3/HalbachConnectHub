@@ -1,0 +1,24 @@
+{
+  "kind": "block",
+  "id": "files",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "File downloads",
+  "category": "media",
+  "description": "A list of downloadable files from a module.",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Files module",
+      "type": "module",
+      "required": true,
+      "modules": [
+        "static"
+      ]
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

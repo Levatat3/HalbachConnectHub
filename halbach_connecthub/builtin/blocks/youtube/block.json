@@ -1,0 +1,37 @@
+{
+  "kind": "block",
+  "id": "youtube",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "YouTube",
+  "category": "media",
+  "description": "A video or a channel's uploads (privacy-friendly embed).",
+  "fields": [
+    {
+      "key": "mode",
+      "label": "What to show",
+      "type": "select",
+      "default": "video",
+      "options": [
+        "video",
+        "playlist"
+      ]
+    },
+    {
+      "key": "id",
+      "label": "Video or playlist id",
+      "type": "text",
+      "required": true,
+      "max": 60
+    }
+  ],
+  "csp": {
+    "frame-src": [
+      "https://www.youtube-nocookie.com"
+    ]
+  },
+  "files": [
+    "render.js"
+  ]
+}

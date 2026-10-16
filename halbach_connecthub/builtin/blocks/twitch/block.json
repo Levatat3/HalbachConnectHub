@@ -1,0 +1,33 @@
+{
+  "kind": "block",
+  "id": "twitch",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Twitch player",
+  "category": "media",
+  "description": "An embedded Twitch stream.",
+  "fields": [
+    {
+      "key": "channel",
+      "label": "Channel",
+      "type": "text",
+      "required": true,
+      "max": 40
+    },
+    {
+      "key": "muted",
+      "label": "Start muted",
+      "type": "bool",
+      "default": true
+    }
+  ],
+  "csp": {
+    "frame-src": [
+      "https://player.twitch.tv"
+    ]
+  },
+  "files": [
+    "render.js"
+  ]
+}

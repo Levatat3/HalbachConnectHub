@@ -1,0 +1,31 @@
+{
+  "kind": "block",
+  "id": "links",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Links",
+  "category": "layout",
+  "description": "A row or list of links.",
+  "fields": [
+    {
+      "key": "items",
+      "label": "Links",
+      "type": "links",
+      "required": true
+    },
+    {
+      "key": "style",
+      "label": "Style",
+      "type": "select",
+      "default": "buttons",
+      "options": [
+        "buttons",
+        "list"
+      ]
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

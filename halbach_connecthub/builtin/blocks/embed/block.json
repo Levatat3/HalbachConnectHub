@@ -1,0 +1,36 @@
+{
+  "kind": "block",
+  "id": "embed",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Embed a page",
+  "category": "media",
+  "description": "Shows one of your pages or an address inside a sandboxed frame.",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Page module",
+      "type": "module",
+      "modules": [
+        "static"
+      ]
+    },
+    {
+      "key": "url",
+      "label": "or address",
+      "type": "url"
+    },
+    {
+      "key": "height",
+      "label": "Height (px)",
+      "type": "number",
+      "default": 560,
+      "min": 200,
+      "max": 2000
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

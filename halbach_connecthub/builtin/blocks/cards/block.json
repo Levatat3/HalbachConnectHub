@@ -1,0 +1,22 @@
+{
+  "kind": "block",
+  "id": "cards",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Cards",
+  "category": "layout",
+  "description": "A grid of cards that link to pages or addresses.",
+  "fields": [
+    {
+      "key": "items",
+      "label": "Cards",
+      "type": "cards",
+      "required": true,
+      "help": "title, text, and a page or address for each card"
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

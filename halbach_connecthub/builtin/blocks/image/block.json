@@ -1,0 +1,33 @@
+{
+  "kind": "block",
+  "id": "image",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Image",
+  "category": "media",
+  "description": "One image.",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Image module",
+      "type": "module",
+      "modules": [
+        "static"
+      ]
+    },
+    {
+      "key": "url",
+      "label": "or address",
+      "type": "url"
+    },
+    {
+      "key": "alt",
+      "label": "Description",
+      "type": "text"
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

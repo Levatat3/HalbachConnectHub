@@ -1,0 +1,27 @@
+{
+  "kind": "block",
+  "id": "module-list",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Module list",
+  "category": "modules",
+  "description": "A grid of your modules (docs, pages, galleries, live data).",
+  "fields": [
+    {
+      "key": "ids",
+      "label": "Only these modules",
+      "type": "list-text",
+      "help": "leave empty for all listed modules"
+    },
+    {
+      "key": "hide_live",
+      "label": "Hide live modules",
+      "type": "bool",
+      "default": false
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

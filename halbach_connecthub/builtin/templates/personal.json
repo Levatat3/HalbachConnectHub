@@ -1,0 +1,98 @@
+{
+  "id": "personal",
+  "name": "Personal site",
+  "description": "Home, projects from GitHub, about and links.",
+  "model": {
+    "version": 1,
+    "brand": {
+      "name": "PERSONAL SITE",
+      "mark": "H",
+      "tagline": "",
+      "handle": "",
+      "footer": ""
+    },
+    "theme": {
+      "id": "neutral-dark",
+      "vars": {}
+    },
+    "settings": {
+      "lang": "en",
+      "csp": "enforce"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "slug": "",
+        "label": "HOME",
+        "title": "HOME",
+        "description": "",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "hero",
+            "props": {
+              "heading": "Hi, I make things",
+              "typed": true
+            }
+          },
+          {
+            "id": "b2",
+            "type": "cards",
+            "props": {
+              "items": []
+            }
+          }
+        ]
+      },
+      {
+        "id": "projects",
+        "slug": "projects",
+        "label": "PROJECTS",
+        "title": "PROJECTS",
+        "description": "",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "github-projects",
+            "props": {
+              "user": ""
+            }
+          }
+        ]
+      },
+      {
+        "id": "about",
+        "slug": "about",
+        "label": "ABOUT",
+        "title": "ABOUT",
+        "description": "",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "text",
+            "props": {
+              "markdown": "About me."
+            }
+          },
+          {
+            "id": "b2",
+            "type": "links",
+            "props": {
+              "items": [],
+              "style": "buttons"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

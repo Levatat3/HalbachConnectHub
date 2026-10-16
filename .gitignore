@@ -17,3 +17,6 @@ TIMELINE.md
 .wrangler/
 _dev.log
 *.log
+
+# personal planning notes for the owner (not part of the project)
+_notes/

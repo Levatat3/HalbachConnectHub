@@ -1,0 +1,26 @@
+{
+  "kind": "theme",
+  "id": "retro-terminal",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "theme.css"
+  ],
+  "name": "Retro terminal",
+  "description": "Dark CRT green and amber: the look of the original starter site.",
+  "vars": {
+    "--bg": "#050805",
+    "--green": "#39ff7a",
+    "--amber": "#ffb000",
+    "--text": "#b8f5c8",
+    "--muted": "#6b9a78",
+    "--line": "#1c3a22",
+    "--mono": "ui-monospace, Cascadia Mono, Consolas, monospace"
+  },
+  "effects": [
+    "crt-scanlines",
+    "glyph-rain",
+    "typed-hero"
+  ]
+}

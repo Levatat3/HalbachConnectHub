@@ -1,0 +1,20 @@
+{
+  "kind": "block",
+  "id": "divider",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Divider",
+  "category": "layout",
+  "description": "A horizontal rule with an optional label.",
+  "fields": [
+    {
+      "key": "label",
+      "label": "Label",
+      "type": "text"
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

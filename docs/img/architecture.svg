@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#334155"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#15803d"/></marker>
+    <marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#c2410c"/></marker>
+    <style>
+      .t{font-size:15px;fill:#0f172a} .s{font-size:12px;fill:#475569} .h{font-size:17px;font-weight:700;fill:#0f172a}
+      .b{fill:#f8fafc;stroke:#94a3b8;stroke-width:1.5;rx:10} .new{fill:#ecfdf5;stroke:#15803d;stroke-width:2;rx:10}
+      .have{fill:#eff6ff;stroke:#1d4ed8;stroke-width:1.5;rx:10} .pub{fill:#fff7ed;stroke:#c2410c;stroke-width:2;rx:10}
+      .zone{fill:none;stroke:#cbd5e1;stroke-width:2;stroke-dasharray:8 6;rx:16}
+      .l{stroke:#334155;stroke-width:2;fill:none} .lg{stroke:#15803d;stroke-width:2.5;fill:none} .lo{stroke:#c2410c;stroke-width:2.5;fill:none}
+    </style>
+  </defs>
+  <rect width="1200" height="760" fill="#ffffff"/>
+  <text x="30" y="36" class="h" font-size="22">Halbach modular site: how the pieces fit</text>
+  <text x="30" y="58" class="s">Blue = exists today. Green = new in this update. Orange = public side. Arrows show how data moves.</text>
+
+  <!-- owner's PC -->
+  <rect x="20" y="80" width="790" height="640" class="zone"/>
+  <text x="38" y="106" class="h">The owner's PC</text>
+
+  <rect x="40" y="122" width="230" height="86" class="have"/>
+  <text x="56" y="150" class="h">Window (control UI)</text>
+  <text x="56" y="172" class="s">forms generated from schemas</text>
+  <text x="56" y="190" class="s">Site · Plugins · Areas · Preview · Health</text>
+
+  <rect x="300" y="122" width="230" height="86" class="new"/>
+  <text x="316" y="150" class="h">Site model</text>
+  <text x="316" y="172" class="s">pages · blocks · theme · settings</text>
+  <text x="316" y="190" class="s">redirects · collections · history</text>
+
+  <rect x="560" y="122" width="230" height="86" class="new"/>
+  <text x="576" y="150" class="h">Registry</text>
+  <text x="576" y="172" class="s">built-in + user plugins</text>
+  <text x="576" y="190" class="s">trust pins · catalog · CSP needs</text>
+
+  <rect x="40" y="244" width="230" height="86" class="have"/>
+  <text x="56" y="272" class="h">Modules</text>
+  <text x="56" y="294" class="s">files, docs, galleries (static)</text>
+  <text x="56" y="312" class="s">bots, stats (live JSON)</text>
+
+  <rect x="300" y="244" width="230" height="86" class="new"/>
+  <text x="316" y="272" class="h">Areas</text>
+  <text x="316" y="294" class="s">lanes · passphrases · limits</text>
+  <text x="316" y="312" class="s">review · versions · trust levels</text>
+
+  <rect x="560" y="244" width="230" height="86" class="have"/>
+  <text x="576" y="272" class="h">Inbox</text>
+  <text x="576" y="294" class="s">submissions from chats and tools</text>
+  <text x="576" y="312" class="s">always switched off until reviewed</text>
+
+  <rect x="40" y="380" width="750" height="104" class="new"/>
+  <text x="56" y="408" class="h">Builder + quality gates</text>
+  <text x="56" y="430" class="s">real pages (/slug/index.html) · themed head, SEO, icons · CSP assembled from the blocks used</text>
+  <text x="56" y="448" class="s">sitemap · robots · 404 · feeds · hashed assets · limit checks (20,000 files, 25 MiB, 100 header rules)</text>
+  <text x="56" y="466" class="s">link, accessibility and contrast checks · prefix confinement for area content</text>
+
+  <rect x="40" y="520" width="230" height="86" class="have"/>
+  <text x="56" y="548" class="h">Publisher</text>
+  <text x="56" y="570" class="s">wrangler deploy · verify build id</text>
+  <text x="56" y="588" class="s">test publish to preview address</text>
+
+  <rect x="300" y="520" width="230" height="86" class="new"/>
+  <text x="316" y="548" class="h">Preview server</text>
+  <text x="316" y="570" class="s">loopback only · drafts included</text>
+  <text x="316" y="588" class="s">diff before publish</text>
+
+  <rect x="560" y="520" width="230" height="86" class="have"/>
+  <text x="576" y="548" class="h">Live hub + tunnel</text>
+  <text x="576" y="570" class="s">filtered JSON only</text>
+  <text x="576" y="588" class="s">new: the /drop door for areas</text>
+
+  <rect x="40" y="640" width="750" height="60" class="b"/>
+  <text x="56" y="666" class="h">Runtime pieces shipped with every site</text>
+  <text x="56" y="686" class="s">generic runtime (draws nav + blocks from inert JSON) · only the block scripts that page uses · theme CSS with colour overrides</text>
+
+  <!-- arrows inside PC -->
+  <path d="M270 165 H300" class="lg" marker-end="url(#g)"/>
+  <path d="M530 165 H560" class="lg" marker-end="url(#g)"/>
+  <path d="M155 208 V244" class="l" marker-end="url(#a)"/>
+  <path d="M415 208 V380" class="lg" marker-end="url(#g)"/>
+  <path d="M675 208 V380" class="lg" marker-end="url(#g)"/>
+  <path d="M155 330 V380" class="l" marker-end="url(#a)"/>
+  <path d="M415 330 V380" class="lg" marker-end="url(#g)"/>
+  <path d="M675 330 V380" class="l" marker-end="url(#a)"/>
+  <path d="M155 484 V520" class="l" marker-end="url(#a)"/>
+  <path d="M415 484 V520" class="lg" marker-end="url(#g)"/>
+
+  <!-- public side -->
+  <rect x="850" y="80" width="330" height="640" class="zone"/>
+  <text x="868" y="106" class="h">The public side</text>
+
+  <rect x="870" y="124" width="290" height="80" class="b"/>
+  <text x="886" y="152" class="h">Visitors</text>
+  <text x="886" y="174" class="s">read pages, see live data</text>
+  <text x="886" y="192" class="s">never reach the window or the PC</text>
+
+  <rect x="870" y="250" width="290" height="96" class="pub"/>
+  <text x="886" y="278" class="h">Cloudflare Pages</text>
+  <text x="886" y="300" class="s">static site: real pages, assets, modules</text>
+  <text x="886" y="318" class="s">no server code, no daily request cap</text>
+
+  <rect x="870" y="380" width="290" height="96" class="pub"/>
+  <text x="886" y="408" class="h">Cloudflare edge + tunnel</text>
+  <text x="886" y="430" class="s">only the live hub is reachable</text>
+  <text x="886" y="448" class="s">live data out, uploads in (/drop)</text>
+
+  <rect x="870" y="520" width="290" height="96" class="new"/>
+  <text x="886" y="548" class="h">Collaborator's Halbach</text>
+  <text x="886" y="570" class="s">area mode: edit own page, preview, Send</text>
+  <text x="886" y="588" class="s">holds only its own passphrase</text>
+
+  <rect x="870" y="640" width="290" height="60" class="b"/>
+  <text x="886" y="664" class="s">Cloudflare Access: for truly private pages</text>
+  <text x="886" y="684" class="s">(unlisted pages are hidden, not private)</text>
+
+  <!-- arrows to the public side -->
+  <path d="M155 606 V624 H832 V298 H870" class="lo" marker-end="url(#o)"/>
+  <text x="170" y="620" class="s">deploy (Publisher to Pages)</text>
+  <path d="M790 563 H818 V428 H870" class="lo" marker-end="url(#o)"/>
+  <text x="742" y="610" class="s" text-anchor="end"></text>
+  <path d="M1015 204 V250" class="lo" marker-end="url(#o)"/>
+  <path d="M1160 164 H1174 V428 H1160" class="lo" marker-end="url(#o)"/>
+  <path d="M1015 520 V476" class="lg" marker-end="url(#g)"/>
+  <text x="1025" y="506" class="s">uploads for review</text>
+</svg>

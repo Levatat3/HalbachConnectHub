@@ -1,0 +1,24 @@
+{
+  "kind": "block",
+  "id": "gallery",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Gallery",
+  "category": "media",
+  "description": "A grid of images from a gallery module.",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Gallery module",
+      "type": "module",
+      "required": true,
+      "modules": [
+        "static"
+      ]
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "kind": "theme",
+  "id": "neutral-dark",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "theme.css"
+  ],
+  "name": "Neutral dark",
+  "description": "A calm dark theme with no effects. The suggested starting point.",
+  "vars": {
+    "--bg": "#0f1115",
+    "--accent": "#7cc4ff",
+    "--text": "#e6e9ee",
+    "--muted": "#9aa4b2",
+    "--line": "#262b33"
+  },
+  "effects": []
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "block",
+  "id": "module-view",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Show a module",
+  "category": "modules",
+  "description": "Shows one module in place: a doc, page, gallery, image, file or live data.",
+  "fields": [
+    {
+      "key": "module",
+      "label": "Module",
+      "type": "module",
+      "required": true
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

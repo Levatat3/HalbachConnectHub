@@ -1,0 +1,20 @@
+{
+  "kind": "theme",
+  "id": "neutral-light",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "theme.css"
+  ],
+  "name": "Neutral light",
+  "description": "A clean light theme with no effects.",
+  "vars": {
+    "--bg": "#ffffff",
+    "--accent": "#1a56db",
+    "--text": "#1f2328",
+    "--muted": "#57606a",
+    "--line": "#d0d7de"
+  },
+  "effects": []
+}

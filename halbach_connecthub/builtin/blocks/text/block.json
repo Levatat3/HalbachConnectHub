@@ -1,0 +1,21 @@
+{
+  "kind": "block",
+  "id": "text",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "label": "Text",
+  "category": "text",
+  "description": "Markdown text. Raw HTML is shown as text, never rendered.",
+  "fields": [
+    {
+      "key": "markdown",
+      "label": "Text",
+      "type": "markdown",
+      "required": true
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}
