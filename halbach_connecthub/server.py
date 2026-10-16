@@ -6,6 +6,7 @@ address (so DNS-rebinding tricks fail). Stdlib only.
 """
 
 import json
+import re
 import mimetypes
 import secrets
 import subprocess
@@ -18,13 +19,14 @@ from urllib.parse import urlparse
 from . import __version__
 from .live import UpstreamError, fetch_upstream, start_live_hub
 from .net import LoopbackServer
-from .publisher import Publisher
+from .publisher import Publisher, classify
 from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
 
 UI_DIR = Path(__file__).parent / "ui"
 UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js"}
 MAX_BODY = 64 * 1024
+PREVIEW_CHARS = 4000
 
 
 class Hub:
@@ -38,6 +40,19 @@ class Hub:
         self.live_state = None
         self.tunnel = Tunnel(store, lambda: self.live_srv.server_address[1] if self.live_srv else 0)
 
+    def start_inbox_watcher(self, interval=3.0):
+        """Import new drop-off folders as switched-off modules, now and every few seconds."""
+        self._inbox_stop = threading.Event()
+
+        def run():
+            while not self._inbox_stop.is_set():
+                try:
+                    self.store.scan_inbox()
+                except Exception as e:  # never let a bad folder kill the watcher
+                    self.store.log("warn", "Inbox scan failed: %s" % e)
+                self._inbox_stop.wait(interval)
+        threading.Thread(target=run, daemon=True).start()
+
     def start_live(self, port=0):
         try:
             self.live_srv, self.live_state = start_live_hub(self.store, port)
@@ -46,6 +61,8 @@ class Hub:
         return self.live_srv.server_address[1]
 
     def close(self):
+        if getattr(self, "_inbox_stop", None):
+            self._inbox_stop.set()
         self.tunnel.stop()
         if self.live_srv:
             self.live_srv.shutdown()
@@ -139,6 +156,12 @@ def make_handler(hub):
                 return self._json({"rows": hub.store.activity()})
             if path == "/api/publish/plan":
                 return self._json(self._plan())
+            m = re.match(r"^/api/modules/([a-z0-9-]+)/preview$", path)
+            if m:
+                try:
+                    return self._json(self._preview(m.group(1)))
+                except ValidationError as e:
+                    return self._err(404, str(e))
             if path == "/api/publish/status":
                 return self._json(hub.publisher.status())
             if path == "/api/live":
@@ -168,6 +191,8 @@ def make_handler(hub):
                     return self._json(hub.tunnel.status())
                 if len(parts) == 5 and parts[2] == "modules":
                     mid, act = parts[3], parts[4]
+                    if act == "ack":
+                        return self._json(s.ack(mid))
                     if act == "discover":
                         return self._json(self._discover(mid))
                     if act == "toggle":
@@ -199,6 +224,26 @@ def make_handler(hub):
                 return self._err(400, str(e))
             except (TypeError, ValueError):
                 return self._err(400, "Bad request")
+
+        def _preview(self, mid):
+            """Files in a static module and a short text preview, so a submission can be reviewed."""
+            m = next((x for x in hub.store.state["modules"] if x["id"] == mid and x["kind"] == "static"), None)
+            if not m:
+                raise ValidationError("No such static module")
+            files, problems = collect_files(m["source"])
+            mtype, entry = classify(files) if files else ("file", "")
+            text = None
+            if entry and Path(entry).suffix.lower() in (".md", ".markdown", ".txt", ".html", ".htm", ".json", ".csv"):
+                target = next((f[0] for f in files if f[1] == entry), None)
+                if target:
+                    try:
+                        with open(target, "r", encoding="utf-8", errors="replace") as fh:
+                            text = fh.read(PREVIEW_CHARS)
+                    except OSError:
+                        text = None
+            return {"type": mtype, "entry": entry, "text": text,
+                    "files": [{"path": rel, "bytes": size} for _, rel, size in files[:200]],
+                    "more": max(0, len(files) - 200), "problems": problems}
 
         def _discover(self, mid):
             """Ask the module's own service what fields it has; new ones are added switched off."""
@@ -249,13 +294,15 @@ def pick_path(kind):
     return out.stdout.strip()
 
 
-def serve(home=None, port=0, token=None, publisher=None, live_port=None):
+def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False):
     """Start the server; returns (server, hub). Port 0 picks a free one."""
     store = Store(home)
     hub = Hub(store, token, publisher)
     srv = LoopbackServer(("127.0.0.1", port), make_handler(hub))
     if live_port is not None:
         hub.start_live(live_port)
+    if inbox:
+        hub.start_inbox_watcher()
     return srv, hub
 
 

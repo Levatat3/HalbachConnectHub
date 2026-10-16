@@ -21,7 +21,8 @@ Drop a folder in, switch it on, press **Publish**. Edits inside a folder you hav
 - **Static publishing:** builds the site plus switched-on modules, writes a `manifest.json`, deploys with `wrangler pages deploy`, then checks the live site shows the new build. **Test publish** uploads to a private preview address and leaves the live site alone.
 - **Live modules:** a second local server (the "live hub") is the only thing the tunnel points at. It serves a module only while it is on, passes only the fields you allowed, caps viewers, and caches so a crowd makes one request a second to your service. **Discover fields** reads them from the service for you.
 - **Tunnel:** start and stop a Cloudflare named tunnel from the window.
-- The site shows each module by type (page, game via Ruffle, gallery, image, file) and shows "offline" for live modules when your PC is off.
+- **Drop-off inbox:** other tools and chats can send a folder, file or Markdown text with `halbach submit`. It arrives as a switched-off module marked "from a chat", with a preview, and nothing goes public until you review it, switch it on and press Publish. See [Sending things from other tools and chats](#sending-things-from-other-tools-and-chats).
+- The site shows each module by type (page, Markdown doc, game via Ruffle, gallery, image, file) and shows "offline" for live modules when your PC is off.
 - Activity log, pending-change tracking, Quit button. It never starts with Windows.
 
 ## Run it
@@ -37,6 +38,29 @@ python -m halbach_connecthub
 Or install it with `pip install git+https://github.com/Levatat3/HalbachConnectHub.git` and run `halbach`. On Windows you can also double-click `Start Halbach ConnectHub.bat` (no console window). It opens in its own window (Edge or Chrome app mode if present, otherwise your browser). Use **Quit** in the sidebar to stop it.
 
 State is kept in `%LOCALAPPDATA%\HalbachConnectHub` (or `~/.halbach-connecthub`). Set `HALBACH_HOME` to move it. An older `%LOCALAPPDATA%\ConnectHub` folder is still used if it exists and the new one does not, and `CONNECTHUB_HOME` still works.
+
+## Sending things from other tools and chats
+
+Anything that can run a command can put something in front of you for review, without touching the hub's state or the internet:
+
+```
+halbach submit ./my-project-notes --name "My project" --desc "Status and results"
+halbach submit notes.md --name "Notes"            # a lone .md file becomes a page
+type notes.md | halbach submit --stdin --name "Notes"
+```
+
+(Without installing: `halbach-submit.bat` in this repo does the same on Windows, and `python -m halbach_connecthub submit` works anywhere.)
+
+What happens next:
+
+1. The files are copied into the hub's `inbox` folder (the never-publish list is applied on the way in; a leading byte-order mark is removed from Markdown).
+2. While the hub is open it notices the folder within a few seconds and lists it as a **switched-off module** marked **FROM A CHAT**, with a banner on the dashboard.
+3. Open it: you see the file list and the start of the text, and nothing is rendered as HTML.
+4. Switch it on (or **Mark as reviewed**), then press **Publish**. Removing a submission moves its folder aside instead of deleting it.
+
+A submission can only ever *wait*: it cannot publish, cannot switch itself on, and cannot reach outside the inbox. Limits: 100 MB per submission and 100 submissions waiting.
+
+A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](examples/claude-skill/halbach-publish/SKILL.md), teaches a chat to wrap a project up as a public-safe Markdown page and submit it. Copy it to `~/.claude/skills/` and say "wrap this up for Halbach".
 
 ## Set it up for your site
 
@@ -66,7 +90,7 @@ State is kept in `%LOCALAPPDATA%\HalbachConnectHub` (or `~/.halbach-connecthub`)
 }
 ```
 
-`type` is one of `page`, `game`, `gallery`, `image`, `file`. Live data is `GET <live_base>/status` (which modules are on) and `GET <live_base>/m/<id>` (filtered JSON).
+`type` is one of `page`, `doc`, `game`, `gallery`, `image`, `file`. Live data is `GET <live_base>/status` (which modules are on) and `GET <live_base>/m/<id>` (filtered JSON).
 
 ## Safety rules (enforced in code, covered by tests)
 

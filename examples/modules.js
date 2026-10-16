@@ -1,4 +1,4 @@
-// The MORE tab: everything listed in manifest.json (written by Halbach ConnectHub) shows up here.
+// The MORE tab: everything listed in manifest.json (written by ConnectHub) shows up here.
 // Static modules are files on this site; live modules are data from the owner's PC and
 // fall back to an "offline" message when that PC is off.
 (function () {
@@ -59,6 +59,96 @@
     p.appendChild(a); box.appendChild(p);
   }
 
+
+  // ---- Markdown -> DOM (safe: text goes in with textContent, never as HTML) ----
+  function safeUrl(u, base) {
+    u = (u || "").trim();
+    if (/^(https?:|mailto:)/i.test(u) || u.charAt(0) === "#") return u;
+    if (/^[a-z][a-z0-9+.\-]*:/i.test(u) || u.charAt(0) === "/" || u.indexOf("..") >= 0) return null;   // other schemes, root paths, traversal
+    return base + u.replace(/^\.\//, "");
+  }
+  var INLINE = /(`[^`\n]+`)|(!?\[[^\]\n]*\]\([^)\s]+(?:\s+"[^"]*")?\))|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)/g;
+  function inline(parent, text, base) {
+    var last = 0, m;
+    INLINE.lastIndex = 0;
+    while ((m = INLINE.exec(text))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var tok = m[0];
+      if (m[1]) parent.appendChild(el("code", null, tok.slice(1, -1)));
+      else if (m[2]) {
+        var img = tok.charAt(0) === "!", mm = /^!?\[([^\]]*)\]\(([^)\s]+)/.exec(tok), url = safeUrl(mm[2], base);
+        if (!url) parent.appendChild(document.createTextNode(mm[1]));
+        else if (img) {
+          if (/^https:/i.test(url) || url.indexOf(base) === 0) { var im = el("img"); im.src = url; im.alt = mm[1]; im.loading = "lazy"; parent.appendChild(im); }
+          else parent.appendChild(document.createTextNode(mm[1]));
+        } else {
+          var a = el("a", null, mm[1] || url); a.href = url;
+          if (/^https?:/i.test(url)) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+          parent.appendChild(a);
+        }
+      }
+      else {
+        var under = tok.charAt(0) === "_";                                // _x_ and __x__ only count at word edges
+        if (under && (/\w/.test(text.charAt(m.index - 1)) || /\w/.test(text.charAt(m.index + tok.length)))) parent.appendChild(document.createTextNode(tok));
+        else if (m[3] || m[4]) parent.appendChild(el("strong", null, tok.slice(2, -2)));
+        else parent.appendChild(el("em", null, tok.slice(1, -1)));
+      }
+      last = m.index + tok.length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+  function renderMarkdown(src, base) {
+    var root = el("div", "doc"), lines = src.replace(new RegExp("^" + String.fromCharCode(0xFEFF)), "").replace(/\r\n?/g, "\n").split("\n"), i = 0;
+    function startsBlock(l) { return /^(#{1,6}\s|```|>\s?|[-*+]\s|\d+[.)]\s|\s*(-{3,}|\*{3,})\s*$)/.test(l) || /^\|.*\|\s*$/.test(l); }
+    while (i < lines.length) {
+      var l = lines[i], m;
+      if (!l.trim()) { i++; continue; }
+      if ((m = /^```(.*)$/.exec(l))) {                                   // fenced code
+        var code = []; i++;
+        while (i < lines.length && !/^```\s*$/.test(lines[i])) code.push(lines[i++]);
+        i++; var pre = el("pre"); pre.appendChild(el("code", null, code.join("\n"))); root.appendChild(pre); continue;
+      }
+      if ((m = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l))) {                  // heading
+        var h = el("h" + Math.min(6, m[1].length + 1)); inline(h, m[2], base); root.appendChild(h); i++; continue;
+      }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(l)) { root.appendChild(el("hr")); i++; continue; }
+      if (/^>\s?/.test(l)) {                                              // blockquote
+        var q = []; while (i < lines.length && /^>\s?/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, ""));
+        var bq = el("blockquote"), p1 = el("p"); inline(p1, q.join(" "), base); bq.appendChild(p1); root.appendChild(bq); continue;
+      }
+      if (/^[-*+]\s+/.test(l) || /^\d+[.)]\s+/.test(l)) {                // list (one level)
+        var ordered = /^\d/.test(l), list = el(ordered ? "ol" : "ul");
+        while (i < lines.length && (ordered ? /^\d+[.)]\s+/ : /^[-*+]\s+/).test(lines[i])) {
+          var li = el("li"); inline(li, lines[i].replace(/^([-*+]|\d+[.)])\s+/, ""), base); list.appendChild(li); i++;
+        }
+        root.appendChild(list); continue;
+      }
+      if (/^\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {   // table
+        var cells = function (row) { return row.replace(/^\||\|\s*$/g, "").split("|").map(function (c) { return c.trim(); }); };
+        var tbl = el("table"), thead = el("thead"), tr = el("tr");
+        cells(l).forEach(function (c) { var th = el("th"); inline(th, c, base); tr.appendChild(th); });
+        thead.appendChild(tr); tbl.appendChild(thead); i += 2;
+        var tbody = el("tbody");
+        while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) {
+          var r = el("tr"); cells(lines[i]).forEach(function (c) { var td = el("td"); inline(td, c, base); r.appendChild(td); });
+          tbody.appendChild(r); i++;
+        }
+        tbl.appendChild(tbody); var wrap = el("div", "tablewrap"); wrap.appendChild(tbl); root.appendChild(wrap); continue;
+      }
+      var para = [l]; i++;                                                // paragraph
+      while (i < lines.length && lines[i].trim() && !startsBlock(lines[i])) para.push(lines[i++]);
+      var pp = el("p"); inline(pp, para.join(" "), base); root.appendChild(pp);
+    }
+    return root;
+  }
+  function viewDoc(box, m) {
+    var base = m.entry.replace(/[^\/]*$/, "");
+    note(box, "Loading...");
+    fetch(m.entry, { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.text(); })
+      .then(function (t) { box.innerHTML = ""; box.appendChild(renderMarkdown(t.slice(0, 500000), base)); })
+      .catch(function () { note(box, "Couldn't load this page."); });
+  }
+
   // ---- live modules ----
   function viewLive(box, m, man) {
     if (!man.live_base) return note(box, "Live data isn't connected yet.");
@@ -102,6 +192,7 @@
     else if (m.type === "game") viewSwf(box, m);
     else if (m.type === "image") viewImage(box, m);
     else if (m.type === "gallery") viewGallery(box, m);
+    else if (m.type === "doc") viewDoc(box, m);
     else viewFile(box, m);
     v.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -126,5 +217,5 @@
       .catch(function () { note(grid, "Nothing here yet. New things show up as they're added."); });
   }
 
-  window.ConnectModules = { init: init };
+  window.ConnectModules = { init: init, renderMarkdown: renderMarkdown };
 })();

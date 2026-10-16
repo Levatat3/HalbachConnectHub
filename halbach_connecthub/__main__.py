@@ -3,6 +3,7 @@
 import argparse
 import os
 import shutil
+import sys
 import subprocess
 import webbrowser
 
@@ -31,19 +32,24 @@ def _app_window(url):
 
 
 def main(argv=None):
+    args = sys.argv[1:] if argv is None else list(argv)
+    if args and args[0] == "submit":
+        from .submit import main as submit_main
+        return submit_main(args[1:])
     ap = argparse.ArgumentParser(prog="halbach", description="Halbach ConnectHub: choose what your site shows.")
     ap.add_argument("--port", type=int, default=8780, help="local port (default 8780; 0 = any free port)")
     ap.add_argument("--live-port", type=int, default=8782, help="port for the live hub (default 8782)")
     ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub)")
     ap.add_argument("--no-open", action="store_true", help="don't open a window")
+    ap.epilog = "To send something for review from a script or chat:  halbach submit <folder|file> --name NAME"
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
-    a = ap.parse_args(argv)
+    a = ap.parse_args(args)
 
     try:
-        srv, hub = serve(a.home, a.port, live_port=a.live_port)
+        srv, hub = serve(a.home, a.port, live_port=a.live_port, inbox=True)
     except OSError:
         print("Port %d is in use; picking a free one." % a.port)
-        srv, hub = serve(a.home, 0, live_port=a.live_port)
+        srv, hub = serve(a.home, 0, live_port=a.live_port, inbox=True)
     url = "http://127.0.0.1:%d/" % srv.server_address[1]
     hub.store.log("info", "Hub started")
     print("Halbach ConnectHub %s running at %s  (Ctrl+C to stop)" % (__version__, url))
@@ -61,4 +67,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

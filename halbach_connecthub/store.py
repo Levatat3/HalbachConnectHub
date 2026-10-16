@@ -22,10 +22,17 @@ MAX_FILES = 20000                  # Cloudflare Pages per-site limit
 MAX_NAME = 60
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
+# Drop-off folder for submissions from chats and tools (see Store.scan_inbox).
+INBOX_MAX_TOTAL_BYTES = 100 * 1024 * 1024   # per submission
+INBOX_MAX_MODULES = 100                     # imported submissions kept at once
+INBOX_SETTLE_SECONDS = 2.0                  # ignore a folder still being written
+META_MAX_BYTES = 8 * 1024
+_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
 # Never uploaded, whatever folder you point at.
 EXCLUDE_DIRS = {".git", "__pycache__", "node_modules", ".venv", "venv", ".idea", ".vscode"}
 EXCLUDE_NAME_RE = re.compile(
-    r"^(\.|thumbs\.db$|desktop\.ini$|timeline\.md$)"      # dotfiles, OS junk, working notes
+    r"^(\.|thumbs\.db$|desktop\.ini$|timeline\.md$|module\.json$)"   # dotfiles, OS junk, notes, drop-off metadata
     r"|\.(pem|key|pfx|p12|kdbx|log)$"                      # keys, vaults, logs
     r"|^(id_rsa|id_ed25519|ingest_key|\.dev\.vars)"        # ssh keys and known secret files
     r"|\.bak-|\.bak$|\.env",                               # backups, env files
@@ -227,8 +234,14 @@ class Store:
         if not name or len(name) > MAX_NAME:
             raise ValidationError("Give it a name (1 to %d characters)" % MAX_NAME)
         src = validate_static_source(source) if kind == "static" else normalize_live_source(source)
+        mod = self._append_module(kind, name, src, desc)
+        self.log("info", "Module '%s' added (off)" % name)
+        return mod
+
+    def _append_module(self, kind, name, src, desc="", **extra):
+        """Add an already-validated module. Always starts switched off."""
         with self.lock:
-            base, mid, n = slugify(name), None, 1
+            base, n = slugify(name), 1
             taken = {m["id"] for m in self.state["modules"]}
             mid = base
             while mid in taken:
@@ -241,17 +254,27 @@ class Store:
             else:
                 mod["fields"] = []
                 mod["viewer_cap"] = 40
+            mod.update(extra)
             self.state["modules"].append(mod)
             self._save()
-        self.log("info", "Module '%s' added (off)" % name)
         return mod
 
     def set_on(self, mid, on):
         with self.lock:
             m = self._find(mid)
             m["on"] = bool(on)
+            if on:
+                m["new"] = False        # switching a submission on counts as reviewing it
             self._save()
         self.log("info", "Module '%s' switched %s" % (m["name"], "on" if on else "off"))
+        return m
+
+    def ack(self, mid):
+        """Mark a submission as reviewed (clears the 'from a chat' flag)."""
+        with self.lock:
+            m = self._find(mid)
+            m["new"] = False
+            self._save()
         return m
 
     def remove(self, mid):
@@ -259,7 +282,118 @@ class Store:
             m = self._find(mid)
             self.state["modules"].remove(m)
             self._save()
+        if m.get("from_inbox"):
+            self._shelve_submission(m)
         self.log("info", "Module '%s' removed" % m["name"])
+
+    # ---- drop-off folder (inbox) -------------------------------------
+    @property
+    def inbox_dir(self):
+        return self.home / "inbox"
+
+    def _shelve_submission(self, m):
+        """A removed submission's folder moves aside, so the scanner does not import it again."""
+        try:
+            src = Path(m["source"])
+            if src.is_dir() and src.parent.resolve() == self.inbox_dir.resolve():
+                dest = self.inbox_dir / ".removed"
+                dest.mkdir(exist_ok=True)
+                os.replace(str(src), str(dest / ("%s-%d" % (src.name, int(time.time())))))
+        except OSError:
+            pass
+
+    @staticmethod
+    def _newest_mtime(folder):
+        newest, seen = os.stat(folder).st_mtime, 0
+        for root, _dirs, names in os.walk(folder):
+            for n in names:
+                seen += 1
+                if seen > MAX_FILES:
+                    return time.time()          # absurdly large: treat as still changing
+                try:
+                    newest = max(newest, os.stat(os.path.join(root, n)).st_mtime)
+                except OSError:
+                    pass
+        return newest
+
+    @staticmethod
+    def read_submission_meta(folder, fallback_name):
+        """name and description from module.json (optional); text only, control characters removed."""
+        name = desc = ""
+        mj = Path(folder) / "module.json"
+        try:
+            if mj.is_file() and mj.stat().st_size <= META_MAX_BYTES:
+                d = json.loads(mj.read_text(encoding="utf-8"))
+                if isinstance(d, dict):
+                    name = str(d.get("name") or "")
+                    desc = str(d.get("desc") or d.get("description") or "")
+        except (OSError, ValueError):
+            pass
+        name = _CTRL_RE.sub(" ", name).strip()[:MAX_NAME]
+        desc = _CTRL_RE.sub(" ", desc).strip()[:200]
+        if not name:
+            name = _CTRL_RE.sub(" ", fallback_name.replace("-", " ").replace("_", " ")).strip().title()[:MAX_NAME]
+        return name or "Submission", desc
+
+    def scan_inbox(self, now=None):
+        """Import new submission folders as switched-off modules. Returns the modules added.
+
+        A submission is a sub-folder of the inbox (an optional module.json gives its name and
+        description). It is never switched on and never published by this scan; the user
+        reviews it first. Folders still being written, empty folders, oversized folders and
+        anything that resolves outside the inbox are skipped.
+        """
+        inbox = self.inbox_dir
+        try:
+            inbox.mkdir(parents=True, exist_ok=True)
+            entries = sorted(inbox.iterdir())
+        except OSError:
+            return []
+        now = time.time() if now is None else now
+        root = inbox.resolve()
+        added = []
+        skipped = getattr(self, "_inbox_skipped", None)
+        if skipped is None:
+            skipped = self._inbox_skipped = set()
+        for entry in entries:
+            if entry.name.startswith(".") or not entry.is_dir():
+                continue
+            try:
+                real = entry.resolve(strict=True)
+            except (OSError, RuntimeError):
+                continue
+            if real.parent != root:
+                self._warn_once(skipped, str(real), "outside the inbox",
+                                "Submission '%s' skipped: it points outside the inbox" % entry.name)
+                continue
+            src = str(real)
+            with self.lock:
+                if any(m["source"] == src for m in self.state["modules"]):
+                    continue
+                count = sum(1 for m in self.state["modules"] if m.get("from_inbox"))
+            if count >= INBOX_MAX_MODULES:
+                self._warn_once(skipped, "cap", "cap", "Inbox full (%d submissions); review or remove some" % INBOX_MAX_MODULES)
+                break
+            if self._newest_mtime(real) > now - INBOX_SETTLE_SECONDS:
+                continue                                    # still being written; try again next scan
+            files, _problems = collect_files(real)
+            total = sum(f[2] for f in files)
+            if not files:
+                self._warn_once(skipped, src, "empty", "Submission '%s' skipped: nothing in it can be published" % entry.name)
+                continue
+            if total > INBOX_MAX_TOTAL_BYTES:
+                self._warn_once(skipped, src, "big", "Submission '%s' skipped: over %d MB" % (entry.name, INBOX_MAX_TOTAL_BYTES // 1048576))
+                continue
+            name, desc = self.read_submission_meta(real, entry.name)
+            mod = self._append_module("static", name, src, desc, from_inbox=True, new=True)
+            self.log("info", "New submission '%s' (%d files, %d KB) is waiting for review (off)" % (name, len(files), total // 1024))
+            added.append(mod)
+        return added
+
+    def _warn_once(self, seen, key, reason, message):
+        if (key, reason) not in seen:
+            seen.add((key, reason))
+            self.log("warn", message)
 
     def set_fields(self, mid, fields):
         """fields: list of {name, allowed}. Locked names are forced off, always."""

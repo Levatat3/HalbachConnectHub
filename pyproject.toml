@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "halbach-connecthub"
-version = "0.2.0"
+version = "0.3.0"
 description = "Halbach ConnectHub: choose what your personal site shows, from a window on your own PC."
 readme = "README.md"
 requires-python = ">=3.10"

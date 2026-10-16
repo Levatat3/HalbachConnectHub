@@ -40,9 +40,13 @@ def classify(files):
             return "page", rels[0]
         if ext in IMAGE_EXT:
             return "image", rels[0]
+        if ext in (".md", ".markdown"):
+            return "doc", rels[0]
         return "file", rels[0]
     if "index.html" in lows:
         return "page", rels[lows.index("index.html")]
+    if "index.md" in lows:
+        return "doc", rels[lows.index("index.md")]
     swfs = [r for r, l in zip(rels, lows) if l.endswith(".swf")]
     if len(swfs) == 1:
         return "game", swfs[0]

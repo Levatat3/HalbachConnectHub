@@ -10,6 +10,7 @@
   var ICON = { live: "i-eye", static: "i-file" };
   var LV = { port: null, stats: {}, tunnel: {} };
   var busy = null;           // {preview} while a publish runs
+  var seenNew = null;        // ids of unreviewed submissions already announced (null until the first load)
 
   function esc(t) {
     return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
@@ -65,7 +66,8 @@
     var tail = m.kind === "static" ? (m.file_count + " file" + (m.file_count === 1 ? "" : "s") + " · " + mb(m.bytes)) : m.source;
     return '<div class="mod ' + (m.on ? "" : "off") + " " + (sel === m.id ? "sel" : "") + '" data-id="' + esc(m.id) + '">' +
       '<div class="head"><div class="ico"><svg width="20" height="20"><use href="#' + ICON[m.kind] + '"/></svg></div>' +
-      '<div style="min-width:0"><h3>' + esc(m.name) + ' <span class="tag ' + m.kind + '">' + m.kind.toUpperCase() + "</span></h3>" +
+      '<div style="min-width:0"><h3>' + esc(m.name) + ' <span class="tag ' + m.kind + '">' + m.kind.toUpperCase() + "</span>" +
+      (m.from_inbox && m.new ? ' <span class="tag new">FROM A CHAT</span>' : "") + "</h3>" +
       "<p>" + esc(m.desc || (m.kind === "live" ? "Service on this PC." : "Files from this PC.")) + "</p></div>" +
       (toggle ? '<label class="sw"><input type="checkbox" data-t="' + esc(m.id) + '"' + (m.on ? " checked" : "") + "><i></i></label>" : "") +
       '</div><div class="meta"><span style="display:flex;align-items:center;gap:7px">' + status(m) + '</span><span class="sp"></span>' +
@@ -79,6 +81,9 @@
     $("#tLive").textContent = onc(live) + " / " + live.length;
     $("#tStatic").textContent = onc(stat) + " / " + stat.length;
     $("#tPend").textContent = S.pending.length;
+    var waiting = S.modules.filter(function (m) { return m.from_inbox && m.new; }).length;
+    $("#subBanner").hidden = !waiting;
+    $("#subBannerText").textContent = waiting + (waiting === 1 ? " submission" : " submissions") + " from chats waiting for review. They are switched off until you switch them on.";
     var vw = 0; Object.keys(LV.stats || {}).forEach(function (k) { vw += LV.stats[k].viewers; });
     $("#tViewers").textContent = vw;
     var tn = LV.tunnel || {};
@@ -135,7 +140,12 @@
 
   function refresh(keepDrawer) {
     return Promise.all([api("/api/state"), api("/api/live").catch(function () { return LV; })]).then(function (r) {
-      S = r[0]; LV = r[1]; render(); renderTunnel(); if (keepDrawer && sel) drawer(sel);
+      var before = seenNew;
+      S = r[0]; LV = r[1];
+      var fresh = S.modules.filter(function (m) { return m.from_inbox && m.new; });
+      seenNew = {}; fresh.forEach(function (m) { seenNew[m.id] = 1; });
+      if (before) fresh.filter(function (m) { return !before[m.id]; }).forEach(function (m) { toast("New submission from a chat: " + m.name); });
+      render(); renderTunnel(); if (keepDrawer && sel) drawer(sel);
     }).catch(fail);
   }
 
@@ -186,6 +196,11 @@
       h += '<h2 class="h2" style="margin-top:22px">What gets uploaded</h2><div class="code">' + m.file_count + " files · " + mb(m.bytes) + "</div>";
       (m.problems || []).forEach(function (p) { h += '<div class="prob">⚠ ' + esc(p) + "</div>"; });
       h += '<p class="hint" style="margin-top:12px">Dotfiles, keys, env files, logs, backups and working notes are never included.</p>';
+      if (m.from_inbox) {
+        h += '<h2 class="h2" style="margin-top:22px">Review before switching on</h2>' +
+          '<div id="reviewBox" class="hint">Loading preview…</div>' +
+          (m.new ? '<button class="btn" data-act="ack" style="margin-top:10px">Mark as reviewed</button>' : "");
+      }
     } else {
       h += '<h2 class="h2" style="margin-top:22px">What visitors can see</h2>' +
         '<div style="color:var(--muted);font-size:12.5px;margin-bottom:6px">Nothing is sent unless you allow it. Locked fields are never sent, whatever the service returns.</div>';
@@ -202,8 +217,27 @@
       h += '<h2 class="h2" style="margin-top:22px">Shape of what is sent</h2><div class="code">{\n' + (allowed.join(",\n") || "  (nothing)") + "\n}</div>";
     }
     $("#dBody").innerHTML = h;
+    if (m.kind === "static" && m.from_inbox) loadReview(m.id);
     $("#drawer").classList.add("open");
     $$(".mod").forEach(function (e) { e.classList.toggle("sel", e.dataset.id === id); });
+  }
+  function loadReview(id) {
+    api("/api/modules/" + id + "/preview").then(function (pv) {
+      var box = $("#reviewBox"); if (!box || sel !== id) return;
+      var text = pv.text == null ? "" : pv.text;
+      box.className = ""; box.innerHTML = "";
+      var info = document.createElement("div");
+      info.className = "hint"; info.textContent = "Shows on the site as a " + pv.type + ". " + pv.files.length + (pv.more ? "+" : "") + " file(s):";
+      box.appendChild(info);
+      var list = document.createElement("div"); list.className = "code"; list.style.maxHeight = "110px";
+      list.textContent = pv.files.map(function (f) { return f.path + "  (" + mb(f.bytes) + ")"; }).join("\n");
+      box.appendChild(list);
+      if (text) {
+        var cap = document.createElement("div"); cap.className = "hint"; cap.style.marginTop = "10px"; cap.textContent = "Start of " + pv.entry + ":";
+        var pre = document.createElement("div"); pre.className = "code"; pre.textContent = text;   // text only, never HTML
+        box.appendChild(cap); box.appendChild(pre);
+      }
+    }).catch(function () { var b = $("#reviewBox"); if (b) b.textContent = "Could not load a preview."; });
   }
   function closeDrawer() { sel = null; $("#drawer").classList.remove("open"); $$(".mod").forEach(function (e) { e.classList.remove("sel"); }); }
 
@@ -303,6 +337,8 @@
           return api("/api/tunnel/" + (act === "tunnelStart" ? "start" : "stop"), "POST", {})
             .then(function () { $("#tunErr").textContent = ""; return refresh(); })
             .catch(function (e) { $("#tunErr").textContent = e.message; });
+        case "ack":
+          return api("/api/modules/" + sel + "/ack", "POST", {}).then(function () { toast("Marked as reviewed"); return refresh(true); }).catch(fail);
         case "discover":
           return api("/api/modules/" + sel + "/discover", "POST", {}).then(function () { toast("Fields found. Allow the ones you want to share."); return refresh(true); }).catch(fail);
         case "quit":

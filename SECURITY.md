@@ -13,6 +13,7 @@ Please report privately, not in a public issue: use GitHub's "Report a vulnerabi
 - A way for a web page you have open to drive the control panel (token, `Host` or `Origin` bypass).
 - A way to make the hub publish a file from the never-publish list, or from outside the folder you chose.
 - A way to make a live module call something other than a service on `127.0.0.1`.
+- A way for a drop-off submission to publish itself, switch itself on, escape the inbox folder, or run script on the site (for example through the Markdown renderer).
 
 ## What is out of scope
 

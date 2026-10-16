@@ -63,6 +63,19 @@ The live hub is a separate server from the control panel and is the only thing t
 
 The tunnel manager only starts and stops an already-configured `cloudflared` named tunnel (`tunnel run --url http://127.0.0.1:<hub port> <name>`). It never downloads cloudflared and never handles a login.
 
+## Drop-off inbox
+
+```
+chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► scanner (every 3 s) ──► switched-off module "from a chat"
+                                                                                          │ you review, switch on, Publish
+```
+
+- `submit.py` is the only door other programs use. It copies into a hidden temporary folder (dot-folders are ignored by the scanner) and renames it into place, so a submission appears all at once and is never half written. It applies the never-publish list while copying, strips a leading byte-order mark from Markdown, refuses a drive root or the user folder, and caps a submission at 100 MB.
+- `Store.scan_inbox()` imports a sub-folder only if it resolves to a direct child of the inbox (so a symlink or junction pointing elsewhere is refused), has been quiet for two seconds, contains something publishable, is under the size cap and the count cap (100). `module.json` (name and description, optional, 8 KB at most, control characters removed) is read for display and never published.
+- An imported submission is **always off**, flagged `from_inbox` and `new`. Switching it on or pressing "Mark as reviewed" clears `new`. Nothing in this path can publish, switch a module on, or change a setting.
+- Removing a submission moves its folder to `inbox/.removed/` so the scanner cannot import it again; ordinary modules are never touched on remove.
+- A single `.md` file, or a folder with `index.md` and no `index.html`, is classified as a `doc`. The site renders it with a small Markdown renderer that builds DOM nodes from text (never `innerHTML`), allows only `http(s)`, `mailto`, `#` and same-module relative links, and only `https` or same-module images.
+
 ## Threat model
 
 | Threat | Mitigation |
@@ -76,6 +89,9 @@ The tunnel manager only starts and stops an already-configured `cloudflared` nam
 | Credential theft | The hub never sees credentials; `wrangler` and `cloudflared` hold their own logins |
 | Reaching the control panel through the tunnel | The tunnel points at the live hub only; the panel is a different server on a different port |
 | A service redirecting the hub elsewhere | Redirects are never followed |
+| A chat or tool submitting something harmful or private | Submissions are inert until you review, switch on and publish; never-publish list on the way in; text previews are shown as text; Markdown is rendered without HTML |
+| A submission escaping the inbox (symlink, junction, `..`) | Must resolve to a direct child of the inbox; otherwise skipped with a warning |
+| Flooding the inbox | 100 submissions, 100 MB each |
 | A crowd hammering your PC | Per-module viewer cap, one-second response cache |
 | Hotlinking live data from other sites | CORS only for your own origins (a convenience, not a security boundary: the data is public by design) |
 
