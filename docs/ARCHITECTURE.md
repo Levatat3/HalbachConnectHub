@@ -36,12 +36,13 @@ Editing a file inside a watched folder therefore makes the change appear by itse
 ## Static publish
 
 1. Copy the site folder to a staging directory under the hub's data folder, skipping the never-publish list and the site's own `README.md`.
-2. Copy each switched-on static module into `modules/<id>/`, and classify it: a lone `.swf` is a game, a folder with `index.html` is a page, mostly images is a gallery, one image is an image, anything else is a file.
-3. Write `manifest.json` with a random `build` id.
-4. Run `wrangler pages deploy <stage> --project-name <project>` from the data folder (so wrangler's cache never lands in a project).
-5. On success, record fingerprints (`mark_published`), then poll `https://<domain>/manifest.json` until its `build` matches, so "published" means "visible".
+2. Give every script and stylesheet the site's pages load a content hash in its file name (`modules.3fa9c1d2e0.js`) and rewrite the page to match. Hosts and browsers keep `.js` and `.css` for hours (Cloudflare's Browser Cache TTL even overrides the site's own headers), so a changed file at the same address can be served stale to anyone who visited recently; a changed file with a new name cannot. Only the site's own pages are rewritten, never module pages.
+3. Copy each switched-on static module into `modules/<id>/`, and classify it: a lone `.swf` is a game, a folder with `index.html` is a page, mostly images is a gallery, one image is an image, anything else is a file.
+4. Write `manifest.json` with a random `build` id.
+5. Run `wrangler pages deploy <stage> --project-name <project>` from the data folder (so wrangler's cache never lands in a project).
+6. On success, record fingerprints (`mark_published`), then poll `https://<domain>/manifest.json` until its `build` matches, so "published" means "visible".
 
-A test publish does steps 1 to 4 on a `preview` branch: private address, live site untouched, nothing marked published.
+A test publish does steps 1 to 5 on a `preview` branch: private address, live site untouched, nothing marked published.
 
 The site folder is fingerprinted like a module, so editing it shows up as a pending "Site files" change.
 

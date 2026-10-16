@@ -103,7 +103,7 @@
     $("#pubBtn").disabled = !!busy; $("#pubPrev").disabled = !!busy;
     $("#pubBtn").textContent = busy && !busy.preview ? "Publishing…" : "Publish";
     var nb = $("#navBadge"); nb.style.display = n ? "" : "none"; nb.textContent = n;
-    $("#pubBtn2").disabled = !n || !!busy;
+    $("#pubBtn2").disabled = !!busy;                       // always available: republishing rebuilds the site even when nothing changed
     $("#pubSummary").innerHTML = n ? p.map(function (x) {
       return { add: "+", update: "~", remove: "−" }[x.change] + " " + esc(x.name) + " (" + x.change + ")";
     }).join("<br>") : "Nothing waiting.";

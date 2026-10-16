@@ -4,6 +4,7 @@ The deploy step shells out to `wrangler pages deploy` using the user's own login
 never sees a credential. Stdlib only.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -56,6 +57,67 @@ def classify(files):
     return "file", rels[0]
 
 
+ASSET_REF = re.compile(
+    r"""(<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*)(["'])([^"'#?]+?\.(?:js|css))(?:\?[^"']*)?(\2)""",
+    re.IGNORECASE,
+)
+
+
+def hash_assets(stage):
+    """Put a content hash in the file name of every script and stylesheet an HTML page loads.
+
+    Hosts and browsers keep .js and .css files for hours (Cloudflare's Browser Cache TTL even overrides
+    the site's own headers), so a changed script at the same address can be served stale to anyone who
+    visited recently. A changed file gets a new name, so nothing can be stale. Only pages in the
+    site itself are rewritten; the originals are removed unless some other file still mentions them.
+    Returns {original relative path: hashed relative path}.
+    """
+    stage = Path(stage).resolve()
+    renamed = {}
+    pages = [p for p in stage.rglob("*") if p.is_file() and p.suffix.lower() in (".html", ".htm")]
+    for page in pages:
+        text = page.read_text(encoding="utf-8", errors="replace")
+
+        def repl(m):
+            ref = m.group(3)
+            if re.match(r"^(https?:)?//", ref, re.IGNORECASE):
+                return m.group(0)                                  # someone else's file
+            target = stage / ref.lstrip("/") if ref.startswith("/") else page.parent / ref
+            try:
+                target = target.resolve()
+                target.relative_to(stage)
+            except (OSError, ValueError):
+                return m.group(0)                                  # outside the site: leave alone
+            if not target.is_file():
+                return m.group(0)
+            if target not in renamed:
+                digest = hashlib.sha1(target.read_bytes()).hexdigest()[:10]
+                renamed[target] = target.with_name("%s.%s%s" % (target.stem, digest, target.suffix))
+                shutil.copy2(target, renamed[target])
+            return m.group(1) + m.group(2) + ref[:len(ref) - len(target.name)] + renamed[target].name + m.group(4)
+
+        new_text = ASSET_REF.sub(repl, text)
+        if new_text != text:
+            page.write_text(new_text, encoding="utf-8", newline="\n")
+
+    others = [p for p in stage.rglob("*") if p.is_file() and p.suffix.lower() in (".js", ".css", ".html", ".htm", ".json")]
+    for orig, hashed in renamed.items():
+        still_named = False
+        for p in others:
+            if p in (orig, hashed) or p in renamed.values() or not p.exists():
+                continue
+            try:
+                if orig.name in p.read_text(encoding="utf-8", errors="replace"):
+                    still_named = True
+                    break
+            except OSError:
+                pass
+        if not still_named:
+            orig.unlink()
+    return {str(o.relative_to(stage)).replace(os.sep, "/"): str(h.relative_to(stage)).replace(os.sep, "/")
+            for o, h in renamed.items()}
+
+
 def build_stage(store, stage_dir):
     """Create stage_dir from the site folder and enabled static modules. Returns the manifest."""
     st = store.state
@@ -77,6 +139,7 @@ def build_stage(store, stage_dir):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
         total += 1
+    hash_assets(stage)
 
     manifest_mods = []
     for m in st["modules"]:
