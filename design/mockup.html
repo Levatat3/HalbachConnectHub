@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ConnectHub — design mockup</title>
+<style>
+:root{
+  --bg:#070a08; --bg2:#0c110e; --card:#0f1612; --card2:#121b16; --line:#1d2a22; --line2:#2a3d31;
+  --text:#d5efdf; --muted:#7f9d8b; --dim:#4f6657;
+  --green:#39ff7a; --green2:#1f9c4b; --amber:#ffb000; --red:#ff5d5d; --blue:#5cc8ff;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace; --sans:"Segoe UI",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;overflow:hidden}
+.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:56px 1fr 0;height:100vh}
+.app.has-bar{grid-template-rows:56px 1fr 64px}
+
+/* sidebar */
+.side{grid-row:1/4;background:var(--bg2);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 12px}
+.logo{display:flex;align-items:center;gap:10px;padding:4px 8px 18px}
+.logo .mark{width:34px;height:34px;border:2px solid var(--green);border-radius:7px;display:grid;place-items:center;color:var(--green);font:700 14px var(--mono);box-shadow:0 0 14px rgba(57,255,122,.3) inset,0 0 10px rgba(57,255,122,.2)}
+.logo b{letter-spacing:.12em;font-size:13px}
+.logo small{display:block;color:var(--muted);font-size:11px;letter-spacing:.04em}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;color:var(--muted);font-size:13.5px}
+.nav button:hover{background:#101a14;color:var(--text)}
+.nav button.on{background:#112019;color:var(--green);box-shadow:inset 2px 0 0 var(--green)}
+.nav .badge{margin-left:auto;background:#2b2000;color:var(--amber);border:1px solid #5a4100;border-radius:10px;font:600 10.5px var(--mono);padding:1px 7px}
+.nav svg{width:17px;height:17px;flex:none}
+.side-foot{margin-top:auto;border-top:1px solid var(--line);padding:14px 8px 4px;color:var(--muted);font-size:12px;line-height:1.6}
+.side-foot a{color:var(--green);text-decoration:none}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:10px;padding:0 24px;border-bottom:1px solid var(--line);background:var(--bg)}
+.top h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.02em}
+.top .sp{flex:1}
+.pill{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--card);border-radius:20px;padding:5px 12px;font-size:12px;color:var(--muted)}
+.pill b{color:var(--text);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none}
+.dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}
+.dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.dot.bad{background:var(--red);box-shadow:0 0 8px var(--red)}
+.dot.pulse{animation:pulse 1.8s infinite}
+@keyframes pulse{50%{opacity:.35}}
+
+/* main */
+.main{overflow-y:auto;overflow-x:hidden;padding:24px;position:relative}
+.view{display:none;max-width:1180px;margin:0 auto}
+.view.on{display:block;animation:in .2s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.row{display:flex;gap:12px;align-items:center}
+.h2{font-size:12px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin:0 0 12px;font-weight:600}
+.btn{all:unset;cursor:pointer;border:1px solid var(--line2);background:var(--card2);color:var(--text);border-radius:8px;padding:8px 14px;font-size:13px;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--green2);color:var(--green)}
+.btn.primary{background:var(--green);color:#03120a;border-color:var(--green);font-weight:700}
+.btn.primary:hover{box-shadow:0 0 18px rgba(57,255,122,.45);color:#03120a}
+.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.4;pointer-events:none}
+
+/* stat tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.tile .k{color:var(--muted);font-size:12px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.tile .v{font:600 26px var(--mono);letter-spacing:-.02em}
+.tile .s{color:var(--dim);font-size:12px;margin-top:4px}
+.spark{height:30px;margin-top:8px;display:block;width:100%}
+
+/* module cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.mod{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;transition:.15s;position:relative}
+.mod:hover{border-color:var(--line2);transform:translateY(-1px)}
+.mod.sel{border-color:var(--green2);box-shadow:0 0 0 1px var(--green2)}
+.mod.off{opacity:.62}
+.mod .head{display:flex;align-items:flex-start;gap:12px}
+.ico{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;background:#0b1510;border:1px solid var(--line2);flex:none;color:var(--green)}
+.ico svg{width:20px;height:20px}
+.mod h3{margin:0;font-size:14.5px;font-weight:600}
+.mod p{margin:3px 0 0;color:var(--muted);font-size:12.5px;line-height:1.45}
+.tag{font:600 10px var(--mono);letter-spacing:.08em;padding:2px 7px;border-radius:5px;border:1px solid}
+.tag.live{color:var(--blue);border-color:#1d4d66;background:#08202c}
+.tag.static{color:var(--amber);border-color:#5a4100;background:#241a00}
+.mod .meta{display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.mod .meta .sp{flex:1}
+.chg{color:var(--amber);font:600 11px var(--mono)}
+
+/* toggle */
+.sw{position:relative;width:40px;height:22px;flex:none;margin-left:auto}
+.sw input{opacity:0;position:absolute;inset:0;cursor:pointer;z-index:2;margin:0}
+.sw i{position:absolute;inset:0;border-radius:20px;background:#17211b;border:1px solid var(--line2);transition:.15s}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--dim);transition:.15s}
+.sw input:checked~i{background:#0f3a20;border-color:var(--green2)}
+.sw input:checked~i::after{left:20px;background:var(--green);box-shadow:0 0 8px var(--green)}
+.sw.lock input{pointer-events:none}
+.sw.lock i{opacity:.45}
+
+/* detail drawer */
+.drawer{position:absolute;top:0;right:0;bottom:0;width:430px;background:var(--bg2);border-left:1px solid var(--line);transform:translateX(100%);transition:.25s;z-index:20;display:flex;flex-direction:column}
+.drawer.open{transform:none;box-shadow:-20px 0 40px rgba(0,0,0,.45)}
+.drawer .dh{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center}
+.drawer .db{padding:20px;overflow:auto;flex:1}
+.drawer .df{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:10px}
+.x{all:unset;cursor:pointer;margin-left:auto;color:var(--muted);font-size:20px;line-height:1;padding:4px 8px}
+.x:hover{color:var(--text)}
+.field{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.field code{font:12.5px var(--mono);color:var(--text)}
+.field small{color:var(--dim);display:block;font-size:11.5px;margin-top:1px}
+.field.blocked code{color:var(--red);text-decoration:line-through;text-decoration-color:#5a2020}
+.lockbadge{margin-left:auto;font:600 10px var(--mono);color:var(--red);border:1px solid #5a2020;border-radius:5px;padding:2px 7px;letter-spacing:.06em}
+.range{width:100%;accent-color:var(--green)}
+.code{background:#050806;border:1px solid var(--line);border-radius:9px;padding:12px;font:12px/1.6 var(--mono);color:#9fd9b4;white-space:pre-wrap;max-height:210px;overflow:auto}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:13px;margin-bottom:6px}
+.kv span:nth-child(odd){color:var(--muted)}
+
+/* publish bar */
+.bar{grid-column:2;display:none;align-items:center;gap:14px;padding:0 24px;background:linear-gradient(90deg,#1c1500,#0f1612 60%);border-top:1px solid #5a4100}
+.app.has-bar .bar{display:flex}
+.bar b{color:var(--amber)}
+.bar .sp{flex:1}
+.prog{height:4px;background:#241a00;border-radius:3px;overflow:hidden;width:160px;display:none}
+.prog i{display:block;height:100%;width:0;background:var(--amber)}
+
+/* logs */
+.log{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.log .l{display:grid;grid-template-columns:92px 90px 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);font:12.5px var(--mono);color:var(--muted)}
+.log .l:last-child{border:0}
+.log .l b{font-weight:600}
+.log .ok{color:var(--green)} .log .info{color:var(--blue)} .log .warn{color:var(--amber)}
+
+/* settings */
+.set{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 18px;max-width:720px}
+.set .r{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.set .r:last-child{border:0}
+.set .r div small{display:block;color:var(--dim);margin-top:2px;font-size:12px}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:50;backdrop-filter:blur(2px)}
+.scrim.open{display:grid}
+.modal{width:620px;max-width:94vw;background:var(--bg2);border:1px solid var(--line2);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6);animation:in .2s}
+.modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center}
+.modal .mb{padding:20px 22px}
+.modal .mf{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.choice{border:1px solid var(--line2);background:var(--card);border-radius:12px;padding:16px;cursor:pointer}
+.choice:hover,.choice.sel{border-color:var(--green2);background:#0f1a14}
+.choice h4{margin:10px 0 4px;font-size:14px}
+.choice p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.45}
+input[type=text]{all:unset;box-sizing:border-box;width:100%;background:#050806;border:1px solid var(--line2);border-radius:8px;padding:10px 12px;font:13px var(--mono);color:var(--text)}
+input[type=text]:focus{border-color:var(--green2)}
+label.lb{display:block;color:var(--muted);font-size:12px;margin:14px 0 6px}
+.toast{position:fixed;bottom:84px;right:24px;background:#0f2a1a;border:1px solid var(--green2);color:var(--green);padding:11px 16px;border-radius:10px;font-size:13px;opacity:0;transform:translateY(8px);transition:.25s;z-index:60;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+.note{color:var(--dim);font-size:12px;margin-top:10px}
+@media (max-width:900px){.tiles{grid-template-columns:1fr 1fr}.app{grid-template-columns:64px 1fr}.nav span,.logo div,.side-foot,.nav .badge{display:none}.drawer{width:100%}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+    <symbol id="i-game" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4M8 10v4M15 11h.01M18 13h.01"/></symbol>
+    <symbol id="i-img" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  </defs>
+</svg>
+
+<div class="app" id="app">
+  <aside class="side">
+    <div class="logo"><div class="mark">Lv</div><div><b>CONNECTHUB</b><small>levmorium.com</small></div></div>
+    <nav class="nav" id="nav">
+      <button class="on" data-v="dash"><svg><use href="#i-home"/></svg><span>Dashboard</span></button>
+      <button data-v="mods"><svg><use href="#i-box"/></svg><span>Modules</span><em class="badge" id="navBadge" style="display:none;font-style:normal">0</em></button>
+      <button data-v="pub"><svg><use href="#i-up"/></svg><span>Publish</span></button>
+      <button data-v="logs"><svg><use href="#i-list"/></svg><span>Activity</span></button>
+      <button data-v="set"><svg><use href="#i-gear"/></svg><span>Settings</span></button>
+    </nav>
+    <div class="side-foot">
+      Nothing is public until you switch it on.<br>
+      <a href="#" onclick="return false">Open levmorium.com ↗</a>
+    </div>
+  </aside>
+
+  <header class="top">
+    <h1 id="title">Dashboard</h1>
+    <span class="sp"></span>
+    <span class="pill"><i class="dot ok pulse"></i>Tunnel <b>connected</b></span>
+    <span class="pill"><i class="dot ok"></i>Site <b>levmorium.com</b></span>
+    <span class="pill"><i class="dot"></i>Last deploy <b>3 min ago</b></span>
+  </header>
+
+  <main class="main" id="main">
+
+    <!-- DASHBOARD -->
+    <section class="view on" id="v-dash">
+      <div class="tiles">
+        <div class="tile"><div class="k"><i class="dot ok"></i>Live modules</div><div class="v" id="tLive">2 / 3</div><div class="s">serving from this PC</div></div>
+        <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-eye"/></svg>Viewers now</div><div class="v" id="tView">14</div><div class="s">cap 40 per module</div>
+          <svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline id="spark" fill="none" stroke="#39ff7a" stroke-width="1.6" points="0,22 10,20 20,23 30,16 40,18 50,12 60,14 70,9 80,13 90,8 100,11 110,6 120,9"/></svg></div>
+        <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-up"/></svg>Upload now</div><div class="v">1.2 <span style="font-size:14px;color:var(--muted)">Mbps</span></div><div class="s">of your home upload</div></div>
+        <div class="tile"><div class="k"><svg width="14" height="14"><use href="#i-pulse"/></svg>Workers quota</div><div class="v" style="color:var(--green)">0 / 100k</div><div class="s">none used — hub bypasses it</div></div>
+      </div>
+
+      <div class="row" style="margin-bottom:12px"><h2 class="h2" style="margin:0">On the site right now</h2><span style="flex:1"></span><button class="btn" onclick="go('mods')">Manage modules →</button></div>
+      <div class="grid" id="dashGrid"></div>
+      <p class="note">Static modules are hosted by Cloudflare Pages and stay up when this PC is off. Live modules show “offline” on the site when it's off.</p>
+    </section>
+
+    <!-- MODULES -->
+    <section class="view" id="v-mods">
+      <div class="row" style="margin-bottom:16px">
+        <div><h2 class="h2" style="margin:0 0 4px">Modules</h2><div style="color:var(--muted);font-size:13px">Pick what visitors can see. Everything starts switched off.</div></div>
+        <span style="flex:1"></span>
+        <button class="btn primary" onclick="openAdd()">＋ Add module</button>
+      </div>
+      <div class="grid" id="modGrid"></div>
+    </section>
+
+    <!-- PUBLISH -->
+    <section class="view" id="v-pub">
+      <h2 class="h2">Publish</h2>
+      <div class="set" style="max-width:820px">
+        <div class="r"><div><b>Pending static changes</b><small id="pubSummary">Nothing waiting.</small></div><span style="flex:1"></span><button class="btn primary" id="pubBtn2" onclick="publish()" disabled>Publish now</button></div>
+        <div class="r"><div><b>Target</b><small>Cloudflare Pages project <code>levmorium</code> → levmorium.com, www.levmorium.com</small></div></div>
+        <div class="r"><div><b>What gets uploaded</b><small>Only files from enabled static modules plus the site shell. README and notes are never included.</small></div></div>
+      </div>
+      <h2 class="h2" style="margin-top:26px">Files in the next deploy</h2>
+      <div class="code" id="pubFiles">index.html · css/style.css · js/app.js · js/site-config.js · manifest.json</div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section class="view" id="v-logs">
+      <h2 class="h2">Activity</h2>
+      <div class="log" id="logBox"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="v-set">
+      <h2 class="h2">Settings</h2>
+      <div class="set">
+        <div class="r"><div><b>Tunnel hostname</b><small>Where live modules appear</small></div><span style="flex:1"></span><code style="color:var(--green)">live.levmorium.com</code></div>
+        <div class="r"><div><b>Default viewer cap</b><small>Per live module</small></div><span style="flex:1"></span><code>40</code></div>
+        <div class="r"><div><b>Start with Windows</b><small>Off by default. The hub only runs when you open it.</small></div><span style="flex:1"></span><label class="sw lock"><input type="checkbox"><i></i></label></div>
+        <div class="r"><div><b>Confirm before publishing</b><small>Show the file list first</small></div><span style="flex:1"></span><label class="sw"><input type="checkbox" checked><i></i></label></div>
+        <div class="r"><div><b>Cloudflare login</b><small>Handled by wrangler. The hub never sees a password.</small></div><span style="flex:1"></span><span class="pill"><i class="dot ok"></i>signed in</span></div>
+      </div>
+    </section>
+
+    <!-- DRAWER -->
+    <aside class="drawer" id="drawer">
+      <div class="dh"><div class="ico" id="dIco"></div><div><div id="dName" style="font-weight:600;font-size:15px"></div><div id="dKind" style="margin-top:3px"></div></div><button class="x" onclick="closeDrawer()">×</button></div>
+      <div class="db" id="dBody"></div>
+      <div class="df"><button class="btn ghost" onclick="closeDrawer()">Close</button><span style="flex:1"></span><button class="btn" id="dRemove">Remove module</button></div>
+    </aside>
+  </main>
+
+  <footer class="bar" id="bar">
+    <i class="dot warn pulse"></i>
+    <div><b id="barN">2 changes</b> <span style="color:var(--muted)">waiting to go on the site</span></div>
+    <span class="sp"></span>
+    <div class="prog" id="prog"><i></i></div>
+    <button class="btn ghost" onclick="discard()">Discard</button>
+    <button class="btn primary" id="pubBtn" onclick="publish()">Publish to levmorium.com</button>
+  </footer>
+</div>
+
+<!-- ADD MODULE MODAL -->
+<div class="scrim" id="scrim" onclick="if(event.target===this)closeAdd()">
+  <div class="modal">
+    <div class="mh"><b>Add a module</b><button class="x" onclick="closeAdd()">×</button></div>
+    <div class="mb" id="addBody"></div>
+    <div class="mf"><button class="btn ghost" onclick="closeAdd()">Cancel</button><button class="btn" id="addBack" style="display:none" onclick="addStep(1)">Back</button><button class="btn primary" id="addNext" onclick="addNext()" disabled>Next</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const ICONS={overlay:"i-eye",stats:"i-pulse",game:"i-game",cards:"i-file",shots:"i-img",sched:"i-cal"};
+const M=[
+ {id:"overlay",name:"Bot overlay",kind:"live",desc:"A bot's point of view, live, with sprites.",src:"127.0.0.1:8787/overlay",on:true,viewers:11,health:"ok"},
+ {id:"stats",name:"Bot stats",kind:"live",desc:"Level, fame, class and goals. No chat or accounts.",src:"127.0.0.1:8787/stats",on:true,viewers:3,health:"ok"},
+ {id:"game",name:"Game client (SWF)",kind:"static",desc:"Ruffle player page for the Flash game.",src:"C:\\Users\\you\\site\\assets\\game",on:true,published:true,health:"ok"},
+ {id:"cards",name:"Project cards",kind:"static",desc:"The Projects tab: names, blurbs, links.",src:"C:\\Users\\you\\site\\cards.json",on:true,published:false,health:"ok"},
+ {id:"shots",name:"Screenshots folder",kind:"static",desc:"Gallery from a screenshots folder, 38 images, 61 MB.",src:"C:\\Users\\you\\Pictures\\screenshots",on:false,published:false,health:"ok"},
+ {id:"sched",name:"Stream schedule",kind:"static",desc:"A small weekly schedule shown on Home.",src:"C:\\Users\\you\\site\\schedule.json",on:false,published:false,health:"ok"},
+];
+M.forEach(m=>{m.was=m.kind==="static"?(m.published&&m.on):m.on});
+M.find(m=>m.id==="cards").was=false; // enabled but not yet published -> pending
+const FIELDS={
+ overlay:[["position",1,"x, y on the map"],["hp / mp",1,"bars only"],["class, level",1,""],["inventory",1,"item icons"],["bullets & enemies",1,"what you see on screen"],["chat",0,"private"],["notes",0,"private"],["loot_log",0,"private"],["account / password",0,"never sent"]],
+ stats:[["level, fame",1,""],["class",1,""],["current goal",1,"e.g. “Priest → L5”"],["deaths today",1,""],["chat",0,"private"],["account / password",0,"never sent"]],
+};
+const LOG=[["14:52:08","ok","Published 3 files to levmorium.com (4.1 s)"],["14:51:40","info","Module “Game client (SWF)” switched on"],["14:20:11","ok","Tunnel connected → live.levmorium.com"],["14:19:58","info","Hub started"],["14:03:30","warn","Viewer cap reached on “Bot overlay” (40/40), 2 turned away"],["13:47:02","ok","Published 1 file to levmorium.com (1.3 s)"]];
+
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let sel=null;
+
+function pending(m){ return m.kind==="static" && ( (m.on && !m.published) || (!m.on && m.published) ); }
+function pendingList(){ return M.filter(pending); }
+function liveCount(){ return M.filter(m=>m.kind==="live"&&m.on).length }
+function statusOf(m){
+  if(m.kind==="live") return m.on?`<i class="dot ok pulse"></i>serving · ${m.viewers} viewing`:`<i class="dot"></i>off`;
+  if(pending(m)) return `<i class="dot warn"></i><span class="chg">${m.on?"WILL PUBLISH":"WILL REMOVE"}</span>`;
+  return m.on?`<i class="dot ok"></i>on the site`:`<i class="dot"></i>off`;
+}
+function card(m,showToggle=true){
+  return `<div class="mod ${m.on?"":"off"} ${sel===m.id?"sel":""}" data-id="${m.id}">
+    <div class="head"><div class="ico"><svg width="20" height="20"><use href="#${ICONS[m.id]||"i-box"}"/></svg></div>
+      <div style="min-width:0"><h3>${m.name} <span class="tag ${m.kind}">${m.kind.toUpperCase()}</span></h3><p>${m.desc}</p></div>
+      ${showToggle?`<label class="sw" onclick="event.stopPropagation()"><input type="checkbox" ${m.on?"checked":""} data-t="${m.id}"><i></i></label>`:""}
+    </div>
+    <div class="meta"><span style="display:flex;align-items:center;gap:7px">${statusOf(m)}</span><span class="sp"></span><span style="font-family:var(--mono);color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px">${m.src.split("\\").pop()}</span></div></div>`;
+}
+function render(){
+  $("#modGrid").innerHTML=M.map(m=>card(m)).join("");
+  $("#dashGrid").innerHTML=M.filter(m=>m.on).map(m=>card(m,false)).join("")||'<p class="note">Nothing is switched on yet.</p>';
+  $("#tLive").textContent=liveCount()+" / "+M.filter(m=>m.kind==="live").length;
+  const p=pendingList();
+  $("#app").classList.toggle("has-bar",p.length>0);
+  $("#barN").textContent=p.length+(p.length===1?" change":" changes");
+  const nb=$("#navBadge"); nb.style.display=p.length?"":"none"; nb.textContent=p.length;
+  $("#pubBtn2").disabled=!p.length;
+  $("#pubSummary").innerHTML=p.length?p.map(m=>`${m.on?"＋":"−"} ${m.name}`).join("<br>"):"Nothing waiting.";
+  $("#pubFiles").textContent="index.html · css/style.css · js/app.js · js/site-config.js · manifest.json"+M.filter(m=>m.kind==="static"&&m.on).map(m=>"\n+ "+m.src.split("\\").pop()).join("");
+  $$("[data-id]").forEach(e=>e.onclick=()=>openDrawer(e.dataset.id));
+  $$("[data-t]").forEach(e=>e.onchange=()=>{const m=M.find(x=>x.id===e.dataset.t);m.on=e.checked;if(m.kind==="live"){m.viewers=m.on?Math.floor(Math.random()*8)+1:0;toast(m.on?`“${m.name}” is live now`:`“${m.name}” taken offline`)}render();if(sel===m.id)openDrawer(m.id)});
+  $("#logBox").innerHTML=LOG.map(l=>`<div class="l"><span>${l[0]}</span><b class="${l[1]}">${l[1].toUpperCase()}</b><span style="color:var(--text)">${l[2]}</span></div>`).join("");
+}
+function openDrawer(id){
+  sel=id; const m=M.find(x=>x.id===id);
+  $("#dIco").innerHTML=`<svg width="20" height="20"><use href="#${ICONS[id]||"i-box"}"/></svg>`;
+  $("#dName").textContent=m.name; $("#dKind").innerHTML=`<span class="tag ${m.kind}">${m.kind.toUpperCase()}</span>`;
+  let h=`<div class="kv"><span>Source</span><span style="font-family:var(--mono);font-size:12px;word-break:break-all">${m.src}</span><span>Status</span><span style="display:flex;align-items:center;gap:7px">${statusOf(m)}</span><span>URL</span><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${m.kind==="live"?"live.levmorium.com/m/"+m.id:"levmorium.com/#"+m.id}</span></div>`;
+  if(FIELDS[id]){
+    h+=`<h2 class="h2" style="margin-top:22px">What visitors can see</h2><div style="color:var(--muted);font-size:12.5px;margin-bottom:6px">Fields are blocked unless allowed. Locked ones are never sent, whatever the app sends.</div>`;
+    h+=FIELDS[id].map(f=>f[1]?`<div class="field"><div><code>${f[0]}</code><small>${f[2]}</small></div><label class="sw"><input type="checkbox" checked><i></i></label></div>`:`<div class="field blocked"><div><code>${f[0]}</code><small>${f[2]}</small></div><span class="lockbadge">🔒 LOCKED</span></div>`).join("");
+    h+=`<h2 class="h2" style="margin-top:22px">Viewer cap</h2><input class="range" type="range" min="5" max="100" value="40" oninput="this.nextElementSibling.textContent=this.value+' viewers'"><div style="color:var(--muted);font-size:12.5px">40 viewers</div>`;
+    h+=`<h2 class="h2" style="margin-top:22px">Preview of what is sent</h2><div class="code">{\n  "name": "MyBot",\n  "class": "Priest", "level": 14,\n  "hp": [412, 500], "mp": [208, 260],\n  "pos": [1043.2, 877.6],\n  "inventory": ["Wand of Dark Magic", "Robe of the Magus", …],\n  "goal": "Priest → L5 → Archer"\n}</div>`;
+  } else if(m.kind==="static"){
+    h+=`<h2 class="h2" style="margin-top:22px">Included in deploy</h2><div class="code">${m.src}\n· 3 files · 1.4 MB · largest 0.9 MB (limit 25 MB)</div><div class="note">Static modules are hosted by Cloudflare and stay up when this PC is off.</div>`;
+  }
+  $("#dBody").innerHTML=h; $("#drawer").classList.add("open"); $$(".mod").forEach(e=>e.classList.toggle("sel",e.dataset.id===id));
+  $("#dRemove").onclick=()=>{toast("Removed “"+m.name+"” (mock)");closeDrawer()};
+}
+function closeDrawer(){sel=null;$("#drawer").classList.remove("open");$$(".mod").forEach(e=>e.classList.remove("sel"))}
+function go(v){
+  $$(".view").forEach(e=>e.classList.toggle("on",e.id==="v-"+v));
+  $$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  $("#title").textContent={dash:"Dashboard",mods:"Modules",pub:"Publish",logs:"Activity",set:"Settings"}[v]; closeDrawer();
+}
+$$("#nav button").forEach(b=>b.onclick=()=>go(b.dataset.v));
+function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove("show"),2400)}
+function publish(){
+  const p=pendingList(); if(!p.length)return;
+  const pr=$("#prog");pr.style.display="block";const bar=pr.firstElementChild;bar.style.width="0";
+  $("#pubBtn").disabled=true;$("#pubBtn").textContent="Publishing…";
+  let w=0;const t=setInterval(()=>{w+=12+Math.random()*14;bar.style.width=Math.min(w,100)+"%";
+    if(w>=100){clearInterval(t);p.forEach(m=>m.published=m.on);
+      LOG.unshift([new Date().toTimeString().slice(0,8),"ok","Published "+p.length+" change"+(p.length>1?"s":"")+" to levmorium.com (2.9 s)"]);
+      pr.style.display="none";$("#pubBtn").disabled=false;$("#pubBtn").textContent="Publish to levmorium.com";render();toast("Published. levmorium.com is updated.")}},180);
+}
+function discard(){M.filter(pending).forEach(m=>m.on=m.published);render();toast("Changes discarded")}
+
+/* add-module wizard */
+let step=1,kindPick=null;
+function openAdd(){step=1;kindPick=null;$("#scrim").classList.add("open");addStep(1)}
+function closeAdd(){$("#scrim").classList.remove("open")}
+function addStep(n){step=n;
+  $("#addBack").style.display=n>1?"":"none"; $("#addNext").textContent=n===3?"Add (switched off)":"Next"; $("#addNext").disabled=n===1&&!kindPick;
+  if(n===1){$("#addBody").innerHTML=`<div style="color:var(--muted);margin-bottom:14px">What do you want to put on the site?</div><div class="choices">
+    <div class="choice ${kindPick==="static"?"sel":""}" onclick="pickKind('static')"><span class="tag static">STATIC</span><h4>A file or folder</h4><p>A game, images, a page, JSON. Uploaded to Cloudflare. Stays up when this PC is off.</p></div>
+    <div class="choice ${kindPick==="live"?"sel":""}" onclick="pickKind('live')"><span class="tag live">LIVE</span><h4>Something running on this PC</h4><p>A local web service like the bot overlay. Streamed through the tunnel, only while this PC is on.</p></div></div>`}
+  if(n===2){$("#addBody").innerHTML=kindPick==="static"
+    ?`<label class="lb" style="margin-top:0">File or folder</label><input type="text" id="srcIn" value="C:\\Users\\you\\" oninput="chk()"><div class="row" style="margin-top:10px"><button class="btn">Browse…</button><span class="note" style="margin:0">Max 25 MB per file on the free plan.</span></div><label class="lb">Name on the site</label><input type="text" id="nameIn" placeholder="e.g. Screenshots" oninput="chk()">`
+    :`<label class="lb" style="margin-top:0">Local address</label><input type="text" id="srcIn" value="127.0.0.1:" oninput="chk()"><div class="note">Only addresses on this PC are allowed. The hub checks that it answers before adding it.</div><label class="lb">Name on the site</label><input type="text" id="nameIn" placeholder="e.g. Fly brain monitor" oninput="chk()">`;
+    $("#addNext").disabled=true}
+  if(n===3){$("#addBody").innerHTML=`<div style="color:var(--muted);margin-bottom:12px">Review. It will be added <b style="color:var(--text)">switched off</b>; nothing goes public until you flip it on.</div><div class="kv"><span>Kind</span><span><span class="tag ${kindPick}">${kindPick.toUpperCase()}</span></span><span>Source</span><span style="font-family:var(--mono);font-size:12px">${$("#srcIn")?.value||""}</span><span>Name</span><span>${$("#nameIn")?.value||""}</span><span>Exposed</span><span>${kindPick==="live"?"Nothing until you tick fields in the module panel":"Only the files you chose"}</span></div>`}
+}
+function pickKind(k){kindPick=k;addStep(1)}
+function chk(){const s=$("#srcIn").value.trim(),n=$("#nameIn").value.trim();$("#addNext").disabled=!(s.length>10&&n.length>1)}
+function addNext(){
+  if(step<3){ if(step===2){ window._s=$("#srcIn").value;window._n=$("#nameIn").value; } if(step===2){$("#addBody").dataset.s=1}
+    const s=step===2?{src:$("#srcIn").value,name:$("#nameIn").value}:null; if(s){window._add=s}
+    addStep(step+1); return }
+  M.push({id:"x"+Date.now(),name:window._add.name,kind:kindPick,desc:"Added just now.",src:window._add.src,on:false,published:false,viewers:0,health:"ok"});
+  LOG.unshift([new Date().toTimeString().slice(0,8),"info","Module “"+window._add.name+"” added (off)"]);
+  closeAdd();render();go("mods");toast("Module added. Switch it on when you're ready.");
+}
+render();
+</script>
+</body>
+</html>
