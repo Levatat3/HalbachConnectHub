@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import __version__
-from .live import UpstreamError, fetch_upstream, start_live_hub
+from .live import UpstreamError, fetch_upstream, field_names, start_live_hub
 from .net import LoopbackServer
 from .publisher import Publisher, classify
 from .store import Store, ValidationError, collect_files, is_locked_field
@@ -255,11 +255,13 @@ def make_handler(hub):
                 data = fetch_upstream(m["source"])
             except UpstreamError as e:
                 raise ValidationError(str(e))
-            if not isinstance(data, dict):
-                raise ValidationError("The service must return a JSON object")
+            try:
+                names = field_names(data)
+            except UpstreamError as e:
+                raise ValidationError(str(e))
             fields = [{"name": f["name"], "allowed": f["allowed"]} for f in m.get("fields", [])]
             have = {f["name"] for f in fields}
-            fields += [{"name": k, "allowed": False} for k in data if k not in have and len(str(k)) <= 60]
+            fields += [{"name": k, "allowed": False} for k in names if k not in have and len(str(k)) <= 60]
             return s.set_fields(mid, fields)
 
         def _plan(self):

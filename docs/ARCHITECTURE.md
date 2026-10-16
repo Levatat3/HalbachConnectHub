@@ -61,7 +61,7 @@ The live hub is a separate server from the control panel and is the only thing t
 1. checks the `Host` header (the live host or loopback) and that the module exists and is switched on;
 2. admits the viewer if under the module's cap (viewers are identified by a hash of `CF-Connecting-IP` and the user agent, counted for 12 seconds);
 3. returns the cached payload if under a second old, otherwise calls the service (4 s timeout, 256 KB cap, JSON only, no redirects);
-4. keeps only allowed top-level fields and strips private-looking keys at every depth;
+4. keeps only allowed top-level fields and strips private-looking keys at every depth (for a service that returns a list of objects, the same rule applies to every item, at most 100 of them);
 5. answers with CORS only for your own domain, `www.`, and any extra origins you list.
 
 `GET /status` lists which live modules are on, which is how the site decides between showing data and showing "offline". Everything else is a 404, and any method other than `GET` is a 405.

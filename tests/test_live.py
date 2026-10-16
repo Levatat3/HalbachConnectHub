@@ -196,3 +196,64 @@ class TestHub(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLists(unittest.TestCase):
+    FIELDS = [{"name": "name", "allowed": True}, {"name": "level", "allowed": True},
+              {"name": "chat", "allowed": True}, {"name": "port", "allowed": False}]
+    BOTS = [{"name": "A", "level": 5, "port": 8787, "chat": ["x"], "inventory": [1, 2]},
+            {"name": "B", "level": 9, "port": 8788, "notes": "n"}]
+
+    def test_every_item_gets_the_same_allow_list(self):
+        self.assertEqual(live.filter_payload(self.BOTS, self.FIELDS), [{"name": "A", "level": 5}, {"name": "B", "level": 9}])
+
+    def test_private_keys_are_removed_inside_items(self):
+        fields = [{"name": "pos", "allowed": True}]
+        out = live.filter_payload([{"pos": {"x": 1, "session_token": "t"}}], fields)
+        self.assertEqual(out, [{"pos": {"x": 1}}])
+
+    def test_item_count_is_capped(self):
+        many = [{"name": str(i)} for i in range(live.MAX_ITEMS + 50)]
+        self.assertEqual(len(live.filter_payload(many, self.FIELDS)), live.MAX_ITEMS)
+
+    def test_lists_of_non_objects_are_refused(self):
+        for bad in ([1, 2], [{"a": 1}, 3], "text", 5, None):
+            with self.assertRaises(live.UpstreamError, msg=repr(bad)):
+                live.filter_payload(bad, self.FIELDS)
+
+    def test_empty_list_passes_through_as_empty(self):
+        self.assertEqual(live.filter_payload([], self.FIELDS), [])
+
+    def test_field_names_union_over_items(self):
+        self.assertEqual(live.field_names(self.BOTS), ["name", "level", "port", "chat", "inventory", "notes"])
+        self.assertEqual(live.field_names({"a": 1, "b": 2}), ["a", "b"])
+        with self.assertRaises(live.UpstreamError):
+            live.field_names([])
+        with self.assertRaises(live.UpstreamError):
+            live.field_names([1])
+
+
+class TestListThroughTheHub(unittest.TestCase):
+    def test_a_list_service_is_served_filtered_end_to_end(self):
+        with tempfile.TemporaryDirectory() as t:
+            store = st.Store(Path(t) / "h")
+            up = Upstream()
+            up.body = json.dumps([{"name": "A", "level": 5, "port": 1, "chat": ["x"]},
+                                  {"name": "B", "level": 9, "port": 2}]).encode()
+            try:
+                store.set_settings(live_host="live.example.com")
+                m = store.add_module("live", "Bots", "127.0.0.1:%d/api/bots" % up.port)
+                store.set_fields(m["id"], [{"name": "name", "allowed": True}, {"name": "level", "allowed": True},
+                                           {"name": "port", "allowed": False}, {"name": "chat", "allowed": True}])
+                store.set_on(m["id"], True)
+                srv, _ = live.start_live_hub(store, 0)
+                try:
+                    c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+                    c.request("GET", "/m/" + m["id"], headers={"Host": "live.example.com"})
+                    r = c.getresponse()
+                    self.assertEqual((r.status, json.loads(r.read())), (200, [{"name": "A", "level": 5}, {"name": "B", "level": 9}]))
+                finally:
+                    srv.shutdown()
+                    srv.server_close()
+            finally:
+                up.close()

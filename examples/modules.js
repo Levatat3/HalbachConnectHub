@@ -163,10 +163,25 @@
             .then(function (r) { if (!r.ok) throw 0; return r.json(); })
             .then(function (d) {
               table.innerHTML = "";
-              Object.keys(d).forEach(function (k) {
-                var row = el("div", "liverow"); row.appendChild(el("span", "k", k));
-                var v = d[k]; row.appendChild(el("span", "v", typeof v === "object" ? JSON.stringify(v) : String(v)));
-                table.appendChild(row);
+              table.className = Array.isArray(d) ? "livegrid" : "livebox";
+              (Array.isArray(d) ? d : [d]).forEach(function (item) {
+                var holder = Array.isArray(d) ? el("div", "livecard") : table;
+                if (Array.isArray(d)) {
+                  if (item.name != null) holder.appendChild(el("h4", null, String(item.name)));
+                  table.appendChild(holder);
+                }
+                Object.keys(item).forEach(function (k) {
+                  if (Array.isArray(d) && k === "name") return;                       // already the card's title
+                  if (/^max_|_max$/.test(k) && (k.replace(/^max_|_max$/, "") in item)) return;   // shown next to its value
+                  var v = item[k], mk = ("max_" + k in item) ? "max_" + k : (k + "_max" in item ? k + "_max" : null);
+                  var text = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
+                  if (mk && typeof v === "number") text = v + " / " + item[mk];
+                  var row = el("div", "liverow"); row.appendChild(el("span", "k", k)); row.appendChild(el("span", "v", text));
+                  holder.appendChild(row);
+                });
+              });
+              table.querySelectorAll(".livecard").forEach(function (c) {
+                if (!c.querySelector(".liverow")) c.appendChild(el("div", "liverow", "no data right now"));
               });
               if (!table.children.length) table.appendChild(el("p", "empty", "Online, but nothing is being shared."));
             })

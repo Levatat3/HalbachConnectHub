@@ -90,7 +90,7 @@ A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](exampl
 }
 ```
 
-`type` is one of `page`, `doc`, `game`, `gallery`, `image`, `file`. Live data is `GET <live_base>/status` (which modules are on) and `GET <live_base>/m/<id>` (filtered JSON).
+`type` is one of `page`, `doc`, `game`, `gallery`, `image`, `file`. Live data is `GET <live_base>/status` (which modules are on) and `GET <live_base>/m/<id>` (filtered JSON: one object, or a list of objects such as a list of bots, with the same allow-list applied to every item).
 
 ## Safety rules (enforced in code, covered by tests)
 

@@ -20,6 +20,7 @@ from .net import LoopbackServer
 from .store import is_locked_field
 
 MAX_UPSTREAM_BYTES = 256 * 1024
+MAX_ITEMS = 100             # most items passed on from a list
 CACHE_SECONDS = 1.0
 VIEWER_WINDOW = 12.0        # a viewer counts while seen within this many seconds
 UPSTREAM_TIMEOUT = 4
@@ -40,11 +41,39 @@ def strip_private(value):
 
 
 def filter_payload(obj, fields):
-    """Keep only allowed, non-locked top-level fields. fields: the module's field list."""
+    """Keep only allowed, non-locked fields. fields: the module's field list.
+
+    The service may return one object, or a list of objects (a list of bots, say); the same
+    allow-list is applied to every item, and at most MAX_ITEMS items are passed on.
+    """
     allowed = {f["name"] for f in fields if f.get("allowed") and not f.get("locked") and not is_locked_field(f["name"])}
-    if not isinstance(obj, dict):
-        raise UpstreamError("The service must return a JSON object")
-    return {k: strip_private(v) for k, v in obj.items() if k in allowed}
+
+    def cut(item):
+        return {k: strip_private(v) for k, v in item.items() if k in allowed}
+
+    if isinstance(obj, dict):
+        return cut(obj)
+    if isinstance(obj, list):
+        if not all(isinstance(i, dict) for i in obj):
+            raise UpstreamError("The service must return a JSON object or a list of objects")
+        return [cut(i) for i in obj[:MAX_ITEMS]]
+    raise UpstreamError("The service must return a JSON object or a list of objects")
+
+
+def field_names(obj):
+    """Names to offer in 'Discover fields': the keys of an object, or the union over a list's items."""
+    if isinstance(obj, dict):
+        return list(obj)
+    if isinstance(obj, list):
+        if not obj:
+            raise UpstreamError("The service returned an empty list, so there is nothing to discover yet")
+        names = []
+        for item in obj[:20]:
+            if not isinstance(item, dict):
+                raise UpstreamError("The service must return a JSON object or a list of objects")
+            names += [k for k in item if k not in names]
+        return names
+    raise UpstreamError("The service must return a JSON object or a list of objects")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
