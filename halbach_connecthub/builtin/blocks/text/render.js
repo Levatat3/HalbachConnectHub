@@ -1,4 +1,4 @@
-// Block: text (Text)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("text", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: text. Markdown, rendered without HTML.
+HalbachSite.registerBlock("text", function (box, props, ctx) {
+  box.appendChild(ctx.markdown(props.markdown || "", ""));
+});

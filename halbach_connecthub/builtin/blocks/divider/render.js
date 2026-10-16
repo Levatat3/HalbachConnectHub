@@ -1,4 +1,5 @@
-// Block: divider (Divider)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("divider", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: divider.
+HalbachSite.registerBlock("divider", function (box, props, ctx) {
+  if (props.label) box.appendChild(ctx.el("div", "hs-divider-label", props.label));
+  else box.appendChild(ctx.el("hr", "hs-divider"));
+});

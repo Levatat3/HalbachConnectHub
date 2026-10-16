@@ -1,4 +1,7 @@
-// Block: gallery (Gallery)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("gallery", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: gallery. A grid of images from a gallery module.
+HalbachSite.registerBlock("gallery", function (box, props, ctx) {
+  ctx.module(props.module).then(function (m) {
+    if (!m || m.type !== "gallery") return ctx.note(box, "That module is not a gallery.");
+    ctx.mod.view(box, m);
+  });
+});

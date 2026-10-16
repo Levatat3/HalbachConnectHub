@@ -1,3 +1,6 @@
-/* Theme: Neutral light
-   TODO: styles for the runtime's semantic classes (.hs-nav, .hs-page, .hs-block, .hs-card ...).
-   Colours and fonts come from the CSS variables in theme.json, which the site model can override. */
+/* Neutral light: variables come from plugin.json. */
+html { color-scheme: light; }
+.hs-screen { background: #111; }
+.hs-nav a[aria-current="page"] { color: #fff; }
+.hs-mark { color: var(--accent); }
+.hs-petname.rc { color: #57606a; } .hs-petname.ru { color: #1a7f37; } .hs-petname.rr { color: #0969da; } .hs-petname.rl { color: #bc4c00; } .hs-petname.rd { color: #bf3989; }

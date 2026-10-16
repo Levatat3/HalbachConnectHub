@@ -5,22 +5,25 @@
   "version": "0.0.1",
   "builtin": true,
   "files": [
-    "theme.css"
+    "theme.css",
+    "theme.js"
   ],
   "name": "Retro terminal",
   "description": "Dark CRT green and amber: the look of the original starter site.",
   "vars": {
     "--bg": "#050805",
-    "--green": "#39ff7a",
-    "--amber": "#ffb000",
+    "--panel": "#0a110b",
     "--text": "#b8f5c8",
     "--muted": "#6b9a78",
     "--line": "#1c3a22",
-    "--mono": "ui-monospace, Cascadia Mono, Consolas, monospace"
+    "--accent": "#39ff7a",
+    "--accent-2": "#ffb000",
+    "--radius": "2px",
+    "--font": "ui-monospace, Cascadia Mono, Consolas, monospace"
   },
   "effects": [
     "crt-scanlines",
-    "glyph-rain",
-    "typed-hero"
-  ]
+    "glyph-rain"
+  ],
+  "script": "theme.js"
 }

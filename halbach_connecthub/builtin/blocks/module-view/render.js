@@ -1,4 +1,7 @@
-// Block: module-view (Show a module)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("module-view", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: module-view. Shows one module in place.
+HalbachSite.registerBlock("module-view", function (box, props, ctx) {
+  ctx.module(props.module).then(function (m) {
+    if (!m) return ctx.note(box, "That module is not available.");
+    ctx.mod.view(box, m);
+  });
+});

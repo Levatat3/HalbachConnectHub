@@ -1,4 +1,5 @@
-// Block: dropbox (Drop box)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("dropbox", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: dropbox. Uploads to an area's inbox for review. (Arrives with areas; shows a notice until then.)
+HalbachSite.registerBlock("dropbox", function (box, props, ctx) {
+  box.appendChild(ctx.el("h2", null, props.title || "Send files"));
+  box.appendChild(ctx.el("p", "hs-empty", "Uploads are not available on this site yet."));
+});

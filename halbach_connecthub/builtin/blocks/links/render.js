@@ -1,4 +1,11 @@
-// Block: links (Links)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("links", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: links. Buttons or a plain list.
+HalbachSite.registerBlock("links", function (box, props, ctx) {
+  var ul = ctx.el("ul", "hs-links " + (props.style === "list" ? "hs-list" : "hs-links-buttons"));
+  (props.items || []).forEach(function (l) {
+    var li = ctx.el("li"), a = ctx.el("a", null, l.label);
+    a.href = l.url;
+    if (/^https?:/i.test(l.url)) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+    li.appendChild(a); ul.appendChild(li);
+  });
+  box.appendChild(ul);
+});

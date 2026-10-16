@@ -1,4 +1,16 @@
-// Block: embed (Embed a page)
-// TODO: implement. Registers itself with the runtime:
-//   HalbachSite.registerBlock("embed", function render(container, props, ctx) { ... });
-// props are plain data validated against block.json; draw them with textContent, never innerHTML.
+// Block: embed. Shows a page module or an https address inside a sandboxed frame.
+HalbachSite.registerBlock("embed", function (box, props, ctx) {
+  function frame(src, title) {
+    var f = ctx.el("iframe", "hs-frame"); f.src = src; f.title = title; f.loading = "lazy";
+    f.style.height = (props.height || 560) + "px";
+    f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms");
+    var screen = ctx.el("div", "hs-screen"); screen.appendChild(f); box.appendChild(screen);
+  }
+  if (props.module) {
+    ctx.module(props.module).then(function (m) {
+      if (!m || m.type !== "page") return ctx.note(box, "That module is not a page.");
+      frame(ctx.url("/" + m.entry), m.name);
+    });
+  } else if (props.url) frame(props.url, "Embedded page");
+  else ctx.note(box, "Choose a page module or give an address.");
+});

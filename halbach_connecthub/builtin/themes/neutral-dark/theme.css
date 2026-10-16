@@ -1,3 +1,2 @@
-/* Theme: Neutral dark
-   TODO: styles for the runtime's semantic classes (.hs-nav, .hs-page, .hs-block, .hs-card ...).
-   Colours and fonts come from the CSS variables in theme.json, which the site model can override. */
+/* Neutral dark: base.css already is this look; only small touches here. */
+.hs-card { transition: border-color .15s; }

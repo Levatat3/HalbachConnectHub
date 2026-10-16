@@ -100,9 +100,9 @@ class TestTemplates(unittest.TestCase):
 
 
 class TestRuntime(unittest.TestCase):
-    def test_runtime_stub_present_and_documents_the_api(self):
+    def test_runtime_present_and_exposes_the_api(self):
         text = (BUILTIN / "runtime" / "halbach-site.js").read_text(encoding="utf-8")
-        for name in ("registerBlock", "registerView", "ctx.el", "ctx.markdown", "ctx.live.run"):
+        for name in ("registerBlock", "registerView", "markdown: markdown", "live: { run: runLive }", "registerEffect"):
             self.assertIn(name, text)
 
 
