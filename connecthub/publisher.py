@@ -123,8 +123,9 @@ def wrangler_deploy(stage, project, branch, log):
            "--branch", branch, "--commit-dirty=true"]
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
+        # run from the hub's data folder so wrangler's cache never lands in a project directory
         r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=600,
-                           creationflags=flags, encoding="utf-8", errors="replace")
+                           creationflags=flags, encoding="utf-8", errors="replace", cwd=str(Path(stage).parent))
     except subprocess.TimeoutExpired:
         raise PublishError("The upload took longer than 10 minutes and was stopped.")
     except OSError as e:
