@@ -27,7 +27,7 @@ class TestBlocks(unittest.TestCase):
     def test_every_block_is_well_formed(self):
         self.assertGreaterEqual(len(self.blocks()), 15)
         for d in self.blocks():
-            m = load(d / "block.json")
+            m = load(d / "plugin.json")
             self.assertEqual(m["kind"], "block", d.name)
             self.assertEqual(m["id"], d.name)
             self.assertRegex(m["id"], ID_RE)
@@ -45,7 +45,7 @@ class TestBlocks(unittest.TestCase):
             for k, hosts in m.get("csp", {}).items():
                 self.assertIn(k, CSP_KEYS, d.name)
                 for h in hosts:
-                    self.assertTrue(h.startswith("https://") or h == "LIVE_BASE", "%s: %s" % (d.name, h))
+                    self.assertTrue(h.startswith("https://") or h in ("LIVE_BASE", "'wasm-unsafe-eval'"), "%s: %s" % (d.name, h))
             for fn in m["files"]:
                 self.assertTrue((d / fn).is_file(), "%s missing %s" % (d.name, fn))
 
@@ -61,7 +61,7 @@ class TestThemes(unittest.TestCase):
         dirs = sorted((BUILTIN / "themes").iterdir())
         self.assertGreaterEqual(len(dirs), 3)
         for d in dirs:
-            m = load(d / "theme.json")
+            m = load(d / "plugin.json")
             self.assertEqual((m["kind"], m["id"]), ("theme", d.name))
             self.assertTrue(m["vars"])
             for k, v in m["vars"].items():

@@ -1,0 +1,12 @@
+{
+  "kind": "view",
+  "id": "auto",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "view.js"
+  ],
+  "name": "Generic cards",
+  "description": "One object becomes rows, a list becomes a card per item."
+}

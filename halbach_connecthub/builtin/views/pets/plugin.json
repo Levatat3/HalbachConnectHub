@@ -1,0 +1,18 @@
+{
+  "kind": "view",
+  "id": "pets",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "view.js"
+  ],
+  "name": "Pets",
+  "description": "Each bot's active pet drawn from a sprite sheet and animated, with abilities and a plan line.",
+  "tab": {
+    "id": "pets",
+    "label": "PETS"
+  },
+  "default_poll": 15,
+  "needs_assets": "pet-sprites"
+}
