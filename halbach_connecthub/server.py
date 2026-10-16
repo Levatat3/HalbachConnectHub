@@ -191,6 +191,9 @@ def make_handler(hub):
                     return self._json(hub.tunnel.status())
                 if len(parts) == 5 and parts[2] == "modules":
                     mid, act = parts[3], parts[4]
+                    if act == "options":
+                        return self._json(s.set_options(mid, view=b.get("view"), hide=b.get("hide"),
+                                                        poll=b.get("poll"), listed=b.get("listed")))
                     if act == "ack":
                         return self._json(s.ack(mid))
                     if act == "discover":

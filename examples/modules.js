@@ -13,7 +13,8 @@
     return e;
   }
   function note(box, text) { box.innerHTML = ""; box.appendChild(el("p", "empty", text)); }
-  function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+  var stopper = null;
+  function stopPoll() { if (stopper) { stopper(); stopper = null; } }
 
   function timeout(ms) {
     var c = new AbortController();
@@ -150,47 +151,151 @@
   }
 
   // ---- live modules ----
-  function viewLive(box, m, man) {
+  // One engine for every live view: check the module is on, then poll it, redrawing with `render`.
+  // It keeps retrying if the owner's PC goes away, and does not fetch while its panel is hidden.
+  function runLive(box, m, man, render) {
     if (!man.live_base) return note(box, "Live data isn't connected yet.");
-    note(box, "Checking if it's online...");
-    fetch(man.live_base + "/status", { signal: timeout(5000), cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-      .then(function (st) {
-        if (!st.modules || st.modules.indexOf(m.id) < 0) throw 0;
-        var table = el("div", "livebox"); box.innerHTML = ""; box.appendChild(table);
-        function tick() {
-          fetch(man.live_base + "/m/" + encodeURIComponent(m.id), { signal: timeout(5000), cache: "no-store" })
-            .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-            .then(function (d) {
-              table.innerHTML = "";
-              table.className = Array.isArray(d) ? "livegrid" : "livebox";
-              (Array.isArray(d) ? d : [d]).forEach(function (item) {
-                var holder = Array.isArray(d) ? el("div", "livecard") : table;
-                if (Array.isArray(d)) {
-                  if (item.name != null) holder.appendChild(el("h4", null, String(item.name)));
-                  table.appendChild(holder);
-                }
-                Object.keys(item).forEach(function (k) {
-                  if (Array.isArray(d) && k === "name") return;                       // already the card's title
-                  if (/^max_|_max$/.test(k) && (k.replace(/^max_|_max$/, "") in item)) return;   // shown next to its value
-                  var v = item[k], mk = ("max_" + k in item) ? "max_" + k : (k + "_max" in item ? k + "_max" : null);
-                  var text = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
-                  if (mk && typeof v === "number") text = v + " / " + item[mk];
-                  var row = el("div", "liverow"); row.appendChild(el("span", "k", k)); row.appendChild(el("span", "v", text));
-                  holder.appendChild(row);
-                });
-              });
-              table.querySelectorAll(".livecard").forEach(function (c) {
-                if (!c.querySelector(".liverow")) c.appendChild(el("div", "liverow", "no data right now"));
-              });
-              if (!table.children.length) table.appendChild(el("p", "empty", "Online, but nothing is being shared."));
-            })
-            .catch(function () { stopPoll(); note(box, "Went offline. The owner's PC is probably off."); });
-        }
-        tick(); stopPoll(); poll = setInterval(tick, 3000);
-      })
-      .catch(function () { note(box, "Offline right now. This one only works while the owner's PC is on."); });
+    var seconds = m.poll || (m.view === "pets" ? 15 : 3), timer = null, out = null;
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+    function offline(text) { if (out) { out.innerHTML = ""; out.appendChild(el("p", "empty", text)); } else note(box, text); }
+    function tick() {
+      if (!document.body.contains(box)) return stop();
+      if (box.offsetParent === null) return;                                  // panel hidden: skip this round
+      fetch(man.live_base + "/m/" + encodeURIComponent(m.id), { signal: timeout(5000), cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (d) { if (!out) { box.innerHTML = ""; out = el("div"); box.appendChild(out); } render(out, d, man); })
+        .catch(function () { offline("Offline right now. This only works while the owner's PC is on. Trying again..."); });
+    }
+    function start() {
+      note(box, "Checking if it's online...");
+      fetch(man.live_base + "/status", { signal: timeout(5000), cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+        .then(function (st) {
+          if (!st.modules || st.modules.indexOf(m.id) < 0) throw 0;
+          tick(); stop(); timer = setInterval(tick, seconds * 1000);
+        })
+        .catch(function () {
+          note(box, "Offline right now. This only works while the owner's PC is on.");
+          setTimeout(function () { if (document.body.contains(box)) start(); }, 20000);
+        });
+    }
+    start();
+    return stop;
   }
+
+  // Generic: one object becomes rows, a list becomes a card per item.
+  function renderGeneric(table, d) {
+    table.innerHTML = "";
+    table.className = Array.isArray(d) ? "livegrid" : "livebox";
+    (Array.isArray(d) ? d : [d]).forEach(function (item) {
+      var holder = Array.isArray(d) ? el("div", "livecard") : table;
+      if (Array.isArray(d)) {
+        if (item.name != null) holder.appendChild(el("h4", null, String(item.name)));
+        table.appendChild(holder);
+      }
+      Object.keys(item).forEach(function (k) {
+        if (Array.isArray(d) && k === "name") return;                                   // already the card's title
+        if (/^max_|_max$/.test(k) && (k.replace(/^max_|_max$/, "") in item)) return;    // shown next to its value
+        var v = item[k], mk = ("max_" + k in item) ? "max_" + k : (k + "_max" in item ? k + "_max" : null);
+        var text = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
+        if (mk && typeof v === "number") text = v + " / " + item[mk];
+        var row = el("div", "liverow"); row.appendChild(el("span", "k", k)); row.appendChild(el("span", "v", text));
+        holder.appendChild(row);
+      });
+    });
+    table.querySelectorAll(".livecard").forEach(function (c) {
+      if (!c.querySelector(".liverow")) c.appendChild(el("div", "liverow", "no data right now"));
+    });
+    if (!table.children.length) table.appendChild(el("p", "empty", "Online, but nothing is being shared."));
+  }
+
+  // Pets: each bot's active pet drawn from a sprite sheet and animated (stand, walk, stand, walk),
+  // with its abilities and what the bot plans to do next. Sheets come from a static module "pet-sprites".
+  var RARITY = { Common: "rc", Uncommon: "ru", Rare: "rr", Legendary: "rl", Divine: "rd" };
+  var sheets = {};
+  function sheet(base, name) {
+    var key = base + name;
+    if (!sheets[key]) { var im = new Image(); im.src = base + encodeURIComponent(name) + ".png"; sheets[key] = im; }
+    return sheets[key];
+  }
+  function spriteBase(man) {
+    var s = (man.modules || []).filter(function (x) { return x.id === "pet-sprites"; })[0];
+    return s && s.entry ? s.entry.replace(/[^\/]*$/, "") : null;
+  }
+  function renderPets(out, d, man) {
+    var base = spriteBase(man), bots = (d && d.bots) || [];
+    out.innerHTML = "";
+    var grid = el("div", "petgrid"); out.appendChild(grid);
+    if (!bots.length) return grid.appendChild(el("p", "empty", "No bots are reporting right now."));
+    bots.forEach(function (b) {
+      var card = el("div", "petcard"), pets = b.pets || [];
+      var a = pets.filter(function (p) { return p.id === b.active; })[0] || pets.filter(function (p) { return p.id === b.best; })[0];
+      var best = pets.filter(function (p) { return p.id === b.best; })[0];
+      var canvas = el("canvas", "petsprite"); canvas.width = 8; canvas.height = 8;
+      card.appendChild(canvas);
+      var info = el("div", "petinfo"); card.appendChild(info);
+      var head = el("div", "pethead"); head.appendChild(el("b", null, String(b.name)));
+      info.appendChild(head);
+      if (!a) {
+        head.appendChild(el("small", null, "no pets yet"));
+      } else {
+        head.appendChild(el("span", "petname " + (RARITY[a.rarity] || "rc"), String(a.name)));
+        head.appendChild(el("small", null, String(a.rarity)));
+        var ab = el("div", "petabil");
+        (a.abilities || []).forEach(function (x) {
+          var chip = el("span", x.works ? "ok" : "no", x.n + " " + x.lvl + "/" + a.max);
+          if (!x.works) chip.title = "does nothing on this server";
+          ab.appendChild(chip);
+        });
+        info.appendChild(ab);
+        var plan = (b.active === b.best ? "plans to keep it" : "plans to switch to " + (best ? best.name + " (" + best.rarity + ")" : "a better pet")) +
+          " · " + Math.max(0, (b.total || pets.length) - 1) + " spare" + (a.gained ? " · +" + a.gained + " levels" : "") +
+          (b.fuse ? " · fuse ready: 2 " + b.fuse.rarity : "");
+        info.appendChild(el("div", "petplan", plan));
+        if (base && a.sprite) canvas._sp = a.sprite;
+      }
+      grid.appendChild(card);
+    });
+    if (out._anim) clearInterval(out._anim);
+    out._anim = setInterval(function () {                                  // 0,1,2,1: the walk cycle
+      if (!document.body.contains(out)) { clearInterval(out._anim); return; }
+      if (out.offsetParent === null || !base) return;
+      var frame = Math.floor(Date.now() / 240);
+      out.querySelectorAll("canvas.petsprite").forEach(function (c) {
+        var sp = c._sp; if (!sp) return;
+        var im = sheet(base, sp.s); if (!im.complete || !im.naturalWidth) return;
+        var cyc = sp.frames.length > 2 ? [sp.frames[0], sp.frames[1], sp.frames[2], sp.frames[1]] : sp.frames;
+        var g = c.getContext("2d");
+        g.imageSmoothingEnabled = false; g.clearRect(0, 0, 8, 8);
+        g.drawImage(im, (sp.x || 0) + cyc[frame % cyc.length] * sp.w, sp.y, sp.w, sp.h, 0, 0, 8, 8);
+      });
+    }, 120);
+  }
+
+  var VIEWS = { auto: renderGeneric, pets: renderPets };
+  function viewLive(box, m, man) { return runLive(box, m, man, VIEWS[m.view] || renderGeneric); }
+
+  // Live modules with a "tab" (a purpose-built view) get their own nav tab, added here at load time.
+  function bootTabs() {
+    fetch("manifest.json", { cache: "no-store" }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (man) {
+        var nav = document.querySelector(".tabs"), main = document.querySelector("main"), more = document.querySelector('.tabs a[data-tab="more"]');
+        window.SITE_LOADERS = window.SITE_LOADERS || {};
+        (man.modules || []).filter(function (m) { return m.kind === "live" && m.tab && /^[a-z0-9-]+$/.test(m.tab.id); }).forEach(function (m) {
+          var id = m.tab.id;
+          if (document.getElementById(id) || !nav || !main) return;
+          var a = el("a", null, String(m.tab.label || id).toUpperCase()); a.href = "#" + id; a.dataset.tab = id; a.setAttribute("role", "tab");
+          if (more && more.nextSibling) nav.insertBefore(a, more.nextSibling); else nav.appendChild(a);
+          var sec = el("section", "panel"); sec.id = id;
+          sec.appendChild(el("h2", null, String(m.tab.label || id).toUpperCase()));
+          if (m.desc) sec.appendChild(el("p", "lede", m.desc));
+          var box = el("div", "screen"); sec.appendChild(box); main.appendChild(sec);
+          window.SITE_LOADERS[id] = function () { viewLive(box, m, man); };
+          if (location.hash === "#" + id) window.dispatchEvent(new HashChangeEvent("hashchange"));
+        });
+      }).catch(function () {});
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootTabs); else bootTabs();
 
   function open(m, man) {
     stopPoll();
@@ -202,7 +307,7 @@
     v.appendChild(head);
     if (m.desc) v.appendChild(el("p", "lede", m.desc));
     var box = el("div", "screen"); v.appendChild(box);
-    if (m.kind === "live") viewLive(box, m, man);
+    if (m.kind === "live") stopper = viewLive(box, m, man);
     else if (m.type === "page") viewPage(box, m);
     else if (m.type === "game") viewSwf(box, m);
     else if (m.type === "image") viewImage(box, m);
@@ -219,7 +324,9 @@
       .then(function (man) {
         var mods = man.modules || [];
         if (!mods.length) return note(grid, "Nothing here yet. New things show up as they're added.");
-        mods.forEach(function (m) {
+        var listed = mods.filter(function (m) { return m.listed !== false && !m.tab; });
+        if (!listed.length) return note(grid, "Nothing here yet. New things show up as they're added.");
+        listed.forEach(function (m) {
           var c = el("button", "card"); c.type = "button";
           c.appendChild(el("b", null, m.name));
           c.appendChild(el("span", null, m.desc || (m.kind === "live" ? "Live from the owner's PC." : "")));

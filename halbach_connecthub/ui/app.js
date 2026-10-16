@@ -194,6 +194,8 @@
       "<span>Status</span><span style=\"display:flex;align-items:center;gap:7px\">" + status(m) + "</span></div>";
     if (m.kind === "static") {
       h += '<h2 class="h2" style="margin-top:22px">What gets uploaded</h2><div class="code">' + m.file_count + " files · " + mb(m.bytes) + "</div>";
+      h += '<div class="field" style="margin-top:14px"><div><code>Show a card in the MORE list</code><small>Turn off for files that only support something else, like sprite sheets</small></div>' +
+        '<label class="sw"><input type="checkbox" id="optListed"' + (m.listed === false ? "" : " checked") + "><i></i></label></div>";
       (m.problems || []).forEach(function (p) { h += '<div class="prob">⚠ ' + esc(p) + "</div>"; });
       h += '<p class="hint" style="margin-top:12px">Dotfiles, keys, env files, logs, backups and working notes are never included.</p>';
       if (m.from_inbox) {
@@ -211,6 +213,11 @@
       }).join("") || '<p class="hint">No fields yet. Add the names of the values you want to share.</p>';
       h += '<div class="field add"><input type="text" id="newField" placeholder="field name, e.g. level"><button class="btn" data-act="addField">Add</button></div>' +
         '<button class="btn" data-act="discover" style="margin-top:8px">Discover fields from the service</button>';
+      h += '<h2 class="h2" style="margin-top:22px">How the site shows it</h2>' +
+        '<select id="optView" style="width:100%;padding:8px;background:#050806;color:var(--text);border:1px solid var(--line2);border-radius:8px"><option value="auto"' + ((m.view || "auto") === "auto" ? " selected" : "") + '>Generic cards</option><option value="pets"' + (m.view === "pets" ? " selected" : "") + '>Pets (own PETS tab, animated sprites)</option></select>' +
+        '<h2 class="h2" style="margin-top:18px">Hide these (by name)</h2><input type="text" id="optHide" placeholder="e.g. Alpha, Beta" value="' + esc((m.hide || []).join(", ")) + '">' +
+        '<div class="hint" style="margin-top:6px">Matching items are dropped here on your PC, so they never reach the site. The list itself is not published.</div>' +
+        '<h2 class="h2" style="margin-top:18px">Refresh every (seconds)</h2><input type="text" id="optPoll" placeholder="3" value="' + esc(m.poll || "") + '" style="width:90px">';
       h += '<h2 class="h2" style="margin-top:22px">Viewer cap</h2><input class="range" id="capRange" type="range" min="5" max="200" value="' + m.viewer_cap + '">' +
         '<div style="color:var(--muted);font-size:12.5px" id="capLabel">' + m.viewer_cap + " viewers</div>";
       var allowed = (m.fields || []).filter(function (f) { return f.allowed; }).map(function (f) { return '  "' + esc(f.name) + '": …'; });
@@ -367,7 +374,11 @@
       api("/api/modules/" + t.dataset.t + "/toggle", "POST", { on: t.checked }).then(function () { return refresh(true); })
         .then(function () { var m = find(t.dataset.t); if (m) toast(m.name + (m.on ? " is on" : " is off")); }).catch(fail);
     } else if (t.dataset.f !== undefined) saveFields();
-    else if (t.id === "capRange") {
+    else if (t.id === "optView" || t.id === "optHide" || t.id === "optPoll" || t.id === "optListed") {
+      var body = t.id === "optView" ? { view: t.value } : t.id === "optHide" ? { hide: t.value }
+        : t.id === "optListed" ? { listed: t.checked } : { poll: t.value.trim() === "" ? 3 : t.value };
+      api("/api/modules/" + sel + "/options", "POST", body).then(function () { toast("Saved. Publish to apply it to the site."); return refresh(true); }).catch(fail);
+    } else if (t.id === "capRange") {
       $("#capLabel").textContent = t.value + " viewers";
       api("/api/modules/" + sel + "/cap", "POST", { cap: +t.value }).then(function () { return refresh(true); }).catch(fail);
     }

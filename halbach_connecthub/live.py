@@ -40,23 +40,36 @@ def strip_private(value):
     return value
 
 
-def filter_payload(obj, fields):
+def filter_payload(obj, fields, hide=()):
     """Keep only allowed, non-locked fields. fields: the module's field list.
 
     The service may return one object, or a list of objects (a list of bots, say); the same
     allow-list is applied to every item, and at most MAX_ITEMS items are passed on.
+    hide: item names to drop entirely, from a top-level list and from lists of objects inside an
+    allowed field, so a hidden item never leaves this PC.
     """
     allowed = {f["name"] for f in fields if f.get("allowed") and not f.get("locked") and not is_locked_field(f["name"])}
+    hidden = {str(h) for h in (hide or ())}
+
+    def shown(items):
+        return [i for i in items if not (isinstance(i, dict) and str(i.get("name")) in hidden)]
 
     def cut(item):
-        return {k: strip_private(v) for k, v in item.items() if k in allowed}
+        out = {}
+        for k, v in item.items():
+            if k in allowed:
+                v = strip_private(v)
+                if hidden and isinstance(v, list) and v and all(isinstance(i, dict) for i in v):
+                    v = shown(v)
+                out[k] = v
+        return out
 
     if isinstance(obj, dict):
         return cut(obj)
     if isinstance(obj, list):
         if not all(isinstance(i, dict) for i in obj):
             raise UpstreamError("The service must return a JSON object or a list of objects")
-        return [cut(i) for i in obj[:MAX_ITEMS]]
+        return [cut(i) for i in shown(obj)[:MAX_ITEMS]]
     raise UpstreamError("The service must return a JSON object or a list of objects")
 
 
@@ -148,7 +161,7 @@ class LiveState:
             hit = self.cache.get(m["id"])
             if hit and now - hit[0] < CACHE_SECONDS:
                 return hit[1]
-        data = filter_payload(self.fetcher(m["source"]), m.get("fields") or [])
+        data = filter_payload(self.fetcher(m["source"]), m.get("fields") or [], m.get("hide") or ())
         with self.lock:
             self.cache[m["id"]] = (now, data)
         return data

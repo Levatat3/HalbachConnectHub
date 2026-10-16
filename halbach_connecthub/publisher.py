@@ -16,7 +16,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from .store import MAX_FILES, ValidationError, collect_files
+from .store import MAX_FILES, TAB_VIEWS, ValidationError, collect_files
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"}
 SITE_EXTRA_EXCLUDE = ("readme.md",)       # the site folder's own notes are never public
@@ -146,7 +146,15 @@ def build_stage(store, stage_dir):
         if not m["on"]:
             continue
         if m["kind"] == "live":
-            manifest_mods.append({"id": m["id"], "name": m["name"], "desc": m.get("desc", ""), "kind": "live"})
+            item = {"id": m["id"], "name": m["name"], "desc": m.get("desc", ""), "kind": "live"}
+            view = m.get("view") or "auto"
+            if view != "auto":
+                item["view"] = view
+                if view in TAB_VIEWS:
+                    item["tab"] = {"id": view, "label": TAB_VIEWS[view]}      # the site adds a nav tab for it
+            if m.get("poll"):
+                item["poll"] = int(m["poll"])
+            manifest_mods.append(item)
             continue
         files, probs = collect_files(m["source"])
         if not files:
@@ -162,6 +170,8 @@ def build_stage(store, stage_dir):
             total += 1
         item = {"id": m["id"], "name": m["name"], "desc": m.get("desc", ""), "kind": "static", "type": mtype,
                 "entry": base + entry if entry else base}
+        if m.get("listed") is False:
+            item["listed"] = False                                        # assets only (e.g. sprites): no card
         if mtype == "gallery":
             item["files"] = [base + rel for _, rel, _ in files if os.path.splitext(rel.lower())[1] in IMAGE_EXT]
         manifest_mods.append(item)

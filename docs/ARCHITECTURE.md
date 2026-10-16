@@ -81,6 +81,10 @@ chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► 
 - Removing a submission moves its folder to `inbox/.removed/` so the scanner cannot import it again; ordinary modules are never touched on remove.
 - A single `.md` file, or a folder with `index.md` and no `index.html`, is classified as a `doc`. The site renders it with a small Markdown renderer that builds DOM nodes from text (never `innerHTML`), allows only `http(s)`, `mailto`, `#` and same-module relative links, and only `https` or same-module images.
 
+## Per-module options
+
+`Store.set_options` holds display options that never widen what is shared: `hide` (item names dropped by the live hub before anything is sent, from a top-level list and from lists of objects inside an allowed field; the list itself is not written to the manifest), `view` (`auto` or a named view the site knows; views in `TAB_VIEWS` also get a nav tab, created by the site at load time from the manifest), `poll` (seconds, 1 to 60) and `listed` (static modules only: `false` writes `listed: false` so the site draws no card, for files that only support another view).
+
 ## Threat model
 
 | Threat | Mitigation |
@@ -99,6 +103,7 @@ chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► 
 | Flooding the inbox | 100 submissions, 100 MB each |
 | Two hubs overwriting each other's state | OS-level instance lock per state folder |
 | A force-killed hub leaving its tunnel running | The connector lives in a kill-on-close job object (Windows) |
+| Hidden items leaking through the manifest or the stream | Hiding happens in the hub before sending; the hide list is not published (tested) |
 | A crowd hammering your PC | Per-module viewer cap, one-second response cache |
 | Hotlinking live data from other sites | CORS only for your own origins (a convenience, not a security boundary: the data is public by design) |
 

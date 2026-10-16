@@ -45,6 +45,12 @@ LOCKED_FIELD_PARTS = ("chat", "note", "loot", "account", "passw", "token", "secr
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 
+# How the site may show a live module. "auto" is the generic card/table view; a named view is a
+# purpose-built one on the site, and a few of them also get their own tab.
+LIVE_VIEWS = ("auto", "pets")
+TAB_VIEWS = {"pets": "PETS"}
+MAX_HIDE = 50
+
 
 class ValidationError(ValueError):
     """The user asked for something that is not allowed or does not make sense."""
@@ -410,6 +416,44 @@ class Store:
                 locked = is_locked_field(nm)
                 out.append({"name": nm, "locked": locked, "allowed": bool(f.get("allowed")) and not locked})
             m["fields"] = out
+            self._save()
+        return m
+
+    def set_options(self, mid, view=None, hide=None, poll=None, listed=None):
+        """Per-module display options. Live: view, hide (names of items to drop), poll (seconds).
+        Static: listed (show a card in the MORE list). Anything for the wrong kind is refused."""
+        with self.lock:
+            m = self._find(mid)
+            live = m["kind"] == "live"
+            if (view is not None or hide is not None or poll is not None) and not live:
+                raise ValidationError("Only live modules have a view, hidden items or a refresh rate")
+            if listed is not None and live:
+                raise ValidationError("Only static modules can be hidden from the list")
+            if view is not None:
+                if view not in LIVE_VIEWS:
+                    raise ValidationError("View must be one of: %s" % ", ".join(LIVE_VIEWS))
+                m["view"] = view
+            if hide is not None:
+                if isinstance(hide, str):
+                    hide = hide.split(",")
+                names = []
+                for h in hide:
+                    h = _CTRL_RE.sub(" ", str(h)).strip()
+                    if h and len(h) <= 60 and h not in names:
+                        names.append(h)
+                if len(names) > MAX_HIDE:
+                    raise ValidationError("At most %d names" % MAX_HIDE)
+                m["hide"] = names
+            if poll is not None:
+                try:
+                    n = int(poll)
+                except (TypeError, ValueError):
+                    raise ValidationError("Refresh rate must be a number of seconds")
+                if not 1 <= n <= 60:
+                    raise ValidationError("Refresh rate must be between 1 and 60 seconds")
+                m["poll"] = n
+            if listed is not None:
+                m["listed"] = bool(listed)
             self._save()
         return m
 
