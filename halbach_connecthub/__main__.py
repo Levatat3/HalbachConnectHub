@@ -9,6 +9,8 @@ import webbrowser
 
 from . import __version__
 from .server import serve
+from .single import InstanceLock
+from .store import home_dir
 
 
 def _app_window(url):
@@ -45,12 +47,22 @@ def main(argv=None):
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
     a = ap.parse_args(args)
 
+    home = a.home or home_dir()
+    lock = InstanceLock(home)
+    if not lock.acquire():
+        # Never start a second hub on the same data: two would overwrite each other's state.
+        where = lock.running_url()
+        print("Halbach ConnectHub is already running%s." % ((" at " + where) if where else " (starting up)"))
+        if where and not a.no_open:
+            _app_window(where)
+        return 0
     try:
         srv, hub = serve(a.home, a.port, live_port=a.live_port, inbox=True)
     except OSError:
         print("Port %d is in use; picking a free one." % a.port)
         srv, hub = serve(a.home, 0, live_port=a.live_port, inbox=True)
     url = "http://127.0.0.1:%d/" % srv.server_address[1]
+    lock.publish_info(url, hub.live_srv.server_address[1])
     hub.store.log("info", "Hub started")
     print("Halbach ConnectHub %s running at %s  (Ctrl+C to stop)" % (__version__, url))
     print("Live hub (for the tunnel) on 127.0.0.1:%d" % hub.live_srv.server_address[1])
@@ -64,6 +76,7 @@ def main(argv=None):
         hub.close()
         hub.store.log("info", "Hub stopped")
         srv.server_close()
+        lock.release()
 
 
 if __name__ == "__main__":

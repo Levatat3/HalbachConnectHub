@@ -20,6 +20,10 @@
 - **`server.py`** is a thin HTTP layer over the store. Loopback only, token on every API call, `Host` and `Origin` checks.
 - **`ui/`** is plain HTML, CSS and JS. No build step, no framework, no inline scripts (the server sends a strict Content-Security-Policy).
 
+## One hub per state folder
+
+The hub keeps its state in memory and rewrites the whole file on every change, so two hubs on one folder overwrite each other (this once switched off modules that had been published). `single.py` holds an OS-level lock on `hub.lock` for as long as the hub runs; the OS drops it if the hub crashes or is killed, so a stale lock cannot block a start. A second launch prints where the running hub is (`hub.json`), opens its window and exits. The port fallback only applies when something that is *not* a hub is using the port.
+
 ## Pending-change tracking
 
 A static module has `on` (what you chose) and `published_fp` (a fingerprint of what the host currently has, or `null`). The fingerprint is a hash of `(relative path, size, mtime)` for the files that would be uploaded. So:
@@ -93,6 +97,7 @@ chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► 
 | A chat or tool submitting something harmful or private | Submissions are inert until you review, switch on and publish; never-publish list on the way in; text previews are shown as text; Markdown is rendered without HTML |
 | A submission escaping the inbox (symlink, junction, `..`) | Must resolve to a direct child of the inbox; otherwise skipped with a warning |
 | Flooding the inbox | 100 submissions, 100 MB each |
+| Two hubs overwriting each other's state | OS-level instance lock per state folder |
 | A crowd hammering your PC | Per-module viewer cap, one-second response cache |
 | Hotlinking live data from other sites | CORS only for your own origins (a convenience, not a security boundary: the data is public by design) |
 
