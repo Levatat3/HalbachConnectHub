@@ -11,12 +11,13 @@ import secrets
 import subprocess
 import sys
 import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse
 
 from . import __version__
 from .live import UpstreamError, fetch_upstream, start_live_hub
+from .net import LoopbackServer
 from .publisher import Publisher
 from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
@@ -252,7 +253,7 @@ def serve(home=None, port=0, token=None, publisher=None, live_port=None):
     """Start the server; returns (server, hub). Port 0 picks a free one."""
     store = Store(home)
     hub = Hub(store, token, publisher)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(hub))
+    srv = LoopbackServer(("127.0.0.1", port), make_handler(hub))
     if live_port is not None:
         hub.start_live(live_port)
     return srv, hub

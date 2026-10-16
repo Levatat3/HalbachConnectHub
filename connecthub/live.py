@@ -13,9 +13,10 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
+from .net import LoopbackServer
 from .store import is_locked_field
 
 MAX_UPSTREAM_BYTES = 256 * 1024
@@ -214,6 +215,6 @@ def make_hub_handler(state):
 def start_live_hub(store, port=0, fetcher=None):
     """Start the hub server on 127.0.0.1. Returns (server, state)."""
     state = LiveState(store, fetcher)
-    srv = ThreadingHTTPServer(("127.0.0.1", port), make_hub_handler(state))
+    srv = LoopbackServer(("127.0.0.1", port), make_hub_handler(state))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv, state
