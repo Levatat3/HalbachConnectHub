@@ -29,12 +29,12 @@ Drop a folder in, switch it on, press **Publish**. Edits inside a folder you hav
 Needs Python 3.10 or newer. No packages to install.
 
 ```
-git clone https://github.com/Levatat3/halbach-connecthub.git
-cd halbach-connecthub
+git clone https://github.com/Levatat3/HalbachConnectHub.git
+cd HalbachConnectHub
 python -m halbach_connecthub
 ```
 
-Or install it with `pip install git+https://github.com/Levatat3/halbach-connecthub.git` and run `halbach`. On Windows you can also double-click `Start Halbach ConnectHub.bat` (no console window). It opens in its own window (Edge or Chrome app mode if present, otherwise your browser). Use **Quit** in the sidebar to stop it.
+Or install it with `pip install git+https://github.com/Levatat3/HalbachConnectHub.git` and run `halbach`. On Windows you can also double-click `Start Halbach ConnectHub.bat` (no console window). It opens in its own window (Edge or Chrome app mode if present, otherwise your browser). Use **Quit** in the sidebar to stop it.
 
 State is kept in `%LOCALAPPDATA%\HalbachConnectHub` (or `~/.halbach-connecthub`). Set `HALBACH_HOME` to move it. An older `%LOCALAPPDATA%\ConnectHub` folder is still used if it exists and the new one does not, and `CONNECTHUB_HOME` still works.
 

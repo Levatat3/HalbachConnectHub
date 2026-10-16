@@ -20,3 +20,7 @@ packages = ["halbach_connecthub"]
 
 [tool.setuptools.package-data]
 halbach_connecthub = ["ui/*"]
+
+[project.urls]
+Source = "https://github.com/Levatat3/HalbachConnectHub"
+Issues = "https://github.com/Levatat3/HalbachConnectHub/issues"
