@@ -1,6 +1,6 @@
 """Build the site plus switched-on static modules, write manifest.json, deploy, verify.
 
-The deploy step shells out to `wrangler pages deploy` using the user's own login; ConnectHub
+The deploy step shells out to `wrangler pages deploy` using the user's own login; Halbach ConnectHub
 never sees a credential. Stdlib only.
 """
 
@@ -68,7 +68,7 @@ def build_stage(store, stage_dir):
     for src, rel, _ in site_files:
         top = rel.split("/")[0]
         if rel in RESERVED or top == RESERVED_DIR:
-            raise PublishError("The site folder uses '%s', which ConnectHub reserves. Rename it." % rel)
+            raise PublishError("The site folder uses '%s', which Halbach ConnectHub reserves. Rename it." % rel)
         dest = stage / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
@@ -149,7 +149,7 @@ def fetch_manifest_build(host, build, wait=60, interval=4):
     while time.time() < end:
         try:
             req = urllib.request.Request("https://%s/manifest.json?cb=%s" % (host, secrets.token_hex(3)),
-                                         headers={"Cache-Control": "no-cache", "User-Agent": "ConnectHub"})
+                                         headers={"Cache-Control": "no-cache", "User-Agent": "HalbachConnectHub"})
             with urllib.request.urlopen(req, timeout=8) as r:
                 if json.loads(r.read().decode("utf-8")).get("build") == build:
                     return True

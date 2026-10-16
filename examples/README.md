@@ -1,6 +1,6 @@
 # Example: rendering modules on your site
 
-`modules.js` is the script a site uses to show what ConnectHub publishes. It reads `manifest.json`
+`modules.js` is the script a site uses to show what Halbach ConnectHub publishes. It reads `manifest.json`
 and draws each module by type (page, game, gallery, image, file) and shows an "offline" message for
 live modules when your PC is off.
 

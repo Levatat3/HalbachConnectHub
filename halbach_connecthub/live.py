@@ -60,7 +60,7 @@ _OPENER = urllib.request.build_opener(_NoRedirect)
 def fetch_upstream(source, timeout=UPSTREAM_TIMEOUT):
     """GET http://<source> (127.0.0.1 only, validated at add time) and parse JSON."""
     url = "http://" + source
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "ConnectHub"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HalbachConnectHub"})
     try:
         with _OPENER.open(req, timeout=timeout) as r:
             ctype = (r.headers.get("Content-Type") or "").lower()
@@ -142,7 +142,7 @@ def allowed_origins(settings, port):
 
 def make_hub_handler(state):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "ConnectHubLive"
+        server_version = "HalbachConnectHubLive"
         sys_version = ""
 
         def log_message(self, *a):

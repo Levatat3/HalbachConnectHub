@@ -1,4 +1,4 @@
-"""The local web server behind the ConnectHub window.
+"""The local web server behind the Halbach ConnectHub window.
 
 Binds to 127.0.0.1 only. Every /api call needs the per-launch token (so a web page you
 happen to have open cannot drive the hub), and the Host header must be this server's own
@@ -54,7 +54,7 @@ class Hub:
 
 def make_handler(hub):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "ConnectHub/" + __version__
+        server_version = "HalbachConnectHub/" + __version__
         sys_version = ""
 
         def log_message(self, *a):  # quiet; activity goes to the activity log instead
@@ -107,7 +107,7 @@ def make_handler(hub):
         def _api_guard(self):
             if not self._guard():
                 return False
-            if not secrets.compare_digest(self.headers.get("X-ConnectHub-Token") or "", hub.token):
+            if not secrets.compare_digest(self.headers.get("X-Halbach-Token") or "", hub.token):
                 self._err(401, "Missing or wrong token")
                 return False
             origin = self.headers.get("Origin")

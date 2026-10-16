@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "connecthub"
+name = "halbach-connecthub"
 version = "0.2.0"
-description = "Choose what your personal site shows, from a window on your own PC."
+description = "Halbach ConnectHub: choose what your personal site shows, from a window on your own PC."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -13,10 +13,10 @@ authors = [{ name = "Tyler (Levatat3)", email = "levbot.py@gmail.com" }]
 dependencies = []
 
 [project.scripts]
-connecthub = "connecthub.__main__:main"
+halbach = "halbach_connecthub.__main__:main"
 
 [tool.setuptools]
-packages = ["connecthub"]
+packages = ["halbach_connecthub"]
 
 [tool.setuptools.package-data]
-connecthub = ["ui/*"]
+halbach_connecthub = ["ui/*"]

@@ -6,8 +6,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from connecthub import publisher as pub
-from connecthub import store as st
+from halbach_connecthub import publisher as pub
+from halbach_connecthub import store as st
 
 
 def wait_done(p, secs=5):

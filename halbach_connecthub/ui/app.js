@@ -1,6 +1,6 @@
 "use strict";
 (function () {
-  var TOKEN = document.querySelector('meta[name="connecthub-token"]').content;
+  var TOKEN = document.querySelector('meta[name="halbach-token"]').content;
   var $ = function (s) { return document.querySelector(s); };
   var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
   var S = { modules: [], settings: {}, last_deploy: null, pending: [] };
@@ -20,7 +20,7 @@
   function api(path, method, body) {
     return fetch(path, {
       method: method || "GET",
-      headers: { "X-ConnectHub-Token": TOKEN, "Content-Type": "application/json" },
+      headers: { "X-Halbach-Token": TOKEN, "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     }).then(function (r) {
       return r.json().then(function (j) {
@@ -306,9 +306,9 @@
         case "discover":
           return api("/api/modules/" + sel + "/discover", "POST", {}).then(function () { toast("Fields found. Allow the ones you want to share."); return refresh(true); }).catch(fail);
         case "quit":
-          if (!confirm("Quit ConnectHub? Live modules and the tunnel go offline.")) return;
+          if (!confirm("Quit Halbach ConnectHub? Live modules and the tunnel go offline.")) return;
           return api("/api/quit", "POST", {}).then(function () {
-            document.body.innerHTML = '<p style="font:16px system-ui;color:#7f9d8b;padding:40px">ConnectHub has stopped. You can close this window.</p>';
+            document.body.innerHTML = '<p style="font:16px system-ui;color:#7f9d8b;padding:40px">Halbach ConnectHub has stopped. You can close this window.</p>';
           }).catch(fail);
         case "publish": return startPublish(false);
         case "previewPublish": return startPublish(true);

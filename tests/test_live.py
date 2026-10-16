@@ -6,8 +6,8 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from connecthub import live
-from connecthub import store as st
+from halbach_connecthub import live
+from halbach_connecthub import store as st
 
 
 class Upstream:

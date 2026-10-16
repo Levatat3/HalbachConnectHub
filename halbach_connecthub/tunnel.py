@@ -1,6 +1,6 @@
 """Start and stop a Cloudflare named tunnel that points at the live hub.
 
-ConnectHub never downloads or installs cloudflared, and never handles a Cloudflare login:
+Halbach ConnectHub never downloads or installs cloudflared, and never handles a Cloudflare login:
 you install it and run the one-time setup yourself (see SETUP_STEPS); this only starts and
 stops the already-configured tunnel while the hub is open. Stdlib only.
 """
@@ -52,7 +52,7 @@ class Tunnel:
 
     def status(self):
         s = self.store.state.get("settings") or {}
-        name, host = s.get("tunnel_name") or "connecthub", s.get("live_host") or "live.example.com"
+        name, host = s.get("tunnel_name") or "halbach", s.get("live_host") or "live.example.com"
         with self.lock:
             return {"installed": bool(find_cloudflared(self.store)), "running": self.running(),
                     "connected": self.connected and self.running(), "name": s.get("tunnel_name") or "",

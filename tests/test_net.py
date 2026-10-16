@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from connecthub import live, server
-from connecthub import store as st
-from connecthub.net import LoopbackServer
+from halbach_connecthub import live, server
+from halbach_connecthub import store as st
+from halbach_connecthub.net import LoopbackServer
 
 
 class TestExclusivePorts(unittest.TestCase):

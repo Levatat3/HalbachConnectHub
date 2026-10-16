@@ -1,4 +1,4 @@
-"""State for ConnectHub: modules, validation and pending-change tracking.
+"""State for Halbach ConnectHub: modules, validation and pending-change tracking.
 
 Two kinds of module:
   static  a file or folder that gets uploaded to the site's host
@@ -44,12 +44,21 @@ class ValidationError(ValueError):
 
 
 def home_dir():
-    """Where state lives. CONNECTHUB_HOME overrides; never inside the repo."""
-    env = os.environ.get("CONNECTHUB_HOME")
+    """Where state lives; never inside the repo.
+
+    HALBACH_HOME overrides (CONNECTHUB_HOME still works). Otherwise the folder is
+    HalbachConnectHub inside %LOCALAPPDATA%, unless an older ConnectHub folder exists there
+    and the new one does not, in which case the older one keeps being used (no migration).
+    """
+    env = os.environ.get("HALBACH_HOME") or os.environ.get("CONNECTHUB_HOME")
     if env:
         return Path(env)
     base = os.environ.get("LOCALAPPDATA")
-    return Path(base) / "ConnectHub" if base else Path.home() / ".connecthub"
+    if not base:
+        new, old = Path.home() / ".halbach-connecthub", Path.home() / ".connecthub"
+    else:
+        new, old = Path(base) / "HalbachConnectHub", Path(base) / "ConnectHub"
+    return old if (old.exists() and not new.exists()) else new
 
 
 def slugify(name):
@@ -148,7 +157,7 @@ def validate_static_source(text):
         raise ValidationError("Pick a specific folder, not your whole user folder")
     try:
         p.relative_to(home_dir().resolve())
-        raise ValidationError("That is ConnectHub's own data folder")
+        raise ValidationError("That is Halbach ConnectHub's own data folder")
     except ValueError:
         pass
     files, problems = collect_files(p)

@@ -8,8 +8,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
-from connecthub import server, tunnel
-from connecthub import store as st
+from halbach_connecthub import server, tunnel
+from halbach_connecthub import store as st
 
 
 class FakeProc:
@@ -135,7 +135,7 @@ class TestControlApi(unittest.TestCase):
 
     def api(self, method, path, body=None):
         c = self.http.HTTPConnection("127.0.0.1", self.port, timeout=10)
-        h = {"Host": "127.0.0.1:%d" % self.port, "X-ConnectHub-Token": "tok", "Content-Type": "application/json"}
+        h = {"Host": "127.0.0.1:%d" % self.port, "X-Halbach-Token": "tok", "Content-Type": "application/json"}
         c.request(method, path, json.dumps(body).encode() if body is not None else None, h)
         r = c.getresponse()
         j = json.loads(r.read())

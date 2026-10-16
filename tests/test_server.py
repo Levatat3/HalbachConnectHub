@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from connecthub import server
+from halbach_connecthub import server
 
 
 class TestServer(unittest.TestCase):
@@ -39,7 +39,7 @@ class TestServer(unittest.TestCase):
         return r.status, raw
 
     def api(self, method, path, body=None):
-        s, raw = self.req(method, path, body, {"X-ConnectHub-Token": "tok"})
+        s, raw = self.req(method, path, body, {"X-Halbach-Token": "tok"})
         return s, json.loads(raw)
 
     def test_ui_served_with_token_filled_in(self):
@@ -50,15 +50,15 @@ class TestServer(unittest.TestCase):
 
     def test_api_needs_token(self):
         self.assertEqual(self.req("GET", "/api/state")[0], 401)
-        self.assertEqual(self.req("GET", "/api/state", headers={"X-ConnectHub-Token": "nope"})[0], 401)
-        self.assertEqual(self.req("POST", "/api/modules", {}, {"X-ConnectHub-Token": ""})[0], 401)
+        self.assertEqual(self.req("GET", "/api/state", headers={"X-Halbach-Token": "nope"})[0], 401)
+        self.assertEqual(self.req("POST", "/api/modules", {}, {"X-Halbach-Token": ""})[0], 401)
 
     def test_wrong_host_is_refused(self):
         self.assertEqual(self.req("GET", "/", host="evil.example:80")[0], 403)
-        self.assertEqual(self.req("GET", "/api/state", {}, {"X-ConnectHub-Token": "tok"}, host="evil.example")[0], 403)
+        self.assertEqual(self.req("GET", "/api/state", {}, {"X-Halbach-Token": "tok"}, host="evil.example")[0], 403)
 
     def test_foreign_origin_is_refused(self):
-        s, _ = self.req("GET", "/api/state", headers={"X-ConnectHub-Token": "tok", "Origin": "https://evil.example"})
+        s, _ = self.req("GET", "/api/state", headers={"X-Halbach-Token": "tok", "Origin": "https://evil.example"})
         self.assertEqual(s, 403)
 
     def test_unknown_paths_404_and_no_file_leak(self):
@@ -88,7 +88,7 @@ class TestServer(unittest.TestCase):
 
     def test_bad_json_is_400(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        c.request("POST", "/api/modules", b"{nope", {"Host": "127.0.0.1:%d" % self.port, "X-ConnectHub-Token": "tok",
+        c.request("POST", "/api/modules", b"{nope", {"Host": "127.0.0.1:%d" % self.port, "X-Halbach-Token": "tok",
                                                        "Content-Length": "5"})
         self.assertEqual(c.getresponse().status, 400)
 
@@ -100,7 +100,7 @@ class TestQuit(unittest.TestCase):
             port = srv.server_address[1]
             th = server.run_in_thread(srv)
             c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-            c.request("POST", "/api/quit", b"{}", {"Host": "127.0.0.1:%d" % port, "X-ConnectHub-Token": "tok",
+            c.request("POST", "/api/quit", b"{}", {"Host": "127.0.0.1:%d" % port, "X-Halbach-Token": "tok",
                                                     "Content-Type": "application/json", "Content-Length": "2"})
             self.assertEqual(c.getresponse().status, 200)
             th.join(timeout=5)

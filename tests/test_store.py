@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from connecthub import store as st
+from halbach_connecthub import store as st
 
 
 class Base(unittest.TestCase):

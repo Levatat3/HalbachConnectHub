@@ -5,7 +5,7 @@
 ```
    your PC                                              the internet
   ┌──────────────────────────────┐
-  │ ConnectHub window (browser)  │
+  │ Halbach ConnectHub window (browser)  │
   │        │  token + Host check │
   │ local server  127.0.0.1:8780 │
   │   store.py  (state, rules)   │

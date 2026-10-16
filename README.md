@@ -1,12 +1,12 @@
-# ConnectHub
+# Halbach ConnectHub
 
 A small desktop control panel for your personal site. Pick what visitors can see from a window on your own PC; the site follows.
 
-![The dashboard](design/screenshot.jpg)
+![The dashboard](design/screenshot.png)
 
 ## The idea
 
-Most personal sites need a code change and a push every time you want to show something new. ConnectHub flips that: you keep a list of **modules** on your PC, switch them on or off, and the site reads that list.
+Most personal sites need a code change and a push every time you want to show something new. Halbach ConnectHub flips that: you keep a list of **modules** on your PC, switch them on or off, and the site reads that list.
 
 | Kind | What it is | Where it is served from |
 |---|---|---|
@@ -29,27 +29,27 @@ Drop a folder in, switch it on, press **Publish**. Edits inside a folder you hav
 Needs Python 3.10 or newer. No packages to install.
 
 ```
-git clone <this repo>
-cd connecthub
-python -m connecthub
+git clone https://github.com/Levatat3/halbach-connecthub.git
+cd halbach-connecthub
+python -m halbach_connecthub
 ```
 
-On Windows you can also double-click `Start ConnectHub.bat` (no console window). It opens in its own window (Edge or Chrome app mode if present, otherwise your browser). Use **Quit ConnectHub** in the sidebar to stop it.
+Or install it with `pip install git+https://github.com/Levatat3/halbach-connecthub.git` and run `halbach`. On Windows you can also double-click `Start Halbach ConnectHub.bat` (no console window). It opens in its own window (Edge or Chrome app mode if present, otherwise your browser). Use **Quit** in the sidebar to stop it.
 
-State is kept in `%LOCALAPPDATA%\ConnectHub` (or `~/.connecthub`). Set `CONNECTHUB_HOME` to move it.
+State is kept in `%LOCALAPPDATA%\HalbachConnectHub` (or `~/.halbach-connecthub`). Set `HALBACH_HOME` to move it. An older `%LOCALAPPDATA%\ConnectHub` folder is still used if it exists and the new one does not, and `CONNECTHUB_HOME` still works.
 
 ## Set it up for your site
 
 1. **Settings:** set the site folder (the folder your site is built from), the Cloudflare Pages project name, your domain, and the live host (for example `live.example.com`).
-2. **Publishing** needs [Node.js](https://nodejs.org) and a one-time `npx wrangler@4 login`. ConnectHub uses that login; it never sees your credentials.
+2. **Publishing** needs [Node.js](https://nodejs.org) and a one-time `npx wrangler@4 login`. Halbach ConnectHub uses that login; it never sees your credentials.
 3. **Your site** needs to read `manifest.json` and render modules. A reference script is in [examples/](examples/); the format is below.
 4. **Live modules** need [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) and a one-time setup, shown in Settings:
    ```
    cloudflared tunnel login
-   cloudflared tunnel create connecthub
-   cloudflared tunnel route dns connecthub live.example.com
+   cloudflared tunnel create halbach
+   cloudflared tunnel route dns halbach live.example.com
    ```
-   Put `cloudflared.exe` on your PATH, or in `%LOCALAPPDATA%\ConnectHub\bin`. ConnectHub never downloads it for you. Then press **Start tunnel**.
+   Put `cloudflared.exe` on your PATH, or in the `bin` folder inside the state folder. Halbach ConnectHub never downloads it for you. Then press **Start tunnel**.
 
 ### manifest.json
 
@@ -75,7 +75,7 @@ State is kept in `%LOCALAPPDATA%\ConnectHub` (or `~/.connecthub`). Set `CONNECTH
 - **Never published.** Dotfiles, `.env`, keys, `id_rsa*`, logs, backups and `TIMELINE.md` are skipped from any folder you add. The site folder's own `README.md` is never uploaded. Files over 25 MB are reported, not included.
 - **This PC only.** Live modules must point at `127.0.0.1` or `localhost`, and the hub does not follow redirects.
 - **Small attack surface.** The tunnel reaches only the live hub (read-only `GET /status` and `GET /m/<id>`). The control panel is a separate loopback server with a per-launch token, `Host` and `Origin` checks and a strict Content-Security-Policy; it is not reachable through the tunnel.
-- **No credentials.** ConnectHub never asks for or stores a password. Publishing uses your `wrangler` login and the tunnel uses cloudflared's own certificate.
+- **No credentials.** Halbach ConnectHub never asks for or stores a password. Publishing uses your `wrangler` login and the tunnel uses cloudflared's own certificate.
 
 ## Tests
 

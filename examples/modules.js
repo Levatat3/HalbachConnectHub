@@ -1,4 +1,4 @@
-// The MORE tab: everything listed in manifest.json (written by ConnectHub) shows up here.
+// The MORE tab: everything listed in manifest.json (written by Halbach ConnectHub) shows up here.
 // Static modules are files on this site; live modules are data from the owner's PC and
 // fall back to an "offline" message when that PC is off.
 (function () {
