@@ -26,6 +26,55 @@ SETUP_STEPS = [
 ]
 
 
+_JOB = None
+
+
+def kill_with_parent(proc):
+    """Windows: make `proc` die when this process dies, even if this process is force-killed.
+
+    Without it, killing the hub leaves its tunnel connector running and the site's live data
+    stays public with no hub in charge of it. Uses a job object with kill-on-close; a no-op
+    elsewhere or if the OS refuses. Returns True if the process was attached.
+    """
+    global _JOB
+    handle = getattr(proc, "_handle", None)
+    if os.name != "nt" or handle is None:
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class IoCounters(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_uint64) for n in ("r", "w", "o", "rb", "wb", "ob")]
+
+        class Extended(ctypes.Structure):
+            _fields_ = [("Basic", Basic), ("Io", IoCounters), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        k.CreateJobObjectW.restype = wintypes.HANDLE
+        k.CreateJobObjectW.argtypes = [wintypes.LPVOID, wintypes.LPCWSTR]
+        k.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD]
+        k.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        if _JOB is None:
+            job = k.CreateJobObjectW(None, None)
+            info = Extended()
+            info.Basic.LimitFlags = 0x2000                      # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if not job or not k.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
+                return False
+            _JOB = job                                          # kept open for the life of this process
+        return bool(k.AssignProcessToJobObject(_JOB, int(handle)))
+    except Exception:
+        return False
+
+
 def find_cloudflared(store):
     p = (store.state.get("settings") or {}).get("cloudflared_path")
     if p and Path(p).is_file():
@@ -78,6 +127,8 @@ class Tunnel:
         except OSError as e:
             raise ValidationError("Could not start cloudflared: %s" % e)
         self.connected = False
+        if not kill_with_parent(self.proc):
+            self.store.log("info", "Note: the tunnel will not stop by itself if this program is force-killed")
         self.store.log("info", "Tunnel starting (%s)" % name)
         threading.Thread(target=self._read, args=(self.proc,), daemon=True).start()
 

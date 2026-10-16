@@ -66,7 +66,7 @@ The live hub is a separate server from the control panel and is the only thing t
 
 `GET /status` lists which live modules are on, which is how the site decides between showing data and showing "offline". Everything else is a 404, and any method other than `GET` is a 405.
 
-The tunnel manager only starts and stops an already-configured `cloudflared` named tunnel (`tunnel run --url http://127.0.0.1:<hub port> <name>`). It never downloads cloudflared and never handles a login.
+The tunnel manager only starts and stops an already-configured `cloudflared` named tunnel (`tunnel run --url http://127.0.0.1:<hub port> <name>`). It never downloads cloudflared and never handles a login. On Windows the connector is placed in a job object with kill-on-close, so it dies with the hub even if the hub is force-killed (otherwise the live data would stay public with no hub in charge of it).
 
 ## Drop-off inbox
 
@@ -98,6 +98,7 @@ chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► 
 | A submission escaping the inbox (symlink, junction, `..`) | Must resolve to a direct child of the inbox; otherwise skipped with a warning |
 | Flooding the inbox | 100 submissions, 100 MB each |
 | Two hubs overwriting each other's state | OS-level instance lock per state folder |
+| A force-killed hub leaving its tunnel running | The connector lives in a kill-on-close job object (Windows) |
 | A crowd hammering your PC | Per-module viewer cap, one-second response cache |
 | Hotlinking live data from other sites | CORS only for your own origins (a convenience, not a security boundary: the data is public by design) |
 
