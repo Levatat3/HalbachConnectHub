@@ -8,6 +8,7 @@
   var view = "dash";
   var add = { step: 1, kind: null };
   var ICON = { live: "i-eye", static: "i-file" };
+  var busy = null;           // {preview} while a publish runs
 
   function esc(t) {
     return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
@@ -82,10 +83,13 @@
       '<p class="empty">Nothing is switched on, so nothing is public.</p>';
 
     var p = S.pending, n = p.length;
-    $("#app").classList.toggle("has-bar", n > 0);
-    $("#barN").textContent = n + (n === 1 ? " change" : " changes");
+    $("#app").classList.toggle("has-bar", n > 0 || !!busy);
+    $("#barN").textContent = busy ? "Publishing" : n + (n === 1 ? " change" : " changes");
+    if (!busy) $("#barN").nextElementSibling.textContent = " waiting to go on the site";
+    $("#pubBtn").disabled = !!busy; $("#pubPrev").disabled = !!busy;
+    $("#pubBtn").textContent = busy && !busy.preview ? "Publishing…" : "Publish";
     var nb = $("#navBadge"); nb.style.display = n ? "" : "none"; nb.textContent = n;
-    $("#pubBtn2").disabled = !n;
+    $("#pubBtn2").disabled = !n || !!busy;
     $("#pubSummary").innerHTML = n ? p.map(function (x) {
       return { add: "+", update: "~", remove: "−" }[x.change] + " " + esc(x.name) + " (" + x.change + ")";
     }).join("<br>") : "Nothing waiting.";
@@ -117,13 +121,39 @@
 
   function fillSettings() {
     var st = S.settings || {};
-    $("#setSite").value = st.site_dir || ""; $("#setProject").value = st.project || ""; $("#setDomain").value = st.domain || "";
+    $("#setSite").value = st.site_dir || ""; $("#setProject").value = st.project || ""; $("#setDomain").value = st.domain || ""; $("#setLive").value = st.live_host || "";
   }
 
   function refresh(keepDrawer) {
     return api("/api/state").then(function (s) {
       S = s; render(); if (keepDrawer && sel) drawer(sel);
     }).catch(fail);
+  }
+
+  // ---------- publishing ----------
+  function pubMsg(title, text, bad) {
+    $("#pubMsgRow").style.display = ""; $("#pubMsgTitle").textContent = title;
+    $("#pubMsg").textContent = text || ""; $("#pubMsgTitle").style.color = bad ? "var(--red)" : "var(--green)";
+  }
+  function startPublish(preview) {
+    api("/api/publish", "POST", { preview: !!preview }).then(function () {
+      busy = { preview: !!preview }; $("#barN").nextElementSibling.textContent = "building and uploading"; render(); pollPublish();
+    }).catch(fail);
+  }
+  function pollPublish() {
+    api("/api/publish/status").then(function (st) {
+      if (st.state === "running") {
+        $("#barN").nextElementSibling.textContent = (st.step || "working").toLowerCase();
+        return setTimeout(pollPublish, 800);
+      }
+      var wasPreview = busy && busy.preview; busy = null;
+      if (st.state === "done") {
+        toast(st.message); pubMsg(st.message, st.url ? "Address: " + st.url : "", false);
+      } else if (st.state === "error") {
+        toast("Publish failed"); pubMsg("Publish failed", st.message, true);
+      }
+      refresh().then(function () { if (view === "pub") renderPlan(); if (view === "logs") renderLog(); });
+    }).catch(function (e) { busy = null; fail(e); render(); });
   }
 
   // ---------- drawer ----------
@@ -251,12 +281,10 @@
           fields.push({ name: v, allowed: false });
           return api("/api/modules/" + m.id + "/fields", "POST", { fields: fields }).then(function () { return refresh(true); }).catch(fail);
         }
-        case "publish":
-          return api("/api/publish/plan").then(function (pl) {
-            toast(pl.changes.length + " change(s) planned. " + pl.note);
-          }).catch(fail);
+        case "publish": return startPublish(false);
+        case "previewPublish": return startPublish(true);
         case "saveSettings":
-          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value })
+          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value })
             .then(function () { $("#setErr").textContent = ""; toast("Settings saved"); return refresh(); })
             .catch(function (e) { $("#setErr").textContent = e.message; });
       }
@@ -284,6 +312,7 @@
   });
 
   refresh();
+  api("/api/publish/status").then(function (st) { if (st.state === "running") { busy = { preview: false }; render(); pollPublish(); } }).catch(function () {});
   // picks up edits inside watched folders; leaves the open panel alone so typing isn't lost
   setInterval(function () { if (!document.hidden) refresh(false); }, 5000);
 })();

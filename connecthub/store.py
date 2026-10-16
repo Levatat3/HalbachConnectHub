@@ -66,8 +66,10 @@ def is_excluded(name):
     return bool(EXCLUDE_NAME_RE.search(name))
 
 
-def collect_files(source):
+def collect_files(source, extra_exclude=()):
     """Return (files, problems) for a static source.
+
+    extra_exclude: extra lowercase file names to skip (the site builder drops README.md).
 
     files: list of (absolute path, relative posix path, size).
     problems: human-readable reasons something was skipped or is too big.
@@ -83,7 +85,7 @@ def collect_files(source):
         for root, dirs, names in os.walk(src):
             dirs[:] = sorted(d for d in dirs if d not in EXCLUDE_DIRS and not d.startswith("."))
             for n in sorted(names):
-                if is_excluded(n):
+                if is_excluded(n) or n.lower() in extra_exclude:
                     continue
                 p = Path(root) / n
                 entries.append((p, p.relative_to(src).as_posix()))
@@ -280,7 +282,7 @@ class Store:
     def set_settings(self, **kw):
         with self.lock:
             s = self.state["settings"]
-            for k in ("site_dir", "project", "domain"):
+            for k in ("site_dir", "project", "domain", "live_host"):
                 if k in kw and kw[k] is not None:
                     v = str(kw[k]).strip()
                     if k == "site_dir" and v:
@@ -290,6 +292,10 @@ class Store:
                         v = str(p.resolve())
                     if k == "project" and v and not re.match(r"^[a-z0-9-]{1,58}$", v):
                         raise ValidationError("Project name: lowercase letters, digits and dashes")
+                    if k in ("domain", "live_host") and v and not re.match(r"^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$", v.lower()):
+                        raise ValidationError("%s: a bare host name like example.com" % ("Domain" if k == "domain" else "Live host"))
+                    if k in ("domain", "live_host"):
+                        v = v.lower()
                     s[k] = v
             self._save()
         return s

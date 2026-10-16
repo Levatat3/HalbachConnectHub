@@ -12,3 +12,8 @@ venv*/
 
 # internal working notes - local paths, usernames
 TIMELINE.md
+
+# wrangler caches account details; dev logs
+.wrangler/
+_dev.log
+*.log

@@ -70,7 +70,8 @@
     <section class="view" id="v-pub">
       <h2 class="h2">Publish</h2>
       <div class="set" style="max-width:820px">
-        <div class="r"><div><b>Pending static changes</b><small id="pubSummary">Nothing waiting.</small></div><span style="flex:1"></span><button class="btn primary" id="pubBtn2" data-act="publish" disabled>Publish now</button></div>
+        <div class="r"><div><b>Pending static changes</b><small id="pubSummary">Nothing waiting.</small></div><span style="flex:1"></span><button class="btn" id="pubPrev" data-act="previewPublish" title="Uploads to a private preview address. The live site is not changed.">Test publish</button><button class="btn primary" id="pubBtn2" data-act="publish" disabled style="margin-left:8px">Publish now</button></div>
+        <div class="r" id="pubMsgRow" style="display:none"><div><b id="pubMsgTitle"></b><small id="pubMsg"></small></div></div>
         <div class="r"><div><b>Target</b><small id="pubTarget">Set the site folder and project in Settings.</small></div></div>
         <div class="r"><div><b>What gets uploaded</b><small>Only files from switched-on static modules. Dotfiles, keys, env files, logs, backups and working notes are never included.</small></div></div>
       </div>
@@ -88,6 +89,7 @@
       <div class="set">
         <div class="r"><div><b>Site folder</b><small>The folder your site is built from</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setSite" placeholder="folder path"></div></div>
         <div class="r"><div><b>Pages project</b><small>Name of the Cloudflare Pages project</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setProject" placeholder="my-site"></div></div>
+        <div class="r"><div><b>Live host</b><small>Where live modules are served (tunnel hostname)</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setLive" placeholder="live.example.com"></div></div>
         <div class="r"><div><b>Domain</b><small>Shown in the sidebar</small></div><span style="flex:1"></span><div style="width:320px"><input type="text" id="setDomain" placeholder="example.com"></div></div>
         <div class="r"><div><b>Start with Windows</b><small>Never. The hub only runs when you open it.</small></div><span style="flex:1"></span><label class="sw lock"><input type="checkbox" disabled><i></i></label></div>
         <div class="r"><span class="err" id="setErr" style="margin:0"></span><span style="flex:1"></span><button class="btn primary" data-act="saveSettings">Save settings</button></div>

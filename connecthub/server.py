@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from . import __version__
+from .publisher import Publisher
 from .store import Store, ValidationError, collect_files
 
 UI_DIR = Path(__file__).parent / "ui"
@@ -26,9 +27,10 @@ MAX_BODY = 64 * 1024
 class Hub:
     """Server-side state shared by all requests."""
 
-    def __init__(self, store, token=None):
+    def __init__(self, store, token=None, publisher=None):
         self.store = store
         self.token = token or secrets.token_urlsafe(24)
+        self.publisher = publisher or Publisher(store)
 
 
 def make_handler(hub):
@@ -118,6 +120,8 @@ def make_handler(hub):
                 return self._json({"rows": hub.store.activity()})
             if path == "/api/publish/plan":
                 return self._json(self._plan())
+            if path == "/api/publish/status":
+                return self._json(hub.publisher.status())
             return self._err(404, "Not found")
 
         def do_POST(self):
@@ -147,6 +151,9 @@ def make_handler(hub):
                 if path == "/api/settings":
                     return self._json(s.set_settings(site_dir=b.get("site_dir"), project=b.get("project"),
                                                      domain=b.get("domain")))
+                if path == "/api/publish":
+                    hub.publisher.start(preview=bool(b.get("preview")))
+                    return self._json(hub.publisher.status(), 202)
                 if path == "/api/pick":
                     return self._json({"path": pick_path(b.get("kind"))})
                 return self._err(404, "Not found")
@@ -156,7 +163,7 @@ def make_handler(hub):
                 return self._err(400, "Bad request")
 
         def _plan(self):
-            """What a publish would do right now. Deploying is not wired up yet."""
+            """What a publish would do right now."""
             s = hub.store
             changes = s.pending()
             files = []
@@ -164,8 +171,8 @@ def make_handler(hub):
                 if m["kind"] == "static" and m["on"]:
                     fl, _ = collect_files(m["source"])
                     files += [{"module": m["id"], "path": rel, "bytes": size} for _, rel, size in fl]
-            return {"changes": changes, "files": files, "deploy_ready": False,
-                    "note": "Deploying is not wired up in this version."}
+            ok, why = hub.publisher.ready()
+            return {"changes": changes, "files": files, "deploy_ready": ok, "note": why}
 
     return Handler
 
@@ -183,9 +190,10 @@ def pick_path(kind):
     return out.stdout.strip()
 
 
-def serve(home=None, port=0, token=None):
+def serve(home=None, port=0, token=None, publisher=None):
     """Start the server; returns (server, hub). Port 0 picks a free one."""
-    hub = Hub(Store(home), token)
+    store = Store(home)
+    hub = Hub(store, token, publisher)
     srv = ThreadingHTTPServer(("127.0.0.1", port), make_handler(hub))
     return srv, hub
 
