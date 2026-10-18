@@ -42,7 +42,13 @@
             "id": "b2",
             "type": "cards",
             "props": {
-              "items": []
+              "items": [
+                {
+                  "title": "Example card",
+                  "text": "Replace this with something of yours.",
+                  "page": "about"
+                }
+              ]
             }
           }
         ]
@@ -61,7 +67,7 @@
             "id": "b1",
             "type": "github-projects",
             "props": {
-              "user": ""
+              "user": "your-github-name"
             }
           }
         ]
@@ -87,7 +93,12 @@
             "id": "b2",
             "type": "links",
             "props": {
-              "items": [],
+              "items": [
+                {
+                  "label": "Example link",
+                  "url": "https://example.com"
+                }
+              ],
               "style": "buttons"
             }
           }

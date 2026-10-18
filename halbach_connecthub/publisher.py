@@ -118,29 +118,11 @@ def hash_assets(stage):
             for o, h in renamed.items()}
 
 
-def build_stage(store, stage_dir):
-    """Create stage_dir from the site folder and enabled static modules. Returns the manifest."""
+def stage_modules(store, stage):
+    """Copy every switched-on module into stage/modules and describe it. Returns (manifest modules, files copied)."""
     st = store.state
-    site_dir = (st.get("settings") or {}).get("site_dir")
-    if not site_dir or not Path(site_dir).is_dir():
-        raise PublishError("Set the site folder in Settings first.")
-    stage = Path(stage_dir)
-    if stage.exists():
-        shutil.rmtree(stage)
-    stage.mkdir(parents=True)
-
-    site_files, problems = collect_files(site_dir, SITE_EXTRA_EXCLUDE)
+    stage = Path(stage)
     total = 0
-    for src, rel, _ in site_files:
-        top = rel.split("/")[0]
-        if rel in RESERVED or top == RESERVED_DIR:
-            raise PublishError("The site folder uses '%s', which Halbach ConnectHub reserves. Rename it." % rel)
-        dest = stage / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
-        total += 1
-    hash_assets(stage)
-
     manifest_mods = []
     for m in st["modules"]:
         if not m["on"]:
@@ -175,6 +157,34 @@ def build_stage(store, stage_dir):
         if mtype == "gallery":
             item["files"] = [base + rel for _, rel, _ in files if os.path.splitext(rel.lower())[1] in IMAGE_EXT]
         manifest_mods.append(item)
+    return manifest_mods, total
+
+
+def build_stage(store, stage_dir):
+    """Create stage_dir from the site folder and enabled static modules. Returns the manifest."""
+    st = store.state
+    site_dir = (st.get("settings") or {}).get("site_dir")
+    if not site_dir or not Path(site_dir).is_dir():
+        raise PublishError("Set the site folder in Settings first.")
+    stage = Path(stage_dir)
+    if stage.exists():
+        shutil.rmtree(stage)
+    stage.mkdir(parents=True)
+
+    site_files, problems = collect_files(site_dir, SITE_EXTRA_EXCLUDE)
+    total = 0
+    for src, rel, _ in site_files:
+        top = rel.split("/")[0]
+        if rel in RESERVED or top == RESERVED_DIR:
+            raise PublishError("The site folder uses '%s', which Halbach ConnectHub reserves. Rename it." % rel)
+        dest = stage / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        total += 1
+    hash_assets(stage)
+
+    manifest_mods, n = stage_modules(store, stage)
+    total += n
     if total + 1 > MAX_FILES:
         raise PublishError("%d files is over the %d-file limit for one site." % (total + 1, MAX_FILES))
 

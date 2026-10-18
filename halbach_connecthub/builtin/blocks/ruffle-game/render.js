@@ -11,7 +11,8 @@ HalbachSite.playSwf = function (box, swfUrl, autoplay) {
   }).catch(function () { ctx.note(host, "Could not load the Flash player. Check your connection."); });
 };
 HalbachSite.registerBlock("ruffle-game", function (box, props, ctx) {
-  if (!props.module) return ctx.note(box, "Choose the module that holds the game file.");
+  if (props.swf && !props.module) return HalbachSite.playSwf(box, /^https?:/i.test(props.swf) ? props.swf : ctx.url(props.swf), props.autoplay);
+  if (!props.module) return ctx.note(box, "Choose the module or file that holds the game.");
   ctx.module(props.module).then(function (m) {
     if (!m || m.type !== "game") return ctx.note(box, "That module is not a Flash game file (.swf).");
     HalbachSite.playSwf(box, ctx.url("/" + m.entry), props.autoplay);

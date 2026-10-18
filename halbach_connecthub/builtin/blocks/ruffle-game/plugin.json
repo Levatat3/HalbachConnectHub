@@ -18,6 +18,12 @@
       ]
     },
     {
+      "key": "swf",
+      "label": "or a file on your site",
+      "type": "url",
+      "help": "a path like /assets/game/game.swf, used when no module is chosen"
+    },
+    {
       "key": "autoplay",
       "label": "Autoplay",
       "type": "select",
