@@ -38,6 +38,9 @@ def main(argv=None):
     if args and args[0] == "submit":
         from .submit import main as submit_main
         return submit_main(args[1:])
+    if args and args[0] == "area":
+        from .areaclient import main as area_main
+        return area_main(args[1:])
     if args and args[0] == "site":
         from .sitecli import main as site_main
         return site_main(args[1:])
@@ -47,7 +50,8 @@ def main(argv=None):
     ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub)")
     ap.add_argument("--no-open", action="store_true", help="don't open a window")
     ap.epilog = ("To send something for review from a script or chat:  halbach submit <folder|file> --name NAME\n"
-                 "To build or check the modular site without the window:  halbach site check | build | export | import")
+                 "To build or check the modular site without the window:  halbach site check | build | export | import\n"
+                 "To send content to someone's site (an area you have a key for):  halbach area init | connect | send | status")
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
     a = ap.parse_args(args)
 

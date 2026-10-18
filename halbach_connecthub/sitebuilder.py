@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from . import publisher
+from .siteschema import RESERVED_SLUGS
 from .store import MAX_FILES, MAX_FILE_BYTES, collect_files
 
 HEADER_RULE_LIMIT = 100
@@ -148,7 +149,7 @@ RELAXED_MODULE_CSP = ("default-src 'self' https: data: blob: 'unsafe-inline' 'wa
                       "base-uri 'self'; frame-ancestors 'self'")
 
 
-def build_headers(csp, csp_mode):
+def build_headers(csp, csp_mode, area_rules=()):
     name = {"enforce": "Content-Security-Policy", "report-only": "Content-Security-Policy-Report-Only"}.get(csp_mode)
     lines = ["/*"]
     if name:
@@ -159,6 +160,10 @@ def build_headers(csp, csp_mode):
               "/_halbach/*", "  ! Cache-Control", "  Cache-Control: public, max-age=31536000, immutable", ""]
     if name:
         lines += ["/modules/*", "  ! %s" % name, "  %s: %s" % (name, RELAXED_MODULE_CSP), ""]
+        for slug, area_csp in area_rules:
+            # Someone else's content: only what its blocks need, and nothing in its files folder can ever run.
+            lines += ["/%s/*" % slug, "  ! %s" % name, "  %s: %s" % (name, area_csp), "",
+                      "/%s/files/*" % slug, "  ! %s" % name, "  %s: default-src 'none'; sandbox" % name, ""]
     return "\n".join(lines)
 
 
@@ -210,7 +215,7 @@ def _shell(model, title, desc, head_extra, body_main, nav, page_json, runtime_ur
 
 
 # --------------------------------------------------------------------------- the build
-def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, include_drafts=False):
+def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, include_drafts=False, areas=None):
     """Build the whole site into stage_dir. Returns a BuildResult; check .ok before deploying."""
     res = BuildResult()
     data = model.data
@@ -240,6 +245,39 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     live_base = ("https://" + live_host) if (live_host and has_live) else None
 
     pages = [p for p in data["pages"] if p["enabled"] and (include_drafts or not p["draft"])]
+    # ---- areas: approved content from collaborators, confined to each area's own address
+    area_pages, area_types = [], {}
+    model_slugs = {p["slug"] for p in data["pages"]}
+    for ar in (areas or []):
+        slug = ar["slug"]
+        if slug in model_slugs or slug in RESERVED_SLUGS or slug in RESERVED_TOP or not slug:
+            res.errors.append({"path": "areas/" + ar["id"], "message": "The area '%s' wants the address /%s/, which a page or the site already uses." % (ar["name"], slug)})
+            continue
+        try:
+            doc = json.loads((Path(ar["tree"]) / "area.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            res.errors.append({"path": "areas/" + ar["id"], "message": "The approved content of area '%s' cannot be read." % ar["name"]})
+            continue
+        allowed = set(ar.get("blocks") or [])
+        for i, pg in enumerate(doc.get("pages", [])):
+            blocks = []
+            for b in pg.get("blocks", []):
+                if b["type"] not in allowed:
+                    res.warnings.append({"path": "areas/" + ar["id"], "message": "A '%s' block in area '%s' was left out because the area is no longer allowed to use it." % (b["type"], ar["name"])})
+                    continue
+                props = dict(b.get("props", {}))
+                if b["type"] == "text":
+                    props["base"] = "/%s/" % slug
+                blocks.append({"id": b["id"], "type": b["type"], "props": props, "enabled": True})
+                area_types.setdefault(ar["id"], set()).add(b["type"])
+            name = pg.get("name") or ""
+            area_pages.append({"id": "area-%s-%s" % (ar["id"], name or "home"), "slug": slug + ("/" + name if name else ""),
+                               "label": ar["name"] if i == 0 else (pg.get("title") or name), "title": pg.get("title") or doc.get("title") or ar["name"],
+                               "description": doc.get("description", ""), "nav": bool(ar.get("nav")) and i == 0, "listed": True, "enabled": True,
+                               "draft": False, "theme": None, "credit": True, "area": ar["id"], "blocks": blocks})
+    if res.errors:
+        return res
+    pages = pages + area_pages
     page_by_id = {p["id"]: p for p in pages}
     site_theme = data["theme"]["id"]
     theme_ids = [site_theme] + sorted({p["theme"] for p in pages if p.get("theme") and p["theme"] != site_theme})
@@ -326,7 +364,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                        "vars": vars_}
 
     # ---- extra files (the owner's own folder: images, games, standalone pages)
-    slugs = {p["slug"] for p in data["pages"] if p["slug"]}
+    slugs = {p["slug"] for p in data["pages"] if p["slug"]} | {ar["slug"] for ar in (areas or [])}
     n_extra = 0
     if extra_dir and Path(extra_dir).is_dir():
         files, problems = collect_files(extra_dir, publisher.SITE_EXTRA_EXCLUDE)
@@ -348,6 +386,26 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                 continue
             shutil.copy2(src, dest)
             n_extra += 1
+    if res.errors:
+        return res
+
+    # ---- area files (copied only under /<slug>/files/, never anywhere else)
+    for ar in (areas or []):
+        src_root = Path(ar["tree"]) / "files"
+        base = (stage / ar["slug"] / "files").resolve()
+        if not src_root.is_dir():
+            continue
+        for f in sorted(src_root.rglob("*")):
+            if f.is_symlink() or not f.is_file():
+                continue
+            dest = (base / f.relative_to(src_root)).resolve()
+            try:
+                dest.relative_to(base)
+            except ValueError:
+                res.errors.append({"path": "areas/" + ar["id"], "message": "A file in area '%s' would land outside the area's folder." % ar["name"]})
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dest)
     if res.errors:
         return res
 
@@ -465,7 +523,11 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             res.errors.append({"path": "redirects", "message": "Too many redirects for Cloudflare Pages (2,000 and 100 KB at most)"})
         else:
             total_bytes += _write(stage / "_redirects", text)
-    headers = build_headers(csp, settings["csp"])
+    area_rules = []
+    for ar in (areas or []):
+        if ar["id"] in area_types:
+            area_rules.append((ar["slug"], assemble_csp(registry, sorted(area_types[ar["id"]]), [], [site_theme], live_base, settings["analytics"])))
+    headers = build_headers(csp, settings["csp"], area_rules)
     rules = sum(1 for ln in headers.splitlines() if ln and not ln.startswith(" "))
     if rules > HEADER_RULE_LIMIT or any(len(ln) > HEADER_LINE_LIMIT for ln in headers.splitlines()):
         res.errors.append({"path": "headers", "message": "The security policy is too long for Cloudflare Pages (a header line over 2,000 characters). Use fewer embedded sites."})

@@ -505,6 +505,7 @@ class Store:
     # ---- pending changes ---------------------------------------------
     SITE_ID = "__site__"
     MODEL_ID = "__model__"
+    AREAS_ID = "__areas__"
 
     def _model_fp(self):
         """Fingerprint of the modular site model file (None when there isn't one yet)."""
@@ -527,6 +528,9 @@ class Store:
             mfp = self._model_fp()
             if mfp != self.state.get("published_model_fp"):
                 out.append({"id": self.MODEL_ID, "name": "Site pages and design", "change": "update"})
+        live_areas = {a["id"]: a.get("current") for a in self.state.get("areas", []) if a.get("enabled") and a.get("current")}
+        if live_areas != (self.state.get("published_areas") or {}):
+            out.append({"id": self.AREAS_ID, "name": "Area content", "change": "update"})
         for m in self.state["modules"]:
             if m["kind"] != "static":
                 continue
@@ -550,6 +554,7 @@ class Store:
             self.state["last_deploy"] = int(time.time())
             self.state["published_site_fp"] = self._site_fp()
             self.state["published_model_fp"] = self._model_fp()
+            self.state["published_areas"] = {a["id"]: a.get("current") for a in self.state.get("areas", []) if a.get("enabled") and a.get("current")}
             self._save()
 
     # ---- window theme (a FunkThemes theme for this window; kept here so it survives a new port or browser profile) ----

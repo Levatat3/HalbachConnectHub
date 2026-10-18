@@ -16,6 +16,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
+from . import dropserver
 from .net import LoopbackServer
 from .store import is_locked_field
 
@@ -132,6 +133,7 @@ class LiveState:
         self.cache = {}      # module id -> (time, filtered payload)
         self.viewers = {}    # module id -> {viewer key -> last seen}
         self.requests = {}   # module id -> count
+        self.areas = None    # AreaService, set by the hub: enables the /drop/ routes (otherwise they answer 404)
 
     def module(self, mid):
         for m in self.store.state["modules"]:
@@ -229,6 +231,10 @@ def make_hub_handler(state):
             if not self._host_ok():
                 return self._json({"error": "bad host"}, 403)
             path = urlparse(self.path).path
+            if path.startswith("/drop/"):
+                if not state.areas:
+                    return self._json({"error": "not found"}, 404)
+                return dropserver.handle(self, state.areas, "GET")
             if path == "/status":
                 return self._json({"online": True, "modules": state.active_ids()})
             m = ID_PATH.match(path)
@@ -247,9 +253,16 @@ def make_hub_handler(state):
                 return self._json({"error": str(e)}, 502)
 
         def do_POST(self):
+            if not self._host_ok():
+                return self._json({"error": "bad host"}, 403)
+            if urlparse(self.path).path.startswith("/drop/") and state.areas:
+                return dropserver.handle(self, state.areas, "POST")
             self._json({"error": "read only"}, 405)
 
-        do_PUT = do_DELETE = do_PATCH = do_POST
+        def do_PUT(self):
+            self._json({"error": "read only"}, 405)
+
+        do_DELETE = do_PATCH = do_PUT
 
     return Handler
 

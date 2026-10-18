@@ -22,6 +22,7 @@ from .net import LoopbackServer
 from . import funkthemes, sitebuilder
 from .publisher import Publisher, classify
 from .sitemodel import ModelError
+from .areas import AreaService
 from .siteservice import SiteService
 from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
@@ -40,6 +41,9 @@ class Hub:
         self.store = store
         self.token = token or secrets.token_urlsafe(24)
         self.site = SiteService(store)
+        self.areas = AreaService(store, self.site.registry,
+                                 slug_taken=lambda s: any(p["slug"] == s for p in self.site.model.data["pages"]))
+        self.site.areas = self.areas
         self.publisher = publisher or Publisher(store, site=self.site)
         if getattr(self.publisher, "site", None) is None:
             self.publisher.site = self.site
@@ -65,6 +69,7 @@ class Hub:
             self.live_srv, self.live_state = start_live_hub(self.store, port)
         except OSError:
             self.live_srv, self.live_state = start_live_hub(self.store, 0)
+        self.live_state.areas = self.areas
         return self.live_srv.server_address[1]
 
     def close(self):
@@ -167,6 +172,15 @@ def make_handler(hub):
                 return self._json({"themes": funkthemes.library(), "dir": funkthemes.DIR})
             if path == "/api/windowtheme":
                 return self._json({"theme": hub.store.window_theme()})
+            if path == "/api/areas":
+                lh = (hub.store.state.get("settings") or {}).get("live_host")
+                return self._json({"areas": hub.areas.list_view(), "pending": hub.areas.pending_count(),
+                                   "drop_url": ("https://%s/drop/" % lh) if lh else None})
+            m_audit = re.match(r"^/api/areas/([a-z0-9-]+)/audit$", path)
+            if m_audit:
+                if not hub.areas.get(m_audit.group(1)):
+                    return self._err(404, "No such area")
+                return self._json({"rows": hub.areas.audit_log(m_audit.group(1))})
             if path == "/api/site":
                 return self._json(hub.site.view())
             if path == "/api/site/export":
@@ -250,8 +264,35 @@ def make_handler(hub):
                     except OSError as e:
                         raise ValidationError(str(e))
                     return self._json({"themes": funkthemes.library()})
+                if path == "/api/areas/create":
+                    view, key = hub.areas.create(b.get("name"), slug=b.get("slug"), trust=b.get("trust", "review"), nav=b.get("nav", True),
+                                                 limits=b.get("limits"), blocks=b.get("blocks"))
+                    return self._json({"area": view, "key": key}, 201)
+                m_area = re.match(r"^/api/areas/([a-z0-9-]+)/([a-z]+)$", path)
+                if m_area:
+                    aid, act = m_area.groups()
+                    ar = hub.areas
+                    if act == "update":
+                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks") if k in b})})
+                    if act == "regenerate":
+                        key = ar.regenerate_key(aid)
+                        return self._json({"key": key})
+                    if act == "revoke":
+                        ar.revoke_key(aid)
+                        return self._json({"ok": True})
+                    if act == "delete":
+                        ar.delete(aid)
+                        return self._json({"ok": True})
+                    if act == "approve":
+                        return self._json({"submission": ar.approve(aid, b.get("sid"), note=b.get("note", ""))})
+                    if act == "reject":
+                        return self._json({"submission": ar.reject(aid, b.get("sid"), note=b.get("note", ""))})
+                    if act == "rollback":
+                        ar.rollback(aid, b.get("version"))
+                        return self._json({"ok": True})
+                    return self._err(404, "Not found")
                 if path == "/api/site/preview":
-                    res = hub.site.build_preview()
+                    res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None)
                     return self._json(res.summary())
                 if path.startswith("/api/site/"):
                     return self._json(hub.site.apply(path[len("/api/site/"):], b))

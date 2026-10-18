@@ -36,6 +36,7 @@ class SiteService:
         self.model = SiteModel(store.home, self.registry)
         self.preview_dir = store.home / "preview"
         self.last_build = None
+        self.areas = None                 # AreaService, set by the hub
         self.import_notes = []
 
     # ---------------------------------------------------------------- what the site can refer to
@@ -207,12 +208,13 @@ class SiteService:
         raise ModelError("Unknown action '%s'" % action)
 
     # ---------------------------------------------------------------- building
-    def build(self, stage, preview=False):
+    def build(self, stage, preview=False, area_preview=None):
         """Build the modular site into stage. Preview builds use /preview/ addresses and include drafts."""
         with self.lock:
             res = sitebuilder.build_site(self.model, self.registry, self.store, stage,
                                          url_base="/preview" if preview else "", extra_dir=self.extra_dir(),
-                                         include_drafts=preview)
+                                         include_drafts=preview,
+                                         areas=self.areas.trees(area_preview) if self.areas else None)
             if res.ok:
                 res.warnings = self._merge(res.warnings, quality.check_site(self.model, self.theme_vars(), stage))
             if preview:
@@ -220,8 +222,8 @@ class SiteService:
                                    "warnings": res.warnings[:50], "csp": res.csp, "at": time.time()}
             return res
 
-    def build_preview(self):
-        return self.build(self.preview_dir, preview=True)
+    def build_preview(self, area_preview=None):
+        return self.build(self.preview_dir, preview=True, area_preview=area_preview)
 
     def explain(self, res):
         """A one-line, plain-language reason a build failed."""
