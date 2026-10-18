@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FunkThemes</title>
+<style>
+  :root { --bg:#0d0e11; --s1:#16171c; --s2:#1d1f25; --s3:#262830; --line:#2a2c34; --line2:#3a3d47; --text:#eceef3;
+          --dim:#a3a7b3; --faint:#6b6f7b; --brand:#ff7a3d; --grad:linear-gradient(135deg,#ff7a3d,#ff3d7f);
+          --ok:#3ee07f; --bad:#ff5f6d; --gold:#f9c74f; --blue:#38bdf8; --page:none; --page-blur:0px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 "Segoe UI", system-ui, sans-serif; }
+  body::before { content: ""; position: fixed; inset: 0; z-index: -2; background: var(--page); background-size: cover;
+                 background-position: center; filter: blur(var(--page-blur)); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .logo { width: 40px; height: 40px; border-radius: 12px; background: var(--grad); }
+  .word { font-size: 22px; font-weight: 400; } .word b { font-weight: 800; }
+  .card { background: var(--s1); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  h2 { margin: 0 0 10px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; color: var(--text); background: var(--s3); border: 1px solid var(--line2); border-radius: 999px;
+           padding: 7px 16px; cursor: pointer; }
+  button.main { background: var(--grad); border: 0; color: #fff; font-weight: 600; }
+  .pill { padding: 3px 10px; border-radius: 999px; background: var(--s2); border: 1px solid var(--line); font-size: 12px; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .gold { color: var(--gold); } .blue { color: var(--blue); }
+  p { color: var(--dim); margin: 6px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="logo"></div><div class="word">Funk<b>Themes</b></div></header>
+
+  <div class="card">
+    <h2>Theme maker</h2>
+    <p>Make a theme (solid, gradient, rainbow, picture, or an animated background), save it, and export the
+       .funktheme file to share. Put exported files in <code>%LOCALAPPDATA%\FunkThemes</code> and every Funk app sees them.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="main" id="open">Open theme maker</button>
+      <button id="import">Import .funktheme</button>
+      <button id="beat">Fake music: off</button>
+      <input type="file" id="file" accept=".funktheme,.json" hidden>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Preview</h2>
+    <div class="row">
+      <span class="pill ok">Online</span><span class="pill bad">Stopped</span>
+      <span class="pill gold">Warning</span><span class="pill blue">Info</span>
+    </div>
+    <p style="margin-top:10px">Cards are see-through, so gradients, pictures and effects show behind them.</p>
+  </div>
+</div>
+
+<script src="funktheme.js"></script>
+<script>
+  const KEY = "funkthemes.library", CUR = "funkthemes.current";
+  const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+  const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  let library = load(KEY, []);
+  let current = load(CUR, FunkTheme.PRESETS[1]);
+  FunkTheme.apply(current);
+
+  function upsert(t) {
+    library = library.filter((x) => x.name !== t.name).concat([JSON.parse(JSON.stringify(t))]);
+    store(KEY, library);
+    return library;
+  }
+  function download(t) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(t)], { type: "application/json" }));
+    a.download = (t.name || "theme").replace(/[^\w\- ]+/g, "") + ".funktheme";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  document.getElementById("open").onclick = () => FunkTheme.openEditor({
+    current, library,
+    onSave: (t) => upsert(t),
+    onDelete: (t) => { library = library.filter((x) => x.name !== t.name); store(KEY, library); return library; },
+    onExport: download,
+    onDone: (t) => { current = t; store(CUR, t); },
+  });
+
+  const file = document.getElementById("file");
+  document.getElementById("import").onclick = () => file.click();
+  file.onchange = async () => {
+    for (const f of file.files) {
+      try { const t = JSON.parse(await f.text()); if (!t.name) t.name = f.name.replace(/\.\w+$/, ""); upsert(t); current = t; }
+      catch { alert(f.name + " is not a theme file."); }
+    }
+    FunkTheme.apply(current); store(CUR, current); file.value = "";
+  };
+
+  // Stand-in for an app's music so the effects' audio reactions can be seen here: a 120 BPM thump.
+  let beatOn = false, t0 = performance.now();
+  document.getElementById("beat").onclick = (e) => {
+    beatOn = !beatOn; e.target.textContent = "Fake music: " + (beatOn ? "on" : "off");
+    if (!beatOn) { FunkTheme.audio = null; FunkTheme.level = 0; }
+  };
+  (function tick(now) {
+    if (beatOn) {
+      const ph = ((now - t0) / 500) % 1, kick = Math.exp(-ph * 6);
+      FunkTheme.audio = { bass: 0.25 + 0.7 * kick, mid: 0.4 + 0.2 * Math.sin(now / 900), high: 0.3 + 0.2 * Math.sin(now / 370), beat: ph < 0.08 ? 1 : 0 };
+      FunkTheme.level = FunkTheme.audio.bass;
+    }
+    requestAnimationFrame(tick);
+  })(performance.now());
+</script>
+</body>
+</html>

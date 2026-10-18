@@ -76,7 +76,7 @@ class TestEdits(Base):
 
     def test_view_lists_catalog_and_problems(self):
         v = self.svc.view()
-        self.assertEqual({c["id"] for c in v["catalog"]["theme"]}, {"retro-terminal", "neutral-dark", "neutral-light"})
+        self.assertEqual({c["id"] for c in v["catalog"]["theme"]}, {"retro-terminal", "neutral-dark", "neutral-light", "funk"})
         self.assertIn("hero", {b["id"] for b in v["catalog"]["block"]})
         self.assertIsInstance(v["errors"], list)
 

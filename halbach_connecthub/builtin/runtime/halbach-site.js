@@ -241,7 +241,6 @@
     });
   }
   function runEffects() {
-    if (REDUCED) return;
     var list = (PAGE.theme && PAGE.theme.effects) || [];
     var go = function () { list.forEach(function (n) { if (HS.effects[n]) try { HS.effects[n](ctxFor(null)); } catch (e) { if (window.console) console.warn("effect", n, e); } }); };
     if (PAGE.assets.theme_script) loadScript(PAGE.assets.theme_script).then(go).catch(function () {}); else go();

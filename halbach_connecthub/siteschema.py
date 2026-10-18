@@ -289,3 +289,63 @@ def validate_props(fields, props, ctx=None):
             continue
         clean[key] = value
     return clean, errors
+
+
+# --------------------------------------------------------------------------- FunkTheme data (a .funktheme file)
+FUNK_STYLES = ("solid", "gradient", "rainbow")
+FUNK_FX = (None, "none", "ascii", "matrix", "synthwave", "stars", "rain")
+_HEX_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _funk_hex(v, what):
+    if not isinstance(v, str) or not _HEX_RE.match(v):
+        raise FieldError("%s must be a colour like #ff7a3d" % what)
+    return v.lower()
+
+
+def _funk_num(v, lo, hi, what, default):
+    if v is None:
+        return default
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not (lo <= v <= hi):
+        raise FieldError("%s must be a number from %s to %s" % (what, lo, hi))
+    return float(v)
+
+
+def clean_funktheme(value):
+    """Check a .funktheme object and return a canonical copy, or raise FieldError.
+
+    Only plain colours, numbers and effect names are kept: nothing that could pull in an outside address.
+    Pictures are refused for the public site for now (they are large and would be copied into every history snapshot).
+    """
+    if not isinstance(value, dict) or value.get("funkTheme") != 1:
+        raise FieldError("That is not a FunkTheme file")
+    name = clean_line(value.get("name"), 60)
+    if not name:
+        raise FieldError("The theme needs a name")
+    style = value.get("style", "solid")
+    if style == "image":
+        raise FieldError("Picture themes are not supported on the site yet. Use a gradient or an effect.")
+    if style not in FUNK_STYLES:
+        raise FieldError("Style must be solid, gradient or rainbow")
+    colors = value.get("colors") or []
+    if not isinstance(colors, list) or len(colors) > 8:
+        raise FieldError("A theme has at most 8 colours")
+    out = {"funkTheme": 1, "name": name, "style": style, "colors": [_funk_hex(c, "A colour") for c in colors],
+           "angle": _funk_num(value.get("angle"), 0, 360, "Angle", 135.0),
+           "strength": _funk_num(value.get("strength"), 0, 1, "Strength", 0.5),
+           "blur": 0, "tint": None}
+    acc = value.get("accent")
+    if acc in (None, [], ""):
+        out["accent"] = None
+    else:
+        if not isinstance(acc, list) or not 1 <= len(acc) <= 2:
+            raise FieldError("The accent is one or two colours")
+        out["accent"] = [_funk_hex(c, "An accent colour") for c in acc]
+    fx = value.get("fx")
+    if fx not in FUNK_FX:
+        raise FieldError("Unknown effect '%s'" % (fx if isinstance(fx, str) else "?")[:20])
+    out["fx"] = None if fx in (None, "none") else fx
+    out["fxSpeed"] = _funk_num(value.get("fxSpeed"), 0.2, 3, "Effect speed", 1.0)
+    out["fxAmount"] = _funk_num(value.get("fxAmount"), 0, 1, "Effect amount", 0.7)
+    out["fxColor"] = _funk_hex(value["fxColor"], "The effect colour") if value.get("fxColor") else None
+    return out

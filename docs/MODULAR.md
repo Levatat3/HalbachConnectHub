@@ -58,7 +58,13 @@ The *Drop box* block is reserved for the areas update and is not offered yet.
 - **Neutral light**: A clean light theme with no effects.
 - **Retro terminal**: Dark CRT green and amber: the look of the original starter site.
 
+- **FunkTheme (animated)**: Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain), designed in his theme maker. See [FunkThemes](#funkthemes).
+
 A theme is a set of CSS variables plus a stylesheet. **Design** lets you pick a theme and override its colours (`--bg`, `--text`, `--accent` and so on) without editing any file. The brand mark and name feed the menu and a generated icon; if your site folder has `favicon.svg`, `favicon.ico`, `favicon-32.png` or `apple-touch-icon.png`, those are used instead.
+
+### FunkThemes
+
+Choose the **FunkTheme (animated)** theme under Design, then **Open the theme maker**. It previews live on the Halbach window and saves the result to the site. Themes you save in the maker go to `%LOCALAPPDATA%\FunkThemes`, the folder Funk's other apps share, so they show up there too; his `.funktheme` files can be dropped in that folder (or imported in the maker). On the site the engine runs in the visitor's browser and stops itself under "reduce motion". Only plain colours, numbers and effect names are accepted from a theme; picture themes are not supported on the site yet. The same maker themes the Halbach window: **Settings → Window theme**. Credits and provenance: [third_party/funkthemes](../third_party/funkthemes/README.md).
 
 ## What gets published
 

@@ -1,0 +1,6 @@
+/* FunkTheme on a Halbach site: the engine paints --page behind everything and a canvas effect above it.
+   Surfaces use the engine's translucent colours (mapped to --panel), so the background shows through. */
+body.hs-funk { background: transparent; }
+body.hs-funk::before { content: ""; position: fixed; inset: 0; z-index: -2; background: var(--page); filter: blur(var(--page-blur, 0px)); }
+body.hs-funk .hs-header, body.hs-funk .hs-footer { background: transparent; }
+@media print { body.hs-funk::before, #ft-fx { display: none; } }

@@ -364,6 +364,8 @@
           return api("/api/quit", "POST", {}).then(function () {
             document.body.innerHTML = '<p style="font:16px system-ui;color:#7f9d8b;padding:40px">Halbach ConnectHub has stopped. You can close this window.</p>';
           }).catch(fail);
+        case "wtChoose": return openThemeMaker({ current: savedWindowTheme(), onDone: function (t) { window.HB.saveWindowTheme(t); toast("Window theme saved"); } });
+        case "wtReset": window.HB.saveWindowTheme(null); return toast("Window theme reset");
         case "publish": return startPublish(false);
         case "previewPublish": return startPublish(true);
         case "saveSettings":
@@ -412,7 +414,55 @@
     if (ev.target.id === "dlgOk" && dlgOk) { Promise.resolve(dlgOk()).then(function (done) { if (done !== false) closeDialog(); }); }
     else if (ev.target.id === "dlgClose" || ev.target.id === "dlgCancel" || ev.target.id === "dlg") closeDialog();
   });
-  window.HB = { api: api, toast: toast, fail: fail, esc: esc, refreshSoon: function () { return refresh(); }, dialog: dialog, closeDialog: closeDialog };
+  // ---------- FunkThemes (Funk's theme engine and maker): window theme + the shared theme library ----------
+  var WT_KEY = "halbach.windowtheme";
+  var WT_MAP = { "--bg": "--bg", "--bg2": "--s1", "--card": "--s1", "--card2": "--s2", "--line": "--line", "--line2": "--line2",
+                 "--text": "--text", "--muted": "--dim", "--dim": "--faint", "--green": "--brand", "--green2": "--brand-line" };
+  function savedWindowTheme() { try { return JSON.parse(localStorage.getItem(WT_KEY) || "null"); } catch (e) { return null; } }
+  function applyWindowTheme(t) {
+    var FT = window.FunkTheme; if (!FT) return;
+    var root = document.documentElement.style;
+    if (!t) {                                                    // back to the built-in look
+      var plain = { funkTheme: 1, name: "plain", style: "solid", colors: ["#0e0f12"], strength: 0, fx: null };
+      FT.apply(plain);
+      Object.keys(FT.derive(plain)).concat(Object.keys(WT_MAP)).forEach(function (k) { root.removeProperty(k); });
+      document.body.classList.remove("ft-on");
+      return;
+    }
+    var vars = FT.apply(t);
+    Object.keys(WT_MAP).forEach(function (k) { if (vars[WT_MAP[k]]) root.setProperty(k, vars[WT_MAP[k]]); });
+    document.body.classList.add("ft-on");
+  }
+  function downloadTheme(t) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(t)], { type: "application/json" }));
+    a.download = String(t.name || "theme").replace(/[^\w\- ]+/g, "") + ".funktheme";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  // Opens Funk's theme maker with the shared library. cfg: { current, onDone(theme) } (onDone only when something changed)
+  function openThemeMaker(cfg) {
+    if (!window.FunkTheme) return toast("The theme maker could not be loaded.");
+    api("/api/funkthemes").then(function (r) {
+      var start = JSON.stringify(cfg.current || null);
+      window.FunkTheme.openEditor({
+        current: cfg.current || window.FunkTheme.PRESETS[1], library: r.themes, brand: ["Halbach", "ConnectHub"],
+        onChange: function (t) { applyWindowTheme(t); },
+        onSave: function (t) { return api("/api/funkthemes/save", "POST", { theme: t }).then(function (x) { toast("Saved to the shared theme library"); return x.themes; }).catch(function (e) { toast(e.message); }); },
+        onDelete: function (t) { return api("/api/funkthemes/delete", "POST", { name: t.name }).then(function (x) { return x.themes; }).catch(function (e) { toast(e.message); }); },
+        onExport: downloadTheme, onError: toast,
+        onDone: function (t) {
+          applyWindowTheme(savedWindowTheme());                  // the window goes back to its own theme after a preview
+          if (JSON.stringify(t) !== start) cfg.onDone(t);
+        },
+      });
+    }).catch(fail);
+  }
+  applyWindowTheme(savedWindowTheme());
+
+  window.HB = { openThemeMaker: openThemeMaker, applyWindowTheme: applyWindowTheme, savedWindowTheme: savedWindowTheme,
+                saveWindowTheme: function (t) { try { if (t) localStorage.setItem(WT_KEY, JSON.stringify(t)); else localStorage.removeItem(WT_KEY); } catch (e) {} applyWindowTheme(t); },
+                api: api, toast: toast, fail: fail, esc: esc, refreshSoon: function () { return refresh(); }, dialog: dialog, closeDialog: closeDialog };
 
   refresh();
   api("/api/publish/status").then(function (st) { if (st.state === "running") { busy = { preview: false }; render(); pollPublish(); } }).catch(function () {});

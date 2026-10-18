@@ -206,7 +206,7 @@ class SiteModel:
             self.data["brand"] = b
             return b
 
-    def set_theme(self, theme_id=None, vars=None, mode=None):
+    def set_theme(self, theme_id=None, vars=None, mode=None, funk=None):
         with self.lock:
             t = copy.deepcopy(self.data["theme"])
             if theme_id is not None:
@@ -228,6 +228,16 @@ class SiteModel:
                 if len(clean) > 60:
                     raise ModelError("At most 60 theme variables")
                 t["vars"] = clean
+            if funk is not None:
+                if funk == {}:
+                    t.pop("funk", None)
+                else:
+                    try:
+                        t["funk"] = sc.clean_funktheme(funk)
+                    except sc.FieldError as e:
+                        raise ModelError(str(e))
+            if t["id"] != "funk":
+                t.pop("funk", None)                    # Funk data only belongs to the Funk theme
             if mode is not None:
                 if mode not in THEME_MODES:
                     raise ModelError("Mode must be one of: %s" % ", ".join(THEME_MODES))

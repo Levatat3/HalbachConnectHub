@@ -122,6 +122,10 @@ python -m unittest discover -s tests -t .
 - Live data is only as available as your PC and home upload.
 - See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and threat model.
 
+## Credits
+
+- **FunkThemes** (animated backgrounds, theme maker, the shared theme library) is by **Funk**, who is a co-developer of the theme integration. See [third_party/funkthemes](third_party/funkthemes/README.md).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

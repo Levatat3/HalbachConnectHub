@@ -314,9 +314,9 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         css_name = "_halbach/theme.%s.css" % _hash(css)
         total_bytes += _write(stage / css_name, css)
         script_name = None
-        script = _plugin_script(plug, "theme.js")
-        if script:
-            code = (plug.dir / script).read_bytes()
+        scripts = [f for f in plug.manifest.get("files", []) if f.endswith(".js")]
+        if scripts:
+            code = b"\n;\n".join((plug.dir / f).read_bytes() for f in scripts)      # a theme may ship an engine plus its glue
             script_name = "_halbach/theme-%s.%s.js" % (tid, _hash(code))
             total_bytes += _write(stage / script_name, code)
         themes[tid] = {"css": css_name, "script": script_name, "effects": list(plug.manifest.get("effects") or []),
@@ -417,7 +417,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             "assets": {"blocks": {t: url_base + "/" + block_assets[t] for t in block_assets},
                        "views": {v: url_base + "/" + view_assets[v] for v in view_assets},
                        "theme_script": (url_base + "/" + theme["script"]) if theme["script"] else None},
-            "theme": {"id": p.get("theme") or site_theme, "effects": theme["effects"], "vars": theme["vars"]},
+            "theme": {"id": p.get("theme") or site_theme, "effects": theme["effects"], "vars": theme["vars"],
+                      "funk": data["theme"].get("funk") if (p.get("theme") or site_theme) == "funk" else None},
         }
         title = p["title"] if p["slug"] == "" and not p["title"] else p["title"]
         full_title = brand["name"] if p["slug"] == "" else "%s | %s" % (title or p["label"], brand["name"])

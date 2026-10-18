@@ -144,7 +144,7 @@ class SiteService:
             m.set_brand(**{k: a[k] for k in ("name", "mark", "tagline", "handle", "footer", "icon") if k in a})
             return "brand changed"
         if action == "theme":
-            m.set_theme(theme_id=a.get("id"), vars=a.get("vars"), mode=a.get("mode"))
+            m.set_theme(theme_id=a.get("id"), vars=a.get("vars"), mode=a.get("mode"), funk=a.get("funk"))
             return "theme changed"
         if action == "settings":
             m.set_settings(**{k: a[k] for k in ("lang", "base_url", "csp", "analytics", "search", "nav_style", "indexable") if k in a})

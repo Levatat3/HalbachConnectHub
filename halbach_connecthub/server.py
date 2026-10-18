@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 from . import __version__
 from .live import UpstreamError, fetch_upstream, field_names, start_live_hub
 from .net import LoopbackServer
-from . import sitebuilder
+from . import funkthemes, sitebuilder
 from .publisher import Publisher, classify
 from .sitemodel import ModelError
 from .siteservice import SiteService
@@ -27,6 +27,7 @@ from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
 
 UI_DIR = Path(__file__).parent / "ui"
+FUNK_ENGINE = Path(__file__).parent / "builtin" / "themes" / "funk" / "funktheme.js"     # Funk's engine, also used by the window
 UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js"}
 MAX_BODY = 256 * 1024
 PREVIEW_CHARS = 4000
@@ -143,6 +144,10 @@ def make_handler(hub):
         # ---- routes ----
         def do_GET(self):
             path = urlparse(self.path).path
+            if path == "/funktheme.js":
+                if not self._guard():
+                    return
+                return self._send(200, FUNK_ENGINE.read_bytes(), "text/javascript; charset=utf-8")
             if path in UI_FILES:
                 if not self._guard():
                     return
@@ -158,6 +163,8 @@ def make_handler(hub):
                 return self._err(404, "Not found")
             if not self._api_guard():
                 return
+            if path == "/api/funkthemes":
+                return self._json({"themes": funkthemes.library(), "dir": funkthemes.DIR})
             if path == "/api/site":
                 return self._json(hub.site.view())
             if path == "/api/site/export":
@@ -227,6 +234,18 @@ def make_handler(hub):
                     if act == "remove":
                         s.remove(mid)
                         return self._json({"ok": True})
+                if path == "/api/funkthemes/save":
+                    try:
+                        funkthemes.save(b.get("theme"))
+                    except (ValueError, OSError) as e:
+                        raise ValidationError(str(e))
+                    return self._json({"themes": funkthemes.library()})
+                if path == "/api/funkthemes/delete":
+                    try:
+                        funkthemes.delete(b.get("name"))
+                    except OSError as e:
+                        raise ValidationError(str(e))
+                    return self._json({"themes": funkthemes.library()})
                 if path == "/api/site/preview":
                     res = hub.site.build_preview()
                     return self._json(res.summary())

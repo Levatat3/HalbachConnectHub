@@ -185,3 +185,9 @@ textarea.mono{font-size:12.5px;line-height:1.5}
 .pscroll{overflow:auto;border:1px solid var(--line2);border-radius:10px;background:#000;max-height:calc(100vh - 260px)}
 .pview{display:block;height:calc(100vh - 280px);min-height:420px;border:0;background:#fff;margin:0 auto;max-width:none}
 .tag.new{color:#d9b3ff}
+
+/* FunkThemes: the engine paints --page behind everything; surfaces turn glassy so it shows through */
+body.ft-on{background:transparent}
+body.ft-on::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--page);filter:blur(var(--page-blur,0px))}
+body.ft-on .top,body.ft-on .bar{background:transparent}
+body.ft-on .modal,body.ft-on .drawer{background:var(--solid,#0c110e)}

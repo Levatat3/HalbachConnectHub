@@ -1,0 +1,21 @@
+{
+  "kind": "theme",
+  "id": "funk",
+  "hostapi": 1,
+  "version": "0.1.0",
+  "builtin": true,
+  "name": "FunkTheme (animated)",
+  "description": "Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain). Design it in the theme maker.",
+  "vars": {
+    "--bg": "#120a1f",
+    "--panel": "#1d1230",
+    "--text": "#eef0f4",
+    "--muted": "#b3a9c4",
+    "--line": "#33274a",
+    "--accent": "#d65cff",
+    "--accent-2": "#ff7ab0"
+  },
+  "effects": ["funktheme"],
+  "files": ["funktheme.js", "theme.js", "theme.css"],
+  "credit": "FunkThemes by Funk"
+}

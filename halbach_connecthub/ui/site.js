@@ -9,6 +9,7 @@
   var curPage = null;            // page id open in the editor
   var curBlock = null;           // block id open in the editor ("new:<type>" while adding)
   var previewWidth = 1100;
+  var FUNK_DEFAULT = { funkTheme: 1, name: "Funk", style: "gradient", colors: ["#462a50", "#2f0a66"], angle: 135, strength: 0.45, accent: null, blur: 0, fx: "ascii", fxColor: "#c604fb", fxSpeed: 2.6, fxAmount: 0.88 };
 
   // ---------------------------------------------------------------- tiny DOM helpers (text only, never HTML)
   function h(tag, attrs) {
@@ -349,6 +350,18 @@
     });
     b.appendChild(grid);
 
+    var isFunk = d.theme.id === "funk";
+    if (isFunk) {
+      var ft = d.theme.funk;
+      b.appendChild(h("div", { class: "set", style: "max-width:860px;margin-top:14px" },
+        row("Funk theme: " + (ft ? ft.name : "Funk (default)"), "Gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain). The maker previews it live on this window and saves the result to the site. Pictures are not supported on the site yet.",
+          btn("Open the theme maker", "primary", function () {
+            HB.openThemeMaker({ current: ft || FUNK_DEFAULT, onDone: function (t) {
+              act("theme", { id: "funk", funk: t }, "Funk theme saved to the site. Rebuild the preview to see it.").catch(function () {});
+            } });
+          }))));
+    }
+
     var vars = Object.assign({}, d.theme.vars || {}), inputs = {};
     var cur = SS.catalog.theme.filter(function (t) { return t.id === d.theme.id; })[0] || { vars: {} };
     var vbox = h("div", { class: "set", style: "max-width:860px;margin-top:14px" });
@@ -364,7 +377,8 @@
         var out = {}; Object.keys(inputs).forEach(function (k) { if (inputs[k].value.trim()) out[k] = inputs[k].value.trim(); });
         act("theme", { vars: out, mode: modeSel.value }, "Colours saved.").catch(function (e) { showErr(verr, e); });
       })));
-    b.appendChild(vbox);
+    if (!isFunk) b.appendChild(vbox);
+    else b.appendChild(h("p", { class: "hint", style: "margin-top:12px", text: "The colours come from the Funk theme. Change them in the theme maker." }));
 
     b.appendChild(h("div", null, section("Menu layout")));
     var navSel = h("select", null, [["top", "Across the top"], ["side", "Down the side"], ["none", "No menu"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
