@@ -9,10 +9,12 @@ import threading
 import time
 from pathlib import Path
 
-from . import legacyimport, sitebuilder
+import json
+
+from . import legacyimport, quality, sitebuilder
 from .publisher import classify
 from .registry import Registry
-from .sitemodel import ModelError, SiteModel
+from .sitemodel import MODEL_VERSION, ModelError, SiteModel, diff_models
 from .store import TAB_VIEWS, collect_files
 
 
@@ -56,8 +58,27 @@ class SiteService:
                         "listed": m.get("listed", True)})
         return out
 
+    def theme_vars(self):
+        plug = self.registry.theme(self.model.data["theme"]["id"])
+        vars_ = dict((plug.manifest.get("vars") if plug else None) or {})
+        vars_.update(self.model.data["theme"].get("vars") or {})
+        return vars_
+
+    @staticmethod
+    def _merge(*lists):
+        seen, out = set(), []
+        for lst in lists:
+            for w in lst:
+                key = (w.get("path"), w.get("message"))
+                if key not in seen:
+                    seen.add(key)
+                    out.append(w)
+        return out
+
     def check(self):
         errors, warnings = self.model.validate(self.module_index())
+        if not errors:
+            warnings = self._merge(warnings, quality.check_site(self.model, self.theme_vars()))
         return {"errors": errors, "warnings": warnings}
 
     def view(self):
@@ -152,6 +173,9 @@ class SiteService:
             m.data = m._migrate(model)
             self.import_notes = notes
             return "imported the current site"
+        if action == "import.package":
+            self.import_package(a.get("package"))
+            return "imported a site package"
         if action == "restore":
             m.restore(a.get("n"))
             return None
@@ -164,6 +188,8 @@ class SiteService:
             res = sitebuilder.build_site(self.model, self.registry, self.store, stage,
                                          url_base="/preview" if preview else "", extra_dir=self.extra_dir(),
                                          include_drafts=preview)
+            if res.ok:
+                res.warnings = self._merge(res.warnings, quality.check_site(self.model, self.theme_vars(), stage))
             if preview:
                 self.last_build = {"ok": res.ok, "files": res.files, "pages": len(res.pages), "errors": res.errors[:20],
                                    "warnings": res.warnings[:50], "csp": res.csp, "at": time.time()}
@@ -179,3 +205,41 @@ class SiteService:
             more = len(res.errors) - 1
             return "%s%s" % (e["message"], (" (and %d more problem%s)" % (more, "" if more == 1 else "s")) if more else "")
         return ""
+
+    # ---------------------------------------------------------------- what changed since the last publish
+    @property
+    def published_path(self):
+        return self.model.dir / "published.json"
+
+    def record_published(self):
+        """Remember exactly what went live, so the next publish can say what changed."""
+        try:
+            self.model.dir.mkdir(parents=True, exist_ok=True)
+            self.published_path.write_text(json.dumps(self.model.data), encoding="utf-8")
+        except OSError:
+            pass
+
+    def plan(self):
+        """Plain-language list of what the next publish changes on the site's pages and design."""
+        try:
+            old = json.loads(self.published_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return ["The first publish of the modular site: every page below goes live."]
+        return diff_models(old, self.model.data)
+
+    # ---------------------------------------------------------------- export / import (one JSON file)
+    def export_package(self):
+        return {"format": "halbach-site", "version": MODEL_VERSION, "exported": int(time.time()), "model": self.model.data}
+
+    def import_package(self, pkg):
+        if not isinstance(pkg, dict) or pkg.get("format") != "halbach-site" or not isinstance(pkg.get("model"), dict):
+            raise ModelError("That file is not a Halbach site export.")
+        if not isinstance(pkg.get("version"), int) or pkg["version"] > MODEL_VERSION:
+            raise ModelError("That export is from a newer Halbach. Update Halbach to open it.")
+        model = pkg["model"]
+        pages = model.get("pages")
+        if not isinstance(pages, list) or len(pages) > 200 or any(not isinstance(p, dict) or len(p.get("blocks", [])) > 200 for p in pages):
+            raise ModelError("That export is too large or malformed (at most 200 pages with 200 blocks each).")
+        if len(json.dumps(model)) > 2 * 1024 * 1024:
+            raise ModelError("That export is over 2 MB.")
+        self.model.data = self.model._migrate(model)

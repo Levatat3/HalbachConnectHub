@@ -160,6 +160,16 @@ def make_handler(hub):
                 return
             if path == "/api/site":
                 return self._json(hub.site.view())
+            if path == "/api/site/export":
+                data = json.dumps(hub.site.export_package(), indent=1).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", 'attachment; filename="halbach-site.json"')
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if path == "/api/state":
                 return self._json(hub.store.view())
             if path == "/api/activity":
@@ -347,7 +357,10 @@ def make_handler(hub):
                     fl, _ = collect_files(m["source"])
                     files += [{"module": m["id"], "path": rel, "bytes": size} for _, rel, size in fl]
             ok, why = hub.publisher.ready()
-            return {"changes": changes, "files": files, "deploy_ready": ok, "note": why}
+            modular = (s.state.get("settings") or {}).get("site_mode") == "modular"
+            return {"changes": changes, "files": files, "deploy_ready": ok, "note": why, "modular": modular,
+                    "site_changes": hub.site.plan() if modular else [],
+                    "site_problems": hub.site.check()["errors"] if modular else []}
 
     return Handler
 

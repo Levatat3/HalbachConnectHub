@@ -112,7 +112,7 @@
       out.appendChild(h("h2", { class: "h2", text: "Checks" }));
       if (!SS.errors.length && !SS.warnings.length) out.appendChild(h("div", { class: "okline", text: "✔ Everything checks out. Preview it, then publish." }));
       SS.errors.forEach(function (e) { out.appendChild(h("div", { class: "errline", text: "✖ " + e.message + "  (" + e.path + ")" })); });
-      SS.warnings.forEach(function (e) { out.appendChild(h("div", { class: "prob", text: "⚠ " + e.message })); });
+      SS.warnings.forEach(function (e) { out.appendChild(h("div", { class: e.level === "info" ? "hint" : "prob", style: e.level === "info" ? "padding:4px 0" : null, text: (e.level === "info" ? "ℹ " : "⚠ ") + e.message })); });
       b.appendChild(out);
     }
   }
@@ -420,6 +420,25 @@
     });
     if (!SS.history.length) box.appendChild(h("p", { class: "empty", text: "No changes saved yet." }));
     b.appendChild(box);
+
+    b.appendChild(h("div", null, section("Move the site", "Save the whole site (pages, design, settings) as one file, or load one. Your uploaded files and modules are not inside it.")));
+    var file = h("input", { type: "file", accept: ".json,application/json", style: "display:none" });
+    file.addEventListener("change", function () {
+      var f = file.files[0]; if (!f) return;
+      if (f.size > 2 * 1024 * 1024) return HB.toast("That file is too big to be a site export.");
+      var rd = new FileReader();
+      rd.onload = function () {
+        var pkg; try { pkg = JSON.parse(rd.result); } catch (e) { return HB.toast("That file is not valid."); }
+        if (confirm("Replace the current site with the one in this file? The current one stays in History.")) act("import.package", { package: pkg }, "Site loaded from the file.").catch(function () {});
+      };
+      rd.readAsText(f); file.value = "";
+    });
+    b.appendChild(h("div", { class: "row" }, btn("Download the site file", "", function () {
+      fetch("/api/site/export", { headers: { "X-Halbach-Token": document.querySelector('meta[name="halbach-token"]').content } })
+        .then(function (r) { return r.blob(); }).then(function (blob) {
+          var a = h("a", { href: URL.createObjectURL(blob), download: "halbach-site.json" }); document.body.appendChild(a); a.click(); a.remove();
+        }).catch(HB.fail);
+    }), btn("Load a site file…", "", function () { file.click(); }), file));
   }
 
   // ---------------------------------------------------------------- preview

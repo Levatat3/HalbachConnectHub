@@ -307,6 +307,8 @@ class Publisher:
             self.store.log("ok", "Uploaded %d files%s" % (n, " to " + url if url else ""))
             if not preview:
                 self.store.mark_published()
+                if s.get("site_mode") == "modular" and self.site is not None:
+                    self.site.record_published()
             verified = None
             if not preview and s.get("domain"):
                 self._set(step="Checking the live site")

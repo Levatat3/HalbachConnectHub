@@ -119,9 +119,19 @@
 
   function renderPlan() {
     api("/api/publish/plan").then(function (pl) {
-      $("#pubFiles").textContent = pl.files.length
-        ? pl.files.map(function (f) { return f.module + "/" + f.path + "  (" + mb(f.bytes) + ")"; }).join("\n")
-        : "Nothing yet.";
+      var lines = [];
+      if (pl.modular) {
+        lines.push("SITE PAGES AND DESIGN");
+        (pl.site_problems || []).forEach(function (e) { lines.push("  ✖ " + e.message + "   (fix this before publishing)"); });
+        (pl.site_changes || []).forEach(function (c) { lines.push("  ~ " + c); });
+        if (!(pl.site_changes || []).length && !(pl.site_problems || []).length) lines.push("  no changes since the last publish");
+        lines.push("");
+        lines.push("FILES");
+      }
+      lines = lines.concat(pl.files.length
+        ? pl.files.map(function (f) { return f.module + "/" + f.path + "  (" + mb(f.bytes) + ")"; })
+        : [pl.modular ? "No extra files." : "Nothing yet."]);
+      $("#pubFiles").textContent = lines.join("\n");
     }).catch(fail);
   }
 
