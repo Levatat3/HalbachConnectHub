@@ -1,9 +1,10 @@
 // Block: embed. Shows a page module or an https address inside a sandboxed frame.
 HalbachSite.registerBlock("embed", function (box, props, ctx) {
-  function frame(src, title) {
+  function frame(src, title, own) {
     var f = ctx.el("iframe", "hs-frame"); f.src = src; f.title = title; f.loading = "lazy";
     f.style.height = (props.height || 560) + "px";
-    f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms");
+    // The owner's own pages (a path on this site) run as normal; modules and outside addresses stay sandboxed.
+    if (!own) f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms");
     var screen = ctx.el("div", "hs-screen"); screen.appendChild(f); box.appendChild(screen);
   }
   if (props.module) {
@@ -11,6 +12,6 @@ HalbachSite.registerBlock("embed", function (box, props, ctx) {
       if (!m || m.type !== "page") return ctx.note(box, "That module is not a page.");
       frame(ctx.url("/" + m.entry), m.name);
     });
-  } else if (props.url) frame(props.url, "Embedded page");
+  } else if (props.url) frame(/^\//.test(props.url) ? ctx.url(props.url) : props.url, "Embedded page", /^\//.test(props.url));
   else ctx.note(box, "Choose a page module or give an address.");
 });
