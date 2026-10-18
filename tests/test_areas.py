@@ -526,6 +526,7 @@ class TestDropServer(DropBase):
         self.assertTrue(self.quarantine_empty())
 
     def test_paused_revoked_and_disabled_areas(self):
+        self.make_area("Other")                                    # keeps the door open so a closed area answers 401
         data = self.zip_bytes()
         self.svc.update("workshop", paused=True)
         self.assertEqual(self.call("POST", "/drop/workshop/bundle", data)[0], 423)
@@ -580,6 +581,15 @@ class TestDropServer(DropBase):
         self.state.areas = None
         self.assertEqual(self.call("GET", "/drop/workshop/limits")[0], 404)
         self.assertEqual(self.call("POST", "/drop/workshop/bundle", b"x")[0], 405)
+
+    def test_with_no_usable_area_the_live_hub_is_exactly_as_read_only_as_before(self):
+        self.svc.revoke_key("workshop")
+        self.assertEqual(self.call("GET", "/drop/workshop/limits")[0], 404)
+        s, body, _ = self.call("POST", "/drop/workshop/bundle", b"x")
+        self.assertEqual((s, body), (405, {"error": "read only"}))
+        self.svc.regenerate_key("workshop")
+        self.svc.update("workshop", enabled=False)
+        self.assertEqual(self.call("GET", "/drop/workshop/limits")[0], 404)
 
     def test_trusted_area_approves_on_receipt(self):
         self.svc.update("workshop", trust="trusted")

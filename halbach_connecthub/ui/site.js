@@ -559,5 +559,6 @@
     build();
   }
 
+  HB.h = h; HB.btn = btn; HB.sw = sw;
   window.SiteUI = { open: function () { sub = sub === "preview" ? "overview" : sub; load(); }, reload: load };
 })();

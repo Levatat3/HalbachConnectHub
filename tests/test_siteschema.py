@@ -17,7 +17,7 @@ class TestSlugs(unittest.TestCase):
                 sc.validate_slug(s)
 
     def test_slugify(self):
-        self.assertEqual(sc.slugify("Funk's Workshop!"), "funk-s-workshop")
+        self.assertEqual(sc.slugify("Funk's Workshop!"), "funks-workshop")
         self.assertEqual(sc.slugify("  ---  "), "")
 
     def test_id(self):

@@ -32,6 +32,7 @@
       <button class="on" data-v="dash"><svg><use href="#i-home"/></svg><span>Dashboard</span></button>
       <button data-v="mods"><svg><use href="#i-box"/></svg><span>Modules</span><em class="badge" id="navBadge" style="display:none;font-style:normal">0</em></button>
       <button data-v="site"><svg><use href="#i-pages"/></svg><span>Site</span></button>
+      <button data-v="areas"><svg><use href="#i-box"/></svg><span>Areas</span><em class="badge" id="areaBadge" style="display:none;font-style:normal">0</em></button>
       <button data-v="pub"><svg><use href="#i-up"/></svg><span>Publish</span></button>
       <button data-v="logs"><svg><use href="#i-list"/></svg><span>Activity</span></button>
       <button data-v="set"><svg><use href="#i-gear"/></svg><span>Settings</span></button>
@@ -71,6 +72,8 @@
     </section>
 
     <section class="view" id="v-site"><div id="siteRoot"><p class="empty">Loading…</p></div></section>
+
+    <section class="view" id="v-areas"><div id="areasRoot"><p class="empty">Loading…</p></div></section>
 
     <section class="view" id="v-pub">
       <h2 class="h2">Publish</h2>
@@ -145,5 +148,6 @@
 <script src="/funktheme.js"></script>
 <script src="/app.js"></script>
 <script src="/site.js"></script>
+<script src="/areas.js"></script>
 </body>
 </html>

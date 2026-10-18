@@ -111,6 +111,10 @@ class AreaService:
         with self.store.lock:
             self.store._save()
 
+    def any_enabled(self):
+        """True when at least one area can receive uploads. With none, the live hub stays strictly read-only."""
+        return any(a["enabled"] and a.get("key") for a in self.areas)
+
     def get(self, aid):
         for a in self.areas:
             if a["id"] == aid:
@@ -331,7 +335,8 @@ class AreaService:
             for s in self.submissions(aid, limit=100):
                 if s.get("sha256") == sha and s["state"] in ("pending", "approved"):
                     return dict(s, duplicate=True)
-            sid = "s%s%s" % (format(int(self.clock()), "x"), secrets.token_hex(2))
+            self._seq = getattr(self, "_seq", 0) + 1
+            sid = "s%011x%04x%s" % (int(self.clock() * 1000), self._seq % 65536, secrets.token_hex(1))      # sorts in the order received
             meta = {"id": sid, "area": aid, "received": int(self.clock()), "size": os.path.getsize(zip_path), "sha256": sha,
                     "state": "pending", "note": "", "warnings": [], "reasons": [], "files": 0, "pages": 0, "blocks": 0}
             sub = self._sub_dir(aid, sid)

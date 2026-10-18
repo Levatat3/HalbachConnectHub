@@ -29,7 +29,7 @@ from .tunnel import Tunnel
 
 UI_DIR = Path(__file__).parent / "ui"
 FUNK_ENGINE = Path(__file__).parent / "builtin" / "themes" / "funk" / "funktheme.js"     # Funk's engine, also used by the window
-UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js"}
+UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js", "/areas.js": "areas.js"}
 MAX_BODY = 256 * 1024
 PREVIEW_CHARS = 4000
 

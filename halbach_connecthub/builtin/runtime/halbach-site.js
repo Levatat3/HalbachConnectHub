@@ -30,7 +30,12 @@
   function note(box, text) { box.innerHTML = ""; box.appendChild(el("p", "hs-empty", text)); }
   function timeout(ms) { var c = new AbortController(); setTimeout(function () { c.abort(); }, ms); return c.signal; }
   function base() { return (PAGE && PAGE.site && PAGE.site.base) || ""; }
-  function url(path) { return base() + (path.charAt(0) === "/" ? path : "/" + path); }
+  // A site address with the preview prefix when previewing. Idempotent, so an address that already has it is left alone.
+  function url(path) {
+    var b = base();
+    if (b && (path === b || path.indexOf(b + "/") === 0)) return path;
+    return b + (path.charAt(0) === "/" ? path : "/" + path);
+  }
 
   function loadScript(src) {
     if (!src) return Promise.resolve();

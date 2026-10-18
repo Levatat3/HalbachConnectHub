@@ -50,7 +50,7 @@ Every block's settings form is generated from its manifest, so a block someone e
 | Twitch player | media | An embedded Twitch stream. |
 | YouTube | media | A video or a channel's uploads (privacy-friendly embed). |
 
-The *Drop box* block is reserved for the areas update and is not offered yet.
+The *Drop box* block is reserved for a browser upload form and is not offered yet.
 
 ## Themes and design
 
@@ -106,9 +106,13 @@ Blocking: a page that points at a page that does not exist, a block whose requir
 
 Advice: template placeholder text left in a page, an image without a description, low text contrast in the theme, a link to a path that is not in the site, large files, the security policy still in report-only, and no site address for the sitemap.
 
+## Areas and linked sites
+
+See [AREAS.md](AREAS.md) for areas (a page someone else can send content to, reviewed by you). **Linked sites** (Site → Linked sites) put another site on yours: add its https address and Halbach can check it (reachable, on Cloudflare, embeddable), then show it as a card (the *Linked sites* block), a menu link, or its own page that links out or embeds it. An address with a key in it (`?k=...`) is flagged and needs an explicit confirmation, because everything on the site is public; the key is never printed in warnings.
+
 ## What is not here yet
 
-Planned, not built: user-installed block and theme plugins, **areas** (a page a collaborator can send content to, which you review before it goes live), collections, search, and the release templates. The design for them is in [docs/design](design/); the files that exist for them (the Drop box block, plugin manifests for user plugins) are placeholders.
+Planned, not built: user-installed block and theme plugins, the collaborator's restricted *area mode* window, collections, search, and the release templates. The design for them is in [docs/design](design/); the files that exist for them (the Drop box block, plugin manifests for user plugins) are placeholders.
 
 ## Known limits
 

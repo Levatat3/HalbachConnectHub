@@ -1,0 +1,91 @@
+# Areas: let someone fill a page of your site without giving them any keys
+
+An **area** is a page (or a few) on your site that one other person can send content to. They never log in to anything of yours: no Cloudflare, no GitHub, no Halbach. They send a small zip over HTTPS, it waits in a review queue on your PC, and **you** approve it. It goes live at your next Publish.
+
+The full design is in [design/AREAS.md](design/AREAS.md). This page says what is built in 0.5 and how to use it.
+
+## For you (the owner)
+
+1. **Set up the drop address once.** In Settings, set the **live host** (the tunnel's host name, for example `live.example.com`) and start the tunnel. Areas are reached through the same tunnel your live modules use. Your PC and the tunnel must be on while someone sends.
+2. Open **Areas → New area**. Give it a name and an address (`/funkworkshop/`). Halbach shows its **passphrase once** (26 random characters). It keeps only a scrypt fingerprint of it. Send the passphrase to the person privately.
+3. When they send something, **Areas** shows a badge. Open the area, then **Review**: you see how many pages, blocks and files, and what changed from what is live. **Preview it** builds the site with their content in your local preview. **Approve** or **Reject** (with a note they can read).
+4. **Publish** as usual. Approving does not put anything on the internet by itself.
+
+Everything else is in the area's tabs: **Versions** (every approval is a saved snapshot; roll back in one click), **Settings** (name, on/off, **paused** to stop new submissions instantly, which blocks they may use, size limits, show in menu), **Activity** (every attempt, with a hashed address, never the passphrase).
+
+A **new passphrase** makes the old one stop working immediately. **Revoke** stops everyone.
+
+### Trust levels
+
+- **Review** (default): every valid submission waits for you.
+- **Trusted**: a valid submission is approved automatically (still checked, still a saved version, still needs your Publish).
+- An *auto-publish* level exists in the design and is **not offered**: nothing should go live without you pressing Publish until that has had its own security review.
+
+## For the collaborator (for example Funk)
+
+Any Halbach install works; no site, keys or account are needed.
+
+```
+halbach area init my-page                      a folder with area.json and files/
+(edit area.json, put pictures in my-page/files)
+halbach area connect --url https://live.example.com --area funkworkshop
+halbach area send my-page --wait 60            zip, check, upload, wait up to 60 s for the decision
+halbach area status                            what happened to earlier sends, with the owner's notes
+```
+
+`connect` asks for the passphrase without echoing it (or reads `HALBACH_AREA_KEY`) and keeps it in your Halbach state folder, never in the page folder and never in a URL. `send` checks your folder against the area's limits first, so most mistakes show up before anything is uploaded.
+
+### What goes in `area.json`
+
+```json
+{
+  "format": 1,
+  "title": "Funk's Workshop",
+  "description": "Things I am building.",
+  "pages": [
+    { "name": "", "title": "Funk's Workshop", "blocks": [
+      { "type": "hero",  "props": { "heading": "Funk's Workshop" } },
+      { "type": "image", "props": { "url": "files/logo.png", "alt": "logo" } },
+      { "type": "text",  "props": { "markdown": "Hello! ![me](files/me.png)" } },
+      { "type": "links", "props": { "items": [ { "label": "My site", "url": "https://example.com" } ] } }
+    ] }
+  ]
+}
+```
+
+- The first page has the empty name `""` and lives at the area's address; further pages need a name (`"name": "tools"` → `/funkworkshop/tools/`).
+- Files are referred to as `files/<path>`. Allowed blocks by default: hero, text (Markdown), cards, links, image, divider, youtube, twitch. The owner can narrow this.
+- Allowed files: `.md .txt .png .jpg .jpeg .gif .webp .pdf` (no HTML, scripts, SVG, programs or archives). Names may use letters, digits, spaces and `. _ - ( ) + , @ ~`.
+- Links must be `https://` or `mailto:` or inside the area. Raw HTML in Markdown is shown as text.
+
+## What is checked (and refused with a plain reason)
+
+Every bundle is treated as hostile. Nothing is extracted until each entry's name and metadata pass, and extraction is streamed with a hard size cap into a temporary folder that is removed on any failure.
+
+- **Archive:** path tricks (`..`, absolute paths, drive letters, hidden or control characters, bidi and zero-width characters, Windows reserved names, trailing dots and spaces), symlinks and special files, passwords, unusual compression, case-colliding names, too many files, names too long or too deep, anything outside `area.json` and `files/`, zip bombs (ratio and size, before reading), headers that lie about sizes.
+- **Files:** extension allow-list, program or script types hidden in double extensions, and the **bytes must match the extension** (PNG, JPEG, GIF, WebP, PDF signatures; UTF-8 text). Picture sizes are read from the header and capped (default 8000 px a side, 40 megapixels). A JPEG that still has camera data (EXIF) is flagged; Halbach does not strip it.
+- **Content:** blocks must be on the area's allow-list and valid; no modules, no pages of yours, no scripts; `slug`, menu, theme, redirects and settings in `area.json` are ignored and reported. An area can only ever write under its own address.
+- **Quota:** the area's total (live plus new) stays under its limit.
+
+On your site an area's page gets its own, stricter security policy (only what its own blocks need), and everything under `/<area>/files/` is served with `default-src 'none'; sandbox`, so nothing in it can ever run.
+
+## The one public door
+
+Areas add `POST /drop/<area>/bundle`, `GET /drop/<area>/status` and `GET /drop/<area>/limits` to the **live hub**, which the tunnel already exposes.
+
+- **With no usable area the live hub is exactly as read-only as before:** those routes answer as if they did not exist.
+- Authentication comes first: `Authorization: Bearer <passphrase>`, checked (constant time, scrypt) **before any body is read**. A wrong key, an unknown area and a switched-off area all answer the same 401. No cookies.
+- Wrong keys: 10 failures from one address lock that address out for 15 minutes.
+- Size is checked from `Content-Length` before reading, enforced again while streaming, with a read timeout for slow senders and a whole-upload deadline. Two uploads at a time, 12 per address per 10 minutes, and a free-disk floor.
+- Errors never include paths or internals. Every attempt is logged (hashed address, never the key).
+
+## Private areas
+
+Unlisted is not private. For a page only certain people can open, put **Cloudflare Access** in front of its address: in Cloudflare's Zero Trust dashboard add a self-hosted application for `https://example.com/<area>/*` and allow your collaborator's email (free for up to 50 users, one-time PIN by email). Halbach cannot do this for you and does not fake a password box.
+
+## Not built yet
+
+- **Area mode window** (a cut-down Halbach with a page editor and a Send button for the collaborator). Today the collaborator edits `area.json` and uses the command line.
+- Single-file uploads (`/drop/<area>/file`), notifications by chat, an auto-publish trust level, and stripping camera data from pictures.
+- A browser upload form for senders; the area's `GET /status` is only used by the command-line client.
+- **Risks to weigh:** a stolen passphrase can send *valid* content, but it still waits for your review (or, in a Trusted area, goes live at your next Publish, limited to the area's own address and blocks). Revoke or replace the passphrase in the window at any time.

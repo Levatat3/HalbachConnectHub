@@ -232,7 +232,7 @@ def make_hub_handler(state):
                 return self._json({"error": "bad host"}, 403)
             path = urlparse(self.path).path
             if path.startswith("/drop/"):
-                if not state.areas:
+                if not (state.areas and state.areas.any_enabled()):
                     return self._json({"error": "not found"}, 404)
                 return dropserver.handle(self, state.areas, "GET")
             if path == "/status":
@@ -255,7 +255,7 @@ def make_hub_handler(state):
         def do_POST(self):
             if not self._host_ok():
                 return self._json({"error": "bad host"}, 403)
-            if urlparse(self.path).path.startswith("/drop/") and state.areas:
+            if urlparse(self.path).path.startswith("/drop/") and state.areas and state.areas.any_enabled():
                 return dropserver.handle(self, state.areas, "POST")
             self._json({"error": "read only"}, 405)
 

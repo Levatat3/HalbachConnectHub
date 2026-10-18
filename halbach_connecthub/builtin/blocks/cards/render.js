@@ -4,7 +4,7 @@ HalbachSite.registerBlock("cards", function (box, props, ctx) {
   (props.items || []).forEach(function (c) {
     var node = c.href ? ctx.el("a", "hs-card") : ctx.el("div", "hs-card");
     if (c.href) {
-      node.href = c.href;
+      node.href = /^\/(?!\/)/.test(c.href) ? ctx.url(c.href) : c.href;
       if (/^https?:/i.test(c.href)) { node.target = "_blank"; node.rel = "noopener noreferrer"; }
     }
     node.appendChild(ctx.el("b", null, c.title));

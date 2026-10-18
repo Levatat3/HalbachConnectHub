@@ -15,6 +15,10 @@ Most personal sites need a code change and a push every time you want to show so
 
 Drop a folder in, switch it on, press **Publish**. Edits inside a folder you have added show up as pending changes on their own. Live data needs no publish: switch it on and visitors see it within seconds.
 
+## New in 0.5: areas and linked sites
+
+**Areas** let someone else fill a page of your site without any of your keys: they send a checked zip through your tunnel, you review and approve it, and it joins your next Publish (`halbach area init | connect | send` is their side). **Linked sites** put other Cloudflare (or any https) sites on yours as cards, menu links or pages, with a safe address check. See **[docs/AREAS.md](docs/AREAS.md)**.
+
 ## New in 0.4: the modular site
 
 You can now let Halbach build the whole site. **Site** in the window has pages (add one like `/funkworkshop` in a click), a page editor with a form for every block, themes with colour overrides, menu and redirects, a live preview with the real security headers, history with restore, and export/import. Publishing builds real pages, a content-security-policy assembled from the blocks you use, a sitemap and a 404 page. Classic mode (your site folder, exactly as before) stays the default. See **[docs/MODULAR.md](docs/MODULAR.md)**, and `halbach site check | build | export | import` from a terminal.
@@ -104,7 +108,7 @@ A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](exampl
 - **Locked fields.** Anything named like `chat`, `notes`, `loot`, `account`, `password`, `token`, `secret`, `email`, `cookie` or `session` can never be allowed, and is removed at every depth of the JSON, even if the service returns it.
 - **Never published.** Dotfiles, `.env`, keys, `id_rsa*`, logs, backups and `TIMELINE.md` are skipped from any folder you add. The site folder's own `README.md` is never uploaded. Files over 25 MB are reported, not included.
 - **This PC only.** Live modules must point at `127.0.0.1` or `localhost`, and the hub does not follow redirects.
-- **Small attack surface.** The tunnel reaches only the live hub (read-only `GET /status` and `GET /m/<id>`). The control panel is a separate loopback server with a per-launch token, `Host` and `Origin` checks and a strict Content-Security-Policy; it is not reachable through the tunnel.
+- **Small attack surface.** The tunnel reaches only the live hub: read-only `GET /status` and `GET /m/<id>`, plus, only while at least one area exists and is switched on, the authenticated `/drop/<area>/...` routes of [areas](docs/AREAS.md) (key checked before any upload is read; size, rate and disk limits; everything it receives waits for your review). The control panel is a separate loopback server with a per-launch token, `Host` and `Origin` checks and a strict Content-Security-Policy; it is not reachable through the tunnel.
 - **No credentials.** Halbach ConnectHub never asks for or stores a password. Publishing uses your `wrangler` login and the tunnel uses cloudflared's own certificate.
 
 ## Tests

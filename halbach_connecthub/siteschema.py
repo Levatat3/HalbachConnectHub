@@ -47,7 +47,7 @@ def clean_block_text(value, max_len=4000):
 
 def slugify(label):
     """A friendly starting point for an address from a label (the user can still edit it)."""
-    s = re.sub(r"[^a-z0-9]+", "-", str(label).lower()).strip("-")
+    s = re.sub(r"[^a-z0-9]+", "-", re.sub(r"['’]", "", str(label).lower())).strip("-")      # "Funk's" -> "funks"
     return s[:40]
 
 

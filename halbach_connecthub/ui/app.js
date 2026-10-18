@@ -273,9 +273,10 @@
     view = v;
     $$(".view").forEach(function (e) { e.classList.toggle("on", e.id === "v-" + v); });
     $$("#nav button").forEach(function (b) { b.classList.toggle("on", b.dataset.v === v); });
-    $("#title").textContent = { dash: "Dashboard", mods: "Modules", site: "Site", pub: "Publish", logs: "Activity", set: "Settings" }[v];
+    $("#title").textContent = { dash: "Dashboard", mods: "Modules", site: "Site", areas: "Areas", pub: "Publish", logs: "Activity", set: "Settings" }[v];
     closeDrawer();
     if (v === "site" && window.SiteUI) window.SiteUI.open();
+    if (v === "areas" && window.AreasUI) window.AreasUI.open();
     if (v === "pub") renderPlan();
     if (v === "logs") renderLog();
     if (v === "set") fillSettings();
