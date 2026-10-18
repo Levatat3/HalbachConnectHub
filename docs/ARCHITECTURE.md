@@ -85,6 +85,49 @@ chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► 
 
 `Store.set_options` holds display options that never widen what is shared: `hide` (item names dropped by the live hub before anything is sent, from a top-level list and from lists of objects inside an allowed field; the list itself is not written to the manifest), `view` (`auto` or a named view the site knows; views in `TAB_VIEWS` also get a nav tab, created by the site at load time from the manifest), `poll` (seconds, 1 to 60) and `listed` (static modules only: `false` writes `listed: false` so the site draws no card, for files that only support another view).
 
+## The modular site (0.4+)
+
+Until 0.3 the site was a folder you edited by hand. From 0.4 Halbach can build it from a model.
+
+```
+site.json ──► sitemodel.py ──► sitebuilder.py ──► stage folder ──► publisher.py ──► Cloudflare Pages
+ (model)       validate,        pages, hashed        (real files)     wrangler deploy,
+               history          assets, CSP,                           verify
+                                headers, sitemap
+                   ▲
+     registry.py ──┘  block / view / theme / template plugins
+
+classic mode: the site folder is copied to the stage (publisher.build_stage) and the same deploy runs
+```
+
+- **`sitemodel.py`** holds `site.json` (version 1): brand, theme, settings, pages with blocks, redirects, nav links and linked sites. Every edit is validated; a refused edit leaves the model exactly as it was, and an accepted edit saves a history snapshot (the last 100 are kept). A model written by a newer Halbach is refused.
+- **`registry.py`** finds built-in and user plugins (blocks, views, themes, templates), validates their manifests, and assembles the Content-Security-Policy host list from the blocks a site actually uses, so a Twitch host appears only when a Twitch block is present. User plugins are untrusted until a pinned digest matches (the registry supports this; the UI to install them is not wired yet).
+- **`sitebuilder.py`** turns the model into real files in a staging folder: one `index.html` per page carrying the page's data as inert JSON, a shared runtime, content-hashed scripts and stylesheets, the `_headers` file (the CSP, the area rules, immutable caching under `/_halbach/*`), `robots.txt`, `sitemap.xml`, `404.html`, `_redirects`, and a merge of extra files from the site folder (its own `index.html`, `css/` and `js/` are skipped). It also checks Cloudflare's limits (20,000 files, 25 MB per file, and the header and redirect caps).
+- **`siteservice.py`** is the only mutator. `apply(action, args)` covers page and block add/update/delete/move/duplicate, brand, theme, settings, redirects, nav links, template loading, classic and package import, restore, and linked-site edits. Every call is all-or-nothing and saves a history snapshot. It also runs the quality checks and builds the publish plan.
+- **`publisher.py`** stages modules for classic mode and runs `wrangler pages deploy` then verifies the result. A modular publish builds through `SiteService` first and reuses the same deploy step.
+- **`legacyimport.py`** reads a classic Halbach starter-site folder (tabs home/game/live/videos/forge/more/projects/about plus the runtime Pets tab) into a model; an unrecognised folder imports as plain text pages with a note.
+
+### The preview route
+
+`/preview/...` serves the last preview build with the **same headers Cloudflare Pages will send**, so report-only versus enforce (for the CSP) can be checked before publishing. Cloudflare merges header rules that match more than one pattern; to *replace* a header for a sub-path the builder (and the preview route) detach it first with `! Header-Name` and then set it — `sitebuilder.parse_headers` / `headers_for` implement the same semantics locally. The preview is a route of the loopback control panel and is never published.
+
+## Areas and the drop endpoint (0.5)
+
+An **area** is a page one other person can send content to without any key of yours. The only thing added to the public surface is the drop endpoint on the live hub.
+
+```
+collaborator ──► halbach area init | connect | send ──► POST /drop/<area>/bundle (live hub, via the tunnel)
+                                                             │
+   owner's PC:   quarantine ─► validate (bundle.py) ─► review ─► approve ─► approved/vNNNN ─► next Publish
+                                                              └─ reject (with a note the sender can read)
+```
+
+- **`areas.py`** holds area configuration and the review pipeline: scrypt passphrase fingerprints (the plain passphrase is shown once and never stored), per-address lockout, submissions, approval versions with rollback, an audit log (hashed addresses, never the key), and the trees the builder merges.
+- **`bundle.py`** treats every zip as hostile. Entry names and metadata are checked, extraction is manual and streaming into a temporary folder that is removed on any failure, and there are size, compression-ratio, depth and entry-count caps, a magic-number check that must agree with the extension, and image dimension caps. Nothing is extracted before every rule passes.
+- **`dropserver.py`** is that one public door. Authentication comes first (constant-time, before any body is read); then size, rate and disk limits. A wrong key, an unknown area and a switched-off area all answer the same 401, and no cookies are used (so there is no CSRF surface).
+- **`areaclient.py`** is the collaborator's side and its CLI (`halbach area init | connect | send | status | limits`).
+- The builder merges an area's approved content **only under the area's own prefix** (`/<slug>/`) and gives it a stricter policy allowing only what the area's own blocks need. Everything under `/<area>/files/` is served with `default-src 'none'; sandbox`, so nothing in it can run.
+
 ## Threat model
 
 | Threat | Mitigation |
@@ -106,6 +149,14 @@ chat or tool ──► halbach submit ──► <state>/inbox/<slug>/ ──► 
 | Hidden items leaking through the manifest or the stream | Hiding happens in the hub before sending; the hide list is not published (tested) |
 | A crowd hammering your PC | Per-module viewer cap, one-second response cache |
 | Hotlinking live data from other sites | CORS only for your own origins (a convenience, not a security boundary: the data is public by design) |
+| A block property injecting script into a generated page | Schema validators reject unsafe values; all model text is drawn into the page through `textContent`/the `h()` helper, never `innerHTML`; the runtime contract test checks every `ctx.*` a block uses |
+| Pointing a linked site at an internal address (SSRF) | Private and local hosts are never probed; the address must be https |
+| A stolen area passphrase | Revoke or regenerate instantly; a wrong key, an unknown area and a switched-off area all answer the same 401; lockout and rate limits slow guessing; submissions still need review; the audit log shows use |
+| A malicious area archive | Every rule in `bundle.py`; manual streaming extraction; size, ratio, depth and count caps; a quarantine folder outside any served path |
+| Script or HTML delivered through area content | Data-only pages, safe Markdown, no script/HTML/SVG allowed; a strict CSP on the area's prefix; files under the area served sandboxed |
+| Defacement or phishing on your domain | Review by default; the area is confined to its own prefix with a stricter policy; freeze and roll back in one click |
+| Filling your disk through the drop endpoint | Per-area and global quotas, a free-disk floor, and a cap on concurrent uploads |
+| Probing for areas | Uniform responses and a single 401 (no listing endpoint); area slugs are public, keys are not |
 
 ## Not handled
 
