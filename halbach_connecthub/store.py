@@ -469,9 +469,11 @@ class Store:
     def set_settings(self, **kw):
         with self.lock:
             s = self.state["settings"]
-            for k in ("site_dir", "project", "domain", "live_host", "tunnel_name", "cloudflared_path", "extra_origins"):
+            for k in ("site_dir", "project", "domain", "live_host", "tunnel_name", "cloudflared_path", "extra_origins", "site_mode"):
                 if k in kw and kw[k] is not None:
                     v = str(kw[k]).strip()
+                    if k == "site_mode" and v not in ("classic", "modular"):
+                        raise ValidationError("Site mode is classic or modular")
                     if k == "site_dir" and v:
                         p = Path(v).expanduser()
                         if not p.is_dir():
@@ -502,6 +504,14 @@ class Store:
 
     # ---- pending changes ---------------------------------------------
     SITE_ID = "__site__"
+    MODEL_ID = "__model__"
+
+    def _model_fp(self):
+        """Fingerprint of the modular site model file (None when there isn't one yet)."""
+        try:
+            return hashlib.sha1((self.home / "site" / "site.json").read_bytes()).hexdigest()
+        except OSError:
+            return None
 
     def _site_fp(self):
         d = (self.state.get("settings") or {}).get("site_dir")
@@ -513,6 +523,10 @@ class Store:
         fp = self._site_fp()
         if fp is not None and fp != self.state.get("published_site_fp"):
             out.append({"id": self.SITE_ID, "name": "Site files", "change": "update"})
+        if (self.state.get("settings") or {}).get("site_mode") == "modular":
+            mfp = self._model_fp()
+            if mfp != self.state.get("published_model_fp"):
+                out.append({"id": self.MODEL_ID, "name": "Site pages and design", "change": "update"})
         for m in self.state["modules"]:
             if m["kind"] != "static":
                 continue
@@ -535,6 +549,7 @@ class Store:
                     m["published_fp"] = fingerprint(m["source"]) if m["on"] else None
             self.state["last_deploy"] = int(time.time())
             self.state["published_site_fp"] = self._site_fp()
+            self.state["published_model_fp"] = self._model_fp()
             self._save()
 
     def view(self):

@@ -471,3 +471,46 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         if f.stat().st_size > MAX_FILE_BYTES:
             res.errors.append({"path": f.relative_to(stage).as_posix(), "message": "File is over the 25 MB limit."})
     return res
+
+
+# --------------------------------------------------------------------------- reading _headers back (used by the local preview)
+def parse_headers(text):
+    """Parse a Cloudflare-style _headers file into [(path pattern, [(op, name, value)])]; op is 'set' or 'detach'."""
+    rules, cur = [], None
+    for raw in (text or "").splitlines():
+        if not raw.strip():
+            continue
+        if not raw.startswith((" ", "\t")):
+            cur = (raw.strip(), [])
+            rules.append(cur)
+        elif cur is not None:
+            line = raw.strip()
+            if line.startswith("!"):
+                cur[1].append(("detach", line[1:].strip(), None))
+            elif ":" in line:
+                name, _, value = line.partition(":")
+                cur[1].append(("set", name.strip(), value.strip()))
+    return rules
+
+
+def headers_for(rules, path):
+    """The response headers a _headers file gives to a path ('/x/y'): later rules add to, or detach from, earlier ones."""
+    out = {}
+    for pattern, ops in rules:
+        if pattern.endswith("/*"):
+            hit = path.startswith(pattern[:-1]) or path == pattern[:-2]
+        elif pattern == "/*":
+            hit = True
+        else:
+            hit = path == pattern
+        if not hit:
+            continue
+        for op, name, value in ops:
+            key = name.lower()
+            if op == "detach":
+                out.pop(key, None)
+            elif key in out:
+                out[key] = (out[key][0], out[key][1] + ", " + value)
+            else:
+                out[key] = (name, value)
+    return {name: value for name, value in out.values()}

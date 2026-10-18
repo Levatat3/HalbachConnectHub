@@ -19,13 +19,16 @@ from urllib.parse import urlparse
 from . import __version__
 from .live import UpstreamError, fetch_upstream, field_names, start_live_hub
 from .net import LoopbackServer
+from . import sitebuilder
 from .publisher import Publisher, classify
+from .sitemodel import ModelError
+from .siteservice import SiteService
 from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
 
 UI_DIR = Path(__file__).parent / "ui"
 UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js"}
-MAX_BODY = 64 * 1024
+MAX_BODY = 256 * 1024
 PREVIEW_CHARS = 4000
 
 
@@ -35,7 +38,10 @@ class Hub:
     def __init__(self, store, token=None, publisher=None):
         self.store = store
         self.token = token or secrets.token_urlsafe(24)
-        self.publisher = publisher or Publisher(store)
+        self.site = SiteService(store)
+        self.publisher = publisher or Publisher(store, site=self.site)
+        if getattr(self.publisher, "site", None) is None:
+            self.publisher.site = self.site
         self.live_srv = None
         self.live_state = None
         self.tunnel = Tunnel(store, lambda: self.live_srv.server_address[1] if self.live_srv else 0)
@@ -146,10 +152,14 @@ def make_handler(hub):
                     data = data.replace(b"__TOKEN__", hub.token.encode()).replace(b"__VERSION__", __version__.encode())
                 ctype = mimetypes.guess_type(f.name)[0] or "text/plain"
                 return self._send(200, data, ctype + "; charset=utf-8")
+            if path == "/preview" or path.startswith("/preview/"):
+                return self._serve_preview(path)
             if not path.startswith("/api/"):
                 return self._err(404, "Not found")
             if not self._api_guard():
                 return
+            if path == "/api/site":
+                return self._json(hub.site.view())
             if path == "/api/state":
                 return self._json(hub.store.view())
             if path == "/api/activity":
@@ -207,11 +217,16 @@ def make_handler(hub):
                     if act == "remove":
                         s.remove(mid)
                         return self._json({"ok": True})
+                if path == "/api/site/preview":
+                    res = hub.site.build_preview()
+                    return self._json(res.summary())
+                if path.startswith("/api/site/"):
+                    return self._json(hub.site.apply(path[len("/api/site/"):], b))
                 if path == "/api/settings":
                     return self._json(s.set_settings(site_dir=b.get("site_dir"), project=b.get("project"),
                                                      domain=b.get("domain"), live_host=b.get("live_host"),
                                                      tunnel_name=b.get("tunnel_name"), extra_origins=b.get("extra_origins"),
-                                                     cloudflared_path=b.get("cloudflared_path")))
+                                                     cloudflared_path=b.get("cloudflared_path"), site_mode=b.get("site_mode")))
                 if path == "/api/publish":
                     hub.publisher.start(preview=bool(b.get("preview")))
                     return self._json(hub.publisher.status(), 202)
@@ -225,8 +240,59 @@ def make_handler(hub):
                 return self._err(404, "Not found")
             except ValidationError as e:
                 return self._err(400, str(e))
+            except ModelError as e:
+                return self._json({"error": str(e), "errors": e.errors}, 400)
             except (TypeError, ValueError):
                 return self._err(400, "Bad request")
+
+        def _serve_preview(self, path):
+            """The modular site as built by Preview, served with the same headers Cloudflare will send (but never cached)."""
+            if not self._guard():
+                return
+            if path == "/preview":
+                self.send_response(308)
+                self.send_header("Location", "/preview/")
+                self.end_headers()
+                return
+            root = hub.site.preview_dir
+            rel = path[len("/preview"):]
+            if "\\" in rel or ".." in rel.split("/") or chr(0) in rel:
+                return self._err(400, "Bad path")
+            target = (root / rel.lstrip("/")).resolve()
+            try:
+                target.relative_to(root.resolve())
+            except ValueError:
+                return self._err(400, "Bad path")
+            status = 200
+            if target.is_dir():
+                if not rel.endswith("/"):
+                    self.send_response(308)
+                    self.send_header("Location", "/preview" + rel + "/")
+                    self.end_headers()
+                    return
+                target = target / "index.html"
+            if not target.is_file():
+                target, status = root / "404.html", 404
+                if not target.is_file():
+                    return self._err(404, "There is no preview yet. Press Preview first.")
+            data = target.read_bytes()
+            ctype = {".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".svg": "image/svg+xml",
+                     ".json": "application/json", ".wasm": "application/wasm", ".md": "text/markdown",
+                     ".txt": "text/plain"}.get(target.suffix.lower()) or mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            try:
+                rules = sitebuilder.parse_headers((root / "_headers").read_text(encoding="utf-8"))
+            except OSError:
+                rules = []
+            hdrs = sitebuilder.headers_for(rules, rel if rel.startswith("/") else "/" + rel)
+            self.send_response(status)
+            self.send_header("Content-Type", ctype + ("; charset=utf-8" if ctype.startswith(("text/", "application/json")) else ""))
+            self.send_header("Content-Length", str(len(data)))
+            for k, v in hdrs.items():
+                if k.lower() not in ("cache-control", "content-length", "content-type"):
+                    self.send_header(k, v)
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
 
         def _preview(self, mid):
             """Files in a static module and a short text preview, so a submission can be reviewed."""

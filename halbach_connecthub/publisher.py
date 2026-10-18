@@ -249,8 +249,9 @@ def fetch_manifest_build(host, build, wait=60, interval=4):
 class Publisher:
     """Runs one publish at a time in a background thread; the UI polls status()."""
 
-    def __init__(self, store, deployer=None, verifier=None):
+    def __init__(self, store, deployer=None, verifier=None, site=None):
         self.store = store
+        self.site = site                  # SiteService, set by the hub; None keeps the classic behaviour
         self.deployer = deployer or wrangler_deploy
         self.verifier = verifier or fetch_manifest_build
         self.lock = threading.Lock()
@@ -267,7 +268,8 @@ class Publisher:
     def ready(self):
         """(ok, reason) for the Publish button."""
         s = self.store.state.get("settings") or {}
-        if not s.get("site_dir"):
+        modular = s.get("site_mode") == "modular" and self.site is not None
+        if not s.get("site_dir") and not modular:
             return False, "Set the site folder in Settings."
         if not s.get("project"):
             return False, "Set the Pages project name in Settings."
@@ -292,7 +294,13 @@ class Publisher:
         try:
             self.store.log("info", "Publish started (%s)" % kind)
             stage = self.store.home / "stage"
-            manifest = build_stage(self.store, stage)
+            if s.get("site_mode") == "modular" and self.site is not None:
+                res = self.site.build(stage)
+                if not res.ok:
+                    raise PublishError("The site has problems to fix first: " + self.site.explain(res))
+                manifest = res.manifest
+            else:
+                manifest = build_stage(self.store, stage)
             n = sum(1 for _ in Path(stage).rglob("*") if _.is_file())
             self._set(step="Uploading")
             url = self.deployer(stage, s["project"], "preview" if preview else "main", self.store.log)
