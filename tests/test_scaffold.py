@@ -118,3 +118,23 @@ class TestDesignDocs(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRuntimeContract(unittest.TestCase):
+    def test_every_ctx_member_a_block_or_view_uses_exists_in_the_runtime(self):
+        import re
+        runtime = (BUILTIN / "runtime" / "halbach-site.js").read_text(encoding="utf-8")
+        start = runtime.index("function ctxFor(")
+        ctx_src = runtime[start:runtime.index("// ---------------------------------------------------------------- boot", start)]
+        provided = set(re.findall(r"(?:^|[{,])\s*(\w+):", ctx_src, re.M))
+        provided |= {"mod", "live"}
+        used = {}
+        for f in list((BUILTIN / "blocks").glob("*/*.js")) + list((BUILTIN / "views").glob("*/*.js")) + list((BUILTIN / "themes").glob("*/*.js")):
+            for name in re.findall(r"\bctx\.(\w+)", f.read_text(encoding="utf-8")):
+                used.setdefault(name, f.parent.name)
+        missing = {n: where for n, where in used.items() if n not in provided}
+        self.assertEqual(missing, {}, "scripts use ctx members the runtime does not provide")
+        for sub, names in (("mod", ("view",)), ("live", ("run",))):
+            for f in (BUILTIN / "blocks").glob("*/*.js"):
+                for n in re.findall(r"\bctx\.%s\.(\w+)" % sub, f.read_text(encoding="utf-8")):
+                    self.assertIn(n, names, f.parent.name)

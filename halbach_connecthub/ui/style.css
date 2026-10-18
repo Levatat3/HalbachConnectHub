@@ -156,3 +156,32 @@ textarea{all:unset;box-sizing:border-box;width:100%}
 .tag.new{color:#d9b3ff;border-color:#5b3a85;background:#1d1230}
 .banner{display:flex;align-items:center;gap:14px;justify-content:space-between;margin:0 0 18px;padding:12px 16px;border:1px solid #5b3a85;background:#150d24;border-radius:10px;color:#d9b3ff;font-size:13.5px}
 .banner[hidden]{display:none}
+
+/* Site screens */
+.subnav{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.subnav .sub{all:unset;cursor:pointer;padding:9px 14px;color:var(--muted);font-size:13px;border-bottom:2px solid transparent}
+.subnav .sub:hover{color:var(--text)}
+.subnav .sub.on{color:var(--green);border-bottom-color:var(--green)}
+select,input[type=number],textarea{box-sizing:border-box;background:#050806;border:1px solid var(--line2);border-radius:8px;padding:9px 11px;font:13px var(--mono);color:var(--text);max-width:100%}
+select:focus,input[type=number]:focus,textarea:focus{outline:none;border-color:var(--green2)}
+textarea{display:block;width:100%;resize:vertical}
+textarea.mono{font-size:12.5px;line-height:1.5}
+.set .r select,.set .r input[type=text],.set .r textarea{width:340px}
+.pagerow.off b{opacity:.55;text-decoration:line-through}
+.pagerow .btn{padding:6px 10px}
+.blockform{border:1px solid var(--line2);background:var(--bg2);border-radius:10px;margin:4px 6px 14px;padding:14px 16px}
+.fld{margin-bottom:10px}
+.fld .lb{margin:10px 0 5px}
+.rep{display:grid;gap:6px;margin-bottom:8px}
+.reprow{display:flex;gap:6px;align-items:center}
+.reprow input[type=text]{flex:1;min-width:0}
+.reprow.cardrow{flex-wrap:wrap}
+.reprow.cardrow input[type=text]{flex:1 1 160px}
+.okline{color:var(--green);padding:6px 0}
+.errline{color:var(--red);padding:5px 0;font-size:13px}
+.swatch{display:flex;height:22px;border-radius:6px;overflow:hidden;border:1px solid var(--line2);margin-bottom:8px}
+.swatch i{flex:1}
+.pframe{max-width:100%}
+.pscroll{overflow:auto;border:1px solid var(--line2);border-radius:10px;background:#000;max-height:calc(100vh - 260px)}
+.pview{display:block;height:calc(100vh - 280px);min-height:420px;border:0;background:#fff;margin:0 auto;max-width:none}
+.tag.new{color:#d9b3ff}

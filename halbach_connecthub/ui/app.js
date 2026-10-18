@@ -263,8 +263,9 @@
     view = v;
     $$(".view").forEach(function (e) { e.classList.toggle("on", e.id === "v-" + v); });
     $$("#nav button").forEach(function (b) { b.classList.toggle("on", b.dataset.v === v); });
-    $("#title").textContent = { dash: "Dashboard", mods: "Modules", pub: "Publish", logs: "Activity", set: "Settings" }[v];
+    $("#title").textContent = { dash: "Dashboard", mods: "Modules", site: "Site", pub: "Publish", logs: "Activity", set: "Settings" }[v];
     closeDrawer();
+    if (v === "site" && window.SiteUI) window.SiteUI.open();
     if (v === "pub") renderPlan();
     if (v === "logs") renderLog();
     if (v === "set") fillSettings();
@@ -386,6 +387,22 @@
   document.addEventListener("input", function (ev) {
     if (ev.target.id === "capRange") $("#capLabel").textContent = ev.target.value + " viewers";
   });
+
+  // small generic dialog for the Site screens (title, a DOM body, optional confirm button that may return a promise of true/false)
+  var dlgOk = null;
+  function dialog(title, bodyNode, okLabel, okFn) {
+    $("#dlgTitle").textContent = title;
+    var b = $("#dlgBody"); b.textContent = ""; b.appendChild(bodyNode);
+    var ok = $("#dlgOk"); ok.style.display = okLabel ? "" : "none"; ok.textContent = okLabel || "";
+    dlgOk = okFn || null;
+    $("#dlg").classList.add("open");
+  }
+  function closeDialog() { $("#dlg").classList.remove("open"); dlgOk = null; }
+  document.addEventListener("click", function (ev) {
+    if (ev.target.id === "dlgOk" && dlgOk) { Promise.resolve(dlgOk()).then(function (done) { if (done !== false) closeDialog(); }); }
+    else if (ev.target.id === "dlgClose" || ev.target.id === "dlgCancel" || ev.target.id === "dlg") closeDialog();
+  });
+  window.HB = { api: api, toast: toast, fail: fail, esc: esc, refreshSoon: function () { return refresh(); }, dialog: dialog, closeDialog: closeDialog };
 
   refresh();
   api("/api/publish/status").then(function (st) { if (st.state === "running") { busy = { preview: false }; render(); pollPublish(); } }).catch(function () {});

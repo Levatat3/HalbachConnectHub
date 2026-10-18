@@ -27,7 +27,7 @@ from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
 
 UI_DIR = Path(__file__).parent / "ui"
-UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js"}
+UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js"}
 MAX_BODY = 256 * 1024
 PREVIEW_CHARS = 4000
 

@@ -201,15 +201,19 @@
       el: el, markdown: markdown, url: url, note: note, theme: (PAGE.theme || {}), page: PAGE.page, site: PAGE.site,
       reducedMotion: REDUCED, manifest: MANIFEST,
       module: function (id) { return manifest().then(function () { return findModule(id); }); },
+      modules: function () { return manifest().then(function (m) { return m.modules || []; }); },
       moduleSync: findModule,
       mod: { view: viewModule },
       view: viewFor,
       live: { run: runLive },
       loadScript: loadScript,
       onVisible: function (fn) {
-        if (!("IntersectionObserver" in window)) return fn();
         var host = blockInfo && blockInfo.container || document.body, done = false;
-        var io = new IntersectionObserver(function (es) { if (!done && es.some(function (e) { return e.isIntersecting; })) { done = true; io.disconnect(); fn(); } });
+        function go() { if (!done) { done = true; fn(); } }
+        var r = host.getBoundingClientRect();
+        if (r.top < (window.innerHeight || 800) + 200 && r.bottom > -200) return go();     // already (nearly) on screen
+        if (!("IntersectionObserver" in window)) return go();
+        var io = new IntersectionObserver(function (es) { if (es.some(function (e) { return e.isIntersecting; })) { io.disconnect(); go(); } }, { rootMargin: "200px" });
         io.observe(host);
       },
       onRemove: function (fn) { cleanups.push(fn); }, _cleanups: cleanups
