@@ -168,3 +168,63 @@ class TestLibraryAndApi(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCredit(unittest.TestCase):
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.root = Path(self._t.name)
+        self.reg = rg.Registry()
+        self.m = sm.SiteModel(self.root / "hub", self.reg)
+        self.m.load_template("personal")
+        self.store = st.Store(self.root / "hub")
+        self.stage = self.root / "stage"
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def build(self):
+        res = sb.build_site(self.m, self.reg, self.store, self.stage)
+        self.assertTrue(res.ok, res.errors)
+        return res
+
+    def text(self, rel):
+        return (self.stage / rel).read_text(encoding="utf-8")
+
+    def test_every_page_on_the_funk_theme_credits_funkthemes_by_default(self):
+        self.m.set_theme(theme_id="funk", funk=GOOD)
+        self.build()
+        for rel in ("index.html", "projects/index.html", "about/index.html", "404.html"):
+            self.assertIn("Powered by FunkThemes", self.text(rel), rel)
+
+    def test_it_can_be_switched_off_per_page_and_only_for_that_page(self):
+        self.m.set_theme(theme_id="funk", funk=GOOD)
+        self.m.update_page("about", credit=False)
+        self.build()
+        self.assertNotIn("Powered by FunkThemes", self.text("about/index.html"))
+        self.assertIn("Powered by FunkThemes", self.text("index.html"))
+
+    def test_other_themes_never_show_it(self):
+        self.build()
+        for rel in ("index.html", "404.html"):
+            self.assertNotIn("FunkThemes", self.text(rel))
+
+    def test_a_page_with_its_own_funk_theme_gets_the_credit(self):
+        self.m.update_page("about", theme="funk")
+        self.build()
+        self.assertIn("Powered by FunkThemes", self.text("about/index.html"))
+        self.assertNotIn("Powered by FunkThemes", self.text("index.html"))
+
+    def test_hiding_it_is_noted_not_blocked(self):
+        from halbach_connecthub import quality
+        self.m.set_theme(theme_id="funk", funk=GOOD)
+        self.m.update_page("about", credit=False)
+        notes = quality.check_site(self.m, {})
+        self.assertTrue(any("FunkThemes" in n["message"] and n["level"] == "info" for n in notes))
+        self.assertEqual(self.m.validate()[0], [])
+
+    def test_old_saved_sites_default_to_showing_it(self):
+        raw = json.loads(json.dumps(self.m.data))
+        for p in raw["pages"]:
+            p.pop("credit", None)
+        self.assertTrue(all(p["credit"] for p in self.m._migrate(raw)["pages"]))

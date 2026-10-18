@@ -173,7 +173,8 @@
     var theme = h("select", null, h("option", { value: "", text: "Same as the site" }), SS.catalog.theme.map(function (t) { return h("option", { value: t.id, text: t.name }); }));
     theme.value = p.theme || "";
     var navChk = sw(p.nav, function () {}), listChk = sw(p.listed, function () {}), draftChk = sw(p.draft, function () {});
-    var navIn = navChk.firstChild, listIn = listChk.firstChild, draftIn = draftChk.firstChild;
+    var creditChk = sw(p.credit !== false, function () {});
+    var navIn = navChk.firstChild, listIn = listChk.firstChild, draftIn = draftChk.firstChild, creditIn = creditChk.firstChild;
     b.appendChild(h("div", { class: "set", style: "max-width:860px" },
       row("Name in the menu", "", f.label),
       row("Address", p.slug === "" ? "This is the home page." : "Letters, digits and dashes.", f.slug),
@@ -183,9 +184,10 @@
       row("Listed in search and the sitemap", "Switch off for a page only people with the link should find.", listChk),
       row("Draft", "Drafts show in Preview but are never published.", draftChk),
       row("Theme for this page", "Optional.", theme),
+      row("Show “Powered by FunkThemes”", "A credit line in the footer, shown only on pages that use the Funk theme. Funk built the theme engine, so please leave it on.", creditChk),
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save page settings", "primary", function () {
         act("page.update", { id: p.id, label: f.label.value, slug: f.slug.value, title: f.title.value, description: f.description.value,
-                             nav: navIn.checked, listed: listIn.checked, draft: draftIn.checked, theme: theme.value || null }, "Page saved.")
+                             nav: navIn.checked, listed: listIn.checked, draft: draftIn.checked, credit: creditIn.checked, theme: theme.value || null }, "Page saved.")
           .then(function () { curPage = p.id; }).catch(function (e) { showErr(err, e); });
       }))));
 

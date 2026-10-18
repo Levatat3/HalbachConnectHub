@@ -177,9 +177,12 @@ def _nav_html(model, pages, current_id, url_base):
     return "".join(out)
 
 
-def _shell(model, title, desc, head_extra, body_main, nav, page_json, runtime_url, css_url, url_base, robots_noindex, canonical, icons):
+def _shell(model, title, desc, head_extra, body_main, nav, page_json, runtime_url, css_url, url_base, robots_noindex, canonical, icons,
+           credit=False):
     b, s = model["brand"], model["settings"]
     foot = html.escape(b.get("footer") or ((b.get("handle") and b["handle"]) or ""))
+    if credit:
+        foot += '<span class="hs-credit">Powered by FunkThemes</span>'
     heads = ['<meta charset="utf-8">', '<meta name="viewport" content="width=device-width, initial-scale=1">',
              "<title>%s</title>" % html.escape(title)]
     if desc:
@@ -427,7 +430,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         main_fallback = '<noscript><p class="hs-empty">This page needs JavaScript to show its content.</p></noscript>'
         text = _shell(data, full_title, p["description"] or brand.get("tagline", ""), [], main_fallback,
                       _nav_html(data, pages, p["id"], url_base), json_for_script(page_json),
-                      url_base + "/" + runtime_name, url_base + "/" + theme["css"], url_base, noindex, canonical, icons)
+                      url_base + "/" + runtime_name, url_base + "/" + theme["css"], url_base, noindex, canonical, icons,
+                      credit=bool(p.get("credit", True)) and (p.get("theme") or site_theme) == "funk")
         out = stage / ("index.html" if p["slug"] == "" else p["slug"] + "/index.html")
         total_bytes += _write(out, text)
         res.pages.append({"id": p["id"], "path": path, "file": out.relative_to(stage).as_posix(), "indexable": not noindex})
@@ -436,7 +440,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     nf = _shell(data, "Not found | " + brand["name"], "", [],
                 '<h1 class="hs-title">Not found</h1><p class="hs-lede">That page is not here. <a href="%s/">Go to the home page</a>.</p>' % html.escape(url_base),
                 _nav_html(data, pages, None, url_base), "", url_base + "/" + runtime_name, url_base + "/" + themes[site_theme]["css"],
-                url_base, True, None, icons)
+                url_base, True, None, icons, credit=(site_theme == "funk"))
     total_bytes += _write(stage / "404.html", nf)
 
     # ---- robots, sitemap, redirects, headers

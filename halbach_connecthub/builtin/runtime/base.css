@@ -33,6 +33,7 @@ body[data-nav="side"] .hs-footer { grid-column: 1 / -1; }
 .hs-block { margin: 0 0 var(--gap); }
 .hs-block h2 { color: var(--accent-2); }
 .hs-footer { border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: 13px; }
+.hs-credit { display: block; margin-top: 8px; font-size: 13px; font-weight: 600; letter-spacing: .04em; color: var(--accent); }
 .hs-empty { padding: 24px; text-align: center; color: var(--muted); }
 .hs-lede { color: var(--muted); max-width: 62ch; }
 .hs-prompt { color: var(--muted); margin: 0; font-family: var(--mono); }

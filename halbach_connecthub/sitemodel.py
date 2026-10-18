@@ -51,7 +51,7 @@ def default_model(theme="neutral-dark"):
 
 def _page_shell(pid, slug, label, **kw):
     p = {"id": pid, "slug": slug, "label": label, "title": label, "description": "", "nav": True, "listed": True,
-         "enabled": True, "draft": False, "og_image": "", "theme": None, "area": None, "blocks": []}
+         "enabled": True, "draft": False, "og_image": "", "theme": None, "area": None, "credit": True, "blocks": []}
     p.update(kw)
     return p
 
@@ -359,7 +359,7 @@ class SiteModel:
                 except sc.FieldError as e:
                     raise ModelError(str(e))
                 self._check_slug_free(new["slug"], ignore_id=pid)
-            for k in ("nav", "listed", "enabled", "draft"):
+            for k in ("nav", "listed", "enabled", "draft", "credit"):
                 if k in kw:
                     new[k] = bool(kw[k])
             if "theme" in kw:
@@ -531,7 +531,7 @@ def diff_models(old, new):
         o = op.get(pid)
         if not o:
             continue
-        for k in ("label", "slug", "title", "description", "nav", "listed", "enabled", "draft", "theme"):
+        for k in ("label", "slug", "title", "description", "nav", "listed", "enabled", "draft", "credit", "theme"):
             if o.get(k) != p.get(k):
                 out.append("page %s: %s changed" % (p["label"], k))
         if o.get("blocks") != p.get("blocks"):

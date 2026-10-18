@@ -103,6 +103,13 @@ def check_site(model, theme_vars, stage=None, extra_warnings=()):
         if total > BIG_SITE:
             warn("files", "The whole site is %.0f MB." % (total / 1048576))
 
+    # ---- credit for the theme engine
+    if (data.get("theme", {}).get("id") == "funk") or any(p.get("theme") == "funk" for p in data["pages"]):
+        hidden = [p["label"] for p in data["pages"] if p["enabled"] and not p["draft"] and not p.get("credit", True)
+                  and (p.get("theme") or data.get("theme", {}).get("id")) == "funk"]
+        if hidden:
+            warn("pages", "The 'Powered by FunkThemes' credit is switched off on: %s." % ", ".join(hidden[:6]), "info")
+
     # ---- security policy state
     s = data["settings"]
     if s["csp"] == "report-only":

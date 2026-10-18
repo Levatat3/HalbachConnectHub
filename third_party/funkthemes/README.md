@@ -14,6 +14,8 @@ FunkThemes is Funk's shared theme engine and theme maker, used across his apps (
 - **On the public site** a theme is copied into the site model (and so into the History snapshots) and drawn by the engine in the visitor's browser. Halbach validates every `.funktheme` before it goes into the model: only plain colours, numbers and effect names are kept, and picture themes are refused for now.
 - **In the window** the maker previews live; pressing Done saves the choice in the browser's own storage (the window theme) or in the site (the site theme).
 
+- **Credit line.** Every page that uses the Funk theme shows "Powered by FunkThemes" in its footer (and on the 404 page). Each page has a switch in the page editor, and the Halbach window shows the same line while a Funk window theme is on. Switching it off is allowed but noted in the site checks.
+
 ## For Funk: things to confirm
 
 - That the licence for `funktheme.js` and `themes.py` is fine for Halbach's repository (MIT, public on GitHub). There is no licence file in the drop, so we have assumed MIT; say so if you want a different notice.

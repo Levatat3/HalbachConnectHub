@@ -427,11 +427,13 @@
       FT.apply(plain);
       Object.keys(FT.derive(plain)).concat(Object.keys(WT_MAP)).forEach(function (k) { root.removeProperty(k); });
       document.body.classList.remove("ft-on");
+      var c0 = document.getElementById("wtCredit"); if (c0) c0.style.display = "none";
       return;
     }
     var vars = FT.apply(t);
     Object.keys(WT_MAP).forEach(function (k) { if (vars[WT_MAP[k]]) root.setProperty(k, vars[WT_MAP[k]]); });
     document.body.classList.add("ft-on");
+    var c1 = document.getElementById("wtCredit"); if (c1) c1.style.display = "";
   }
   function downloadTheme(t) {
     var a = document.createElement("a");

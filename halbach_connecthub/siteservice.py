@@ -113,7 +113,7 @@ class SiteService:
             return "page added: %s" % a.get("label")
         if action == "page.update":
             fields = {k: v for k, v in a.items() if k in ("label", "slug", "title", "description", "nav", "listed", "enabled",
-                                                          "draft", "theme", "og_image")}
+                                                          "draft", "credit", "theme", "og_image")}
             m.update_page(a.get("id"), **fields)
             return "page edited: %s" % a.get("id")
         if action == "page.delete":
