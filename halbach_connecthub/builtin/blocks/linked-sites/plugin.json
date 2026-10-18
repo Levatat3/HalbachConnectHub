@@ -1,0 +1,31 @@
+{
+  "kind": "block",
+  "id": "linked-sites",
+  "hostapi": 1,
+  "version": "0.1.0",
+  "builtin": true,
+  "label": "Linked sites",
+  "category": "modules",
+  "description": "Cards for the other sites you have linked (a friend's Cloudflare site, a second project). Leave the list empty to show all of them.",
+  "fields": [
+    {
+      "key": "ids",
+      "label": "Only these (ids, one per line)",
+      "type": "list-text",
+      "help": "leave empty to show every linked site"
+    },
+    {
+      "key": "style",
+      "label": "Style",
+      "type": "select",
+      "default": "cards",
+      "options": [
+        "cards",
+        "list"
+      ]
+    }
+  ],
+  "files": [
+    "render.js"
+  ]
+}

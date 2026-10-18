@@ -15,6 +15,7 @@ import threading
 import time
 from pathlib import Path
 
+from . import linkedsites as ls
 from . import siteschema as sc
 
 MODEL_VERSION = 1
@@ -46,6 +47,7 @@ def default_model(theme="neutral-dark"):
         "collections": [],
         "redirects": [],
         "nav_links": [],
+        "linked_sites": [],
     }
 
 
@@ -303,6 +305,97 @@ class SiteModel:
             self.data["nav_links"] = clean["l"]
             return clean["l"]
 
+    # ---------------------------------------------------------------- linked sites (other sites shown from this one)
+    def linked(self, lid):
+        for x in self.data["linked_sites"]:
+            if x["id"] == lid:
+                return x
+        raise ModelError("There is no linked site '%s'" % lid)
+
+    @staticmethod
+    def _linked_url(url):
+        try:
+            u = sc.clean_url(url)
+        except sc.FieldError as e:
+            raise ModelError(str(e))
+        if not u or not u.startswith("https://") or len(u) > 500 or " " in u:
+            raise ModelError("A linked site needs a full https address, like https://example.pages.dev")
+        return u
+
+    def add_linked(self, label, url, description="", mode="link", own_page=False, menu=False, confirm_public_key=False):
+        with self.lock:
+            label = sc.clean_line(label, 40)
+            if not label:
+                raise ModelError("Give the linked site a name")
+            url = self._linked_url(url)
+            keys = ls.secret_params(url)
+            if keys and not confirm_public_key:
+                raise ModelError("This address has a key in it (%s). Everything on your site is public, so anyone could copy "
+                                 "it. Link the plain address instead, or confirm that you want it public." % ", ".join(keys))
+            if mode not in ("link", "embed"):
+                raise ModelError("Mode must be link or embed")
+            base = sc.slugify(label) or "site"
+            lid, n = base, 1
+            taken = {x["id"] for x in self.data["linked_sites"]}
+            while lid in taken or not sc.ID_RE.match(lid):
+                n += 1
+                lid = "%s-%d" % (base[:34], n)
+            if len(self.data["linked_sites"]) >= 100:
+                raise ModelError("At most 100 linked sites")
+            entry = {"id": lid, "label": label, "url": url, "description": sc.clean_line(description, 200), "mode": mode,
+                     "page": None, "menu": bool(menu)}
+            self.data["linked_sites"].append(entry)
+            if own_page:
+                blocks = [{"type": "text", "props": {"markdown": "## %s\n\n%s" % (label, entry["description"] or "")}}]
+                blocks.append({"type": "embed", "props": {"url": url, "height": 640}} if mode == "embed" else
+                              {"type": "links", "props": {"items": [{"label": "Open " + label, "url": url}], "style": "buttons"}})
+                page = self.add_page(label, description=entry["description"], blocks=blocks)
+                page["nav"] = bool(menu)
+                entry["page"] = page["id"]
+            elif menu:
+                if len(self.data["nav_links"]) >= 12:
+                    raise ModelError("The menu already has 12 extra links")
+                self.data["nav_links"].append({"label": label, "url": url})
+            return entry
+
+    def update_linked(self, lid, **kw):
+        with self.lock:
+            e = self.linked(lid)
+            old_url = e["url"]
+            if "label" in kw:
+                e["label"] = sc.clean_line(kw["label"], 40) or e["label"]
+            if "description" in kw:
+                e["description"] = sc.clean_line(kw["description"], 200)
+            if "url" in kw and kw["url"] != old_url:
+                url = self._linked_url(kw["url"])
+                keys = ls.secret_params(url)
+                if keys and not kw.get("confirm_public_key"):
+                    raise ModelError("This address has a key in it (%s). Confirm that you want it public." % ", ".join(keys))
+                e["url"] = url
+                if e.get("page"):
+                    for b in self.page(e["page"])["blocks"]:
+                        pr = b.get("props", {})
+                        if pr.get("url") == old_url:
+                            pr["url"] = url
+                        for it in pr.get("items", []) if isinstance(pr.get("items"), list) else []:
+                            if isinstance(it, dict) and it.get("url") == old_url:
+                                it["url"] = url
+                for nl in self.data["nav_links"]:
+                    if nl["url"] == old_url:
+                        nl["url"] = url
+            return e
+
+    def delete_linked(self, lid):
+        with self.lock:
+            e = self.linked(lid)
+            self.data["linked_sites"].remove(e)
+            if e.get("page"):
+                try:
+                    self.delete_page(e["page"])
+                except ModelError:
+                    pass
+            self.data["nav_links"] = [n for n in self.data["nav_links"] if n["url"] != e["url"]]
+
     # ---------------------------------------------------------------- pages
     def page(self, pid):
         for p in self.data["pages"]:
@@ -509,6 +602,11 @@ class SiteModel:
                 _, errs = sc.validate_props(fields, b.get("props", {}), ctx)
                 for e in errs:
                     err(bpath, e["message"])
+        for x in d.get("linked_sites", []):
+            keys = ls.secret_params(x["url"])
+            if keys:
+                warn("linked/%s" % x["id"], "The address for '%s' has a key in it (%s). Everything on your site is public, so anyone "
+                                            "can copy it." % (x["label"], ", ".join(keys)))
         if "" not in seen_slugs:
             err("pages", "There is no home page (a page with the address '/')")
         elif not self.page(seen_slugs[""])["enabled"]:
@@ -551,7 +649,7 @@ def diff_models(old, new):
                 out.append("page %s: blocks reordered" % p["label"])
     if [p["id"] for p in old.get("pages", []) if p["id"] in np_] != [p["id"] for p in new.get("pages", []) if p["id"] in op]:
         out.append("page order changed")
-    for k in ("brand", "theme", "settings", "redirects", "nav_links"):
+    for k in ("brand", "theme", "settings", "redirects", "nav_links", "linked_sites"):
         if old.get(k) != new.get(k):
             out.append("%s changed" % k)
     return out

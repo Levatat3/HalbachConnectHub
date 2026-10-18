@@ -11,11 +11,21 @@ from pathlib import Path
 
 import json
 
-from . import legacyimport, quality, sitebuilder
+from . import legacyimport, linkedsites, quality, sitebuilder
 from .publisher import classify
 from .registry import Registry
 from .sitemodel import MODEL_VERSION, ModelError, SiteModel, diff_models
 from .store import TAB_VIEWS, collect_files
+
+
+def a_url(args, model):
+    """The address to probe: given directly, or taken from a linked site by id."""
+    if args.get("url"):
+        return str(args["url"])
+    try:
+        return model.linked(args.get("id"))["url"]
+    except ModelError:
+        return None
 
 
 class SiteService:
@@ -95,6 +105,11 @@ class SiteService:
     # ---------------------------------------------------------------- edits
     def apply(self, action, args):
         """Run one edit by name. Returns the new check result; raises ModelError (nothing changed) if refused."""
+        if action == "linked.check":                                   # a look at another site; nothing is changed or saved
+            url = (a_url(args, self.model) if args else None)
+            if not url:
+                raise ModelError("Give an address to check, or pick a linked site")
+            return linkedsites.probe(url)
         with self.lock:
             before = copy.deepcopy(self.model.data)
             try:
@@ -140,6 +155,16 @@ class SiteService:
         if action == "block.duplicate":
             m.duplicate_block(a.get("page"), a.get("id"))
             return "block duplicated"
+        if action == "linked.add":
+            m.add_linked(a.get("label"), a.get("url"), a.get("description", ""), a.get("mode", "link"),
+                         own_page=bool(a.get("own_page")), menu=bool(a.get("menu")), confirm_public_key=bool(a.get("confirm_public_key")))
+            return "linked site added: %s" % a.get("label")
+        if action == "linked.update":
+            m.update_linked(a.get("id"), **{k: a[k] for k in ("label", "description", "url", "confirm_public_key") if k in a})
+            return "linked site edited: %s" % a.get("id")
+        if action == "linked.delete":
+            m.delete_linked(a.get("id"))
+            return "linked site removed: %s" % a.get("id")
         if action == "brand":
             m.set_brand(**{k: a[k] for k in ("name", "mark", "tagline", "handle", "footer", "icon") if k in a})
             return "brand changed"

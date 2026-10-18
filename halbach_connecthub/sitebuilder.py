@@ -410,6 +410,10 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                                                  "message": "Card '%s' points at a page that is switched off or hidden" % item.get("title")})
                     elif item.get("url"):
                         item["href"] = item.pop("url")
+            if b["type"] == "linked-sites":
+                wanted = props.get("ids") or []
+                props = {"items": [{"title": x["label"], "text": x["description"], "href": x["url"]} for x in data.get("linked_sites", [])
+                                   if not wanted or x["id"] in wanted], "style": props.get("style", "cards")}
             blocks.append({"id": b["id"], "type": b["type"], "props": props})
         path = page_path(p)
         page_json = {

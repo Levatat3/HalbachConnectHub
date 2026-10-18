@@ -59,7 +59,7 @@
   function showErr(box, e) { box.textContent = e && e.message ? e.message : String(e); }
 
   // ---------------------------------------------------------------- frame
-  var SUBS = [["overview", "Overview"], ["pages", "Pages"], ["design", "Design"], ["menu", "Menu & redirects"],
+  var SUBS = [["overview", "Overview"], ["pages", "Pages"], ["design", "Design"], ["menu", "Menu & redirects"], ["linked", "Linked sites"],
               ["settings", "Site settings"], ["history", "History"], ["preview", "Preview"]];
   function render() {
     var r = root(); if (!r || !SS) return;
@@ -73,7 +73,7 @@
     r.appendChild(bar);
     var body = h("div", { class: "subbody" });
     r.appendChild(body);
-    ({ overview: overview, pages: pages, page: pageEditor, design: design, menu: menu, settings: siteSettings, history: history, preview: preview }[sub] || overview)(body);
+    ({ overview: overview, pages: pages, page: pageEditor, design: design, menu: menu, linked: linkedSites, settings: siteSettings, history: history, preview: preview }[sub] || overview)(body);
   }
 
   // ---------------------------------------------------------------- overview
@@ -405,6 +405,80 @@
       btn("Save redirects", "primary", function () {
         act("redirects", { redirects: reds.get().filter(function (r) { return r.from || r.to; }).map(function (r) { return { from: r.from, to: r.to, status: parseInt(r.status, 10) || 301 }; }) }, "Redirects saved.").catch(function (e) { showErr(rerr, e); });
       }))));
+  }
+
+  // ---------------------------------------------------------------- linked sites
+  var SECRET_NAMES = ["k", "key", "token", "secret", "auth", "sig", "signature", "password", "pass", "pwd", "code", "apikey", "api_key", "access_token", "session", "sid", "otp"];
+  function secretNames(url) {
+    var out = [];
+    String(url || "").replace(/[?&#;]([^=&#;]+)=/g, function (m, name) {
+      name = decodeURIComponent(name).toLowerCase();
+      if (SECRET_NAMES.indexOf(name) >= 0 && out.indexOf(name) < 0) out.push(name);
+      return m;
+    });
+    return out;
+  }
+  function maskUrl(url) {               // never show a key on screen: the value is replaced
+    return String(url || "").replace(/([?&#;](?:k|key|token|secret|auth|sig|signature|password|pass|pwd|code|apikey|api_key|access_token|session|sid|otp)=)[^&#;]*/gi, "$1••••");
+  }
+  function probeLines(r) {
+    var lines = [];
+    lines.push(r.reachable ? "✔ It answers" + (r.status ? " (status " + r.status + ")" : "") + "." : "✖ It could not be reached.");
+    if (r.cloudflare) lines.push("☁ It is on Cloudflare.");
+    if (r.embeddable === true) lines.push("✔ It can be shown inside your site.");
+    (r.notes || []).forEach(function (n) { lines.push("• " + n); });
+    return lines;
+  }
+  function linkedSites(b) {
+    var d = SS.model;
+    b.appendChild(h("div", { class: "row", style: "margin-bottom:14px" },
+      h("div", null, h("h2", { class: "h2", style: "margin:0 0 4px", text: "Linked sites" }),
+        h("div", { class: "hint", text: "Sites that live somewhere else, like a friend's Cloudflare Pages or Workers site. Halbach never hosts them or holds a key for them; visitors just reach them from here." })),
+      h("span", { style: "flex:1" }), btn("＋ Link a site", "primary", addLinkedDialog)));
+    var box = h("div", { class: "set", style: "max-width:980px;padding:0 6px" });
+    if (!d.linked_sites.length) box.appendChild(h("p", { class: "empty", text: "Nothing linked yet." }));
+    d.linked_sites.forEach(function (x) {
+      var note = h("small", { text: maskUrl(x.url) + "  ·  " + (x.page ? "own page" : "card/menu only") + (x.mode === "embed" ? "  ·  shown inside this site" : "") });
+      var result = h("div", { class: "hint", style: "white-space:pre-line" });
+      box.appendChild(h("div", { class: "r" }, h("div", { style: "flex:1;min-width:0" }, h("b", { text: x.label }), note, result),
+        btn("Check", "", function () {
+          result.textContent = "Checking…";
+          HB.api("/api/site/linked.check", "POST", { id: x.id }).then(function (r) { result.textContent = probeLines(r).join("\n"); }).catch(function (e) { result.textContent = e.message; });
+        }),
+        btn("Remove", "ghost", function () {
+          if (confirm("Remove the link to '" + x.label + "'? Its page and menu entry go too. The site itself is not touched.")) act("linked.delete", { id: x.id }, "Link removed.");
+        })));
+      if (secretNames(x.url).length) box.appendChild(h("div", { class: "prob", style: "padding:0 14px 10px", text: "⚠ This address has a key in it (" + secretNames(x.url).join(", ") + "). Everything on your site is public, so anyone can copy it." }));
+    });
+    b.appendChild(box);
+    b.appendChild(h("div", null, section("Show them on a page", "Add a “Linked sites” block to any page (Pages → Edit → Add block) to list them as cards.")));
+  }
+
+  function addLinkedDialog() {
+    var f = { label: h("input", { type: "text", placeholder: "e.g. FunkStudio Share" }), url: h("input", { type: "text", placeholder: "https://something.workers.dev" }),
+              desc: h("input", { type: "text", placeholder: "One line about it" }) };
+    var mode = h("select", null, h("option", { value: "link", text: "Open it in a new tab" }), h("option", { value: "embed", text: "Show it inside my site" }));
+    var own = sw(true, function () {}), menu = sw(true, function () {});
+    var okKey = h("input", { type: "checkbox" }), keyBox = h("label", { class: "prob", style: "display:none;margin-top:10px" }, okKey, " I understand this key will be public.");
+    var info = h("div", { class: "hint", style: "white-space:pre-line;margin-top:8px" }), err = h("div", { class: "err" });
+    f.url.addEventListener("input", function () {
+      var n = secretNames(f.url.value);
+      keyBox.style.display = n.length ? "" : "none";
+      if (n.length) keyBox.firstChild.nextSibling.textContent = " This address has a key in it (" + n.join(", ") + "). Everything on your site is public. Use the plain address instead, or tick this to publish the key.";
+    });
+    var body = h("div", null, h("label", { class: "lb", style: "margin-top:0", text: "Name" }), f.label, h("label", { class: "lb", text: "Address" }), f.url, keyBox,
+      h("div", { class: "row", style: "margin-top:8px" }, btn("Check this address", "", function () {
+        info.textContent = "Checking…";
+        HB.api("/api/site/linked.check", "POST", { url: f.url.value }).then(function (r) { info.textContent = probeLines(r).join("\n"); if (r.embeddable === false) mode.value = "link"; }).catch(function (e) { info.textContent = e.message; });
+      })), info,
+      h("label", { class: "lb", text: "Description" }), f.desc, h("label", { class: "lb", text: "How it appears" }), mode,
+      h("div", { class: "row", style: "margin-top:12px" }, own, h("span", { text: "Give it its own page on my site" })),
+      h("div", { class: "row", style: "margin-top:8px" }, menu, h("span", { text: "Show it in the menu" })), err);
+    HB.dialog("Link a site", body, "Link it", function () {
+      return act("linked.add", { label: f.label.value, url: f.url.value, description: f.desc.value, mode: mode.value, own_page: own.firstChild.checked,
+                                 menu: menu.firstChild.checked, confirm_public_key: okKey.checked }, "Site linked. Rebuild the preview to see it.")
+        .then(function () { return true; }).catch(function (e) { showErr(err, e); return false; });
+    });
   }
 
   // ---------------------------------------------------------------- site settings
