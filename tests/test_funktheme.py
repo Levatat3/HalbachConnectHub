@@ -228,3 +228,44 @@ class TestCredit(unittest.TestCase):
         for p in raw["pages"]:
             p.pop("credit", None)
         self.assertTrue(all(p["credit"] for p in self.m._migrate(raw)["pages"]))
+
+
+class TestWindowThemeStorage(unittest.TestCase):
+    def test_the_window_theme_is_kept_by_the_hub_and_survives_a_restart(self):
+        with tempfile.TemporaryDirectory() as t:
+            s = st.Store(Path(t) / "hub")
+            self.assertIsNone(s.window_theme())
+            s.set_window_theme(GOOD)
+            self.assertEqual(st.Store(Path(t) / "hub").window_theme()["name"], "Funk")
+            s.set_window_theme(None)
+            self.assertIsNone(st.Store(Path(t) / "hub").window_theme())
+
+    def test_junk_and_huge_themes_are_refused(self):
+        with tempfile.TemporaryDirectory() as t:
+            s = st.Store(Path(t) / "hub")
+            for bad in ({"name": "x"}, {"funkTheme": 1, "name": ""}, "text", {**GOOD, "image": "data:image/png;base64," + "A" * 300000}):
+                with self.assertRaises(st.ValidationError):
+                    s.set_window_theme(bad)
+            self.assertIsNone(s.window_theme())
+
+    def test_api_round_trip(self):
+        with tempfile.TemporaryDirectory() as t:
+            srv, hub = server.serve(Path(t) / "hub", 0, token="tok")
+            server.run_in_thread(srv)
+            try:
+                def call(method, body=None):
+                    c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+                    c.request(method, "/api/windowtheme", json.dumps(body).encode() if body is not None else None,
+                              {"Host": "127.0.0.1:%d" % srv.server_address[1], "X-Halbach-Token": "tok", "Content-Type": "application/json"})
+                    r = c.getresponse()
+                    out = (r.status, json.loads(r.read()))
+                    c.close()
+                    return out
+                self.assertEqual(call("GET"), (200, {"theme": None}))
+                self.assertEqual(call("POST", {"theme": GOOD})[1]["theme"]["name"], "Funk")
+                self.assertEqual(call("GET")[1]["theme"]["fx"], "ascii")
+                self.assertEqual(call("POST", {"theme": {"nope": 1}})[0], 400)
+                self.assertEqual(call("POST", {"theme": None}), (200, {"theme": None}))
+            finally:
+                srv.shutdown()
+                srv.server_close()

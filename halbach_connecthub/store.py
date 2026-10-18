@@ -552,6 +552,25 @@ class Store:
             self.state["published_model_fp"] = self._model_fp()
             self._save()
 
+    # ---- window theme (a FunkThemes theme for this window; kept here so it survives a new port or browser profile) ----
+    MAX_WINDOW_THEME = 200_000
+
+    def window_theme(self):
+        return self.state.get("window_theme")
+
+    def set_window_theme(self, theme):
+        with self.lock:
+            if theme is None:
+                self.state.pop("window_theme", None)
+            else:
+                if not isinstance(theme, dict) or theme.get("funkTheme") != 1 or not str(theme.get("name") or "").strip():
+                    raise ValidationError("That is not a FunkTheme")
+                if len(json.dumps(theme)) > self.MAX_WINDOW_THEME:
+                    raise ValidationError("That theme is too big to keep here (a large picture?). It stays in this browser only.")
+                self.state["window_theme"] = theme
+            self._save()
+        return self.state.get("window_theme")
+
     def view(self):
         """State as the UI sees it, with a status for each module."""
         plist = self.pending()

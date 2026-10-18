@@ -364,7 +364,8 @@
           return api("/api/quit", "POST", {}).then(function () {
             document.body.innerHTML = '<p style="font:16px system-ui;color:#7f9d8b;padding:40px">Halbach ConnectHub has stopped. You can close this window.</p>';
           }).catch(fail);
-        case "wtChoose": return openThemeMaker({ current: savedWindowTheme(), onDone: function (t) { window.HB.saveWindowTheme(t); toast("Window theme saved"); } });
+        case "wtChoose": return openThemeMaker({ current: savedWindowTheme(), onSave: function (t) { saveWindowTheme(t); },
+                                                  onDone: function (t) { saveWindowTheme(t); toast("Window theme saved"); } });
         case "wtReset": window.HB.saveWindowTheme(null); return toast("Window theme reset");
         case "publish": return startPublish(false);
         case "previewPublish": return startPublish(true);
@@ -419,6 +420,7 @@
   var WT_MAP = { "--bg": "--bg", "--bg2": "--s1", "--card": "--s1", "--card2": "--s2", "--line": "--line", "--line2": "--line2",
                  "--text": "--text", "--muted": "--dim", "--dim": "--faint", "--green": "--brand", "--green2": "--brand-line" };
   function savedWindowTheme() { try { return JSON.parse(localStorage.getItem(WT_KEY) || "null"); } catch (e) { return null; } }
+  function cacheWindowTheme(t) { try { if (t) localStorage.setItem(WT_KEY, JSON.stringify(t)); else localStorage.removeItem(WT_KEY); } catch (e) {} }
   function applyWindowTheme(t) {
     var FT = window.FunkTheme; if (!FT) return;
     var root = document.documentElement.style;
@@ -450,7 +452,13 @@
       window.FunkTheme.openEditor({
         current: cfg.current || window.FunkTheme.PRESETS[1], library: r.themes, brand: ["Halbach", "ConnectHub"],
         onChange: function (t) { applyWindowTheme(t); },
-        onSave: function (t) { return api("/api/funkthemes/save", "POST", { theme: t }).then(function (x) { toast("Saved to the shared theme library"); return x.themes; }).catch(function (e) { toast(e.message); }); },
+        onSave: function (t) {
+          return api("/api/funkthemes/save", "POST", { theme: t }).then(function (x) {
+            toast(cfg.onSave ? "Saved to the shared theme library, and applied" : "Saved to the shared theme library");
+            if (cfg.onSave) cfg.onSave(t);
+            return x.themes;
+          }).catch(function (e) { toast(e.message); });
+        },
         onDelete: function (t) { return api("/api/funkthemes/delete", "POST", { name: t.name }).then(function (x) { return x.themes; }).catch(function (e) { toast(e.message); }); },
         onExport: downloadTheme, onError: toast,
         onDone: function (t) {
@@ -461,9 +469,19 @@
     }).catch(fail);
   }
   applyWindowTheme(savedWindowTheme());
+  // The hub keeps the window theme too, so it survives a new port, a cleared browser profile or a second window.
+  api("/api/windowtheme").then(function (r) {
+    var local = savedWindowTheme();
+    if (r.theme && JSON.stringify(r.theme) !== JSON.stringify(local)) { cacheWindowTheme(r.theme); applyWindowTheme(r.theme); }
+    else if (!r.theme && local) api("/api/windowtheme", "POST", { theme: local }).catch(function () {});      // first run after the upgrade
+  }).catch(function () {});
+  function saveWindowTheme(t) {
+    cacheWindowTheme(t); applyWindowTheme(t);
+    api("/api/windowtheme", "POST", { theme: t || null }).catch(function (e) { toast(e.message); });
+  }
 
   window.HB = { openThemeMaker: openThemeMaker, applyWindowTheme: applyWindowTheme, savedWindowTheme: savedWindowTheme,
-                saveWindowTheme: function (t) { try { if (t) localStorage.setItem(WT_KEY, JSON.stringify(t)); else localStorage.removeItem(WT_KEY); } catch (e) {} applyWindowTheme(t); },
+                saveWindowTheme: saveWindowTheme,
                 api: api, toast: toast, fail: fail, esc: esc, refreshSoon: function () { return refresh(); }, dialog: dialog, closeDialog: closeDialog };
 
   refresh();

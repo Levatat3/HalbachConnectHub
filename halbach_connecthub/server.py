@@ -165,6 +165,8 @@ def make_handler(hub):
                 return
             if path == "/api/funkthemes":
                 return self._json({"themes": funkthemes.library(), "dir": funkthemes.DIR})
+            if path == "/api/windowtheme":
+                return self._json({"theme": hub.store.window_theme()})
             if path == "/api/site":
                 return self._json(hub.site.view())
             if path == "/api/site/export":
@@ -234,6 +236,8 @@ def make_handler(hub):
                     if act == "remove":
                         s.remove(mid)
                         return self._json({"ok": True})
+                if path == "/api/windowtheme":
+                    return self._json({"theme": s.set_window_theme(b.get("theme"))})
                 if path == "/api/funkthemes/save":
                     try:
                         funkthemes.save(b.get("theme"))
