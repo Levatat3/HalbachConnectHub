@@ -6,7 +6,7 @@
   "builtin": true,
   "label": "Drop box",
   "category": "areas",
-  "description": "An upload box that sends files to an area's inbox for review (needs the area's passphrase).",
+  "description": "Planned for the areas update: an upload box that sends files to an area's inbox for review. Not available yet.",
   "fields": [
     {
       "key": "area",
@@ -34,5 +34,6 @@
   "files": [
     "render.js"
   ],
-  "phase": 3
+  "phase": 3,
+  "status": "planned"
 }

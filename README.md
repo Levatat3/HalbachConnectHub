@@ -15,6 +15,10 @@ Most personal sites need a code change and a push every time you want to show so
 
 Drop a folder in, switch it on, press **Publish**. Edits inside a folder you have added show up as pending changes on their own. Live data needs no publish: switch it on and visitors see it within seconds.
 
+## New in 0.4: the modular site
+
+You can now let Halbach build the whole site. **Site** in the window has pages (add one like `/funkworkshop` in a click), a page editor with a form for every block, themes with colour overrides, menu and redirects, a live preview with the real security headers, history with restore, and export/import. Publishing builds real pages, a content-security-policy assembled from the blocks you use, a sitemap and a 404 page. Classic mode (your site folder, exactly as before) stays the default. See **[docs/MODULAR.md](docs/MODULAR.md)**, and `halbach site check | build | export | import` from a terminal.
+
 ## What works
 
 - Add static modules (file or folder) and live modules (a local `127.0.0.1` service), switch them on and off.
@@ -25,6 +29,7 @@ Drop a folder in, switch it on, press **Publish**. Edits inside a folder you hav
 - **Drop-off inbox:** other tools and chats can send a folder, file or Markdown text with `halbach submit`. It arrives as a switched-off module marked "from a chat", with a preview, and nothing goes public until you review it, switch it on and press Publish. See [Sending things from other tools and chats](#sending-things-from-other-tools-and-chats).
 - The site shows each module by type (page, Markdown doc, game via Ruffle, gallery, image, file) and shows "offline" for live modules when your PC is off.
 - Activity log, pending-change tracking, Quit button. It never starts with Windows.
+- **Modular site (0.4):** pages, blocks, themes, preview, quality checks and a publish diff, built into real files. See above.
 
 ## Run it
 
@@ -103,6 +108,8 @@ A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](exampl
 - **No credentials.** Halbach ConnectHub never asks for or stores a password. Publishing uses your `wrangler` login and the tunnel uses cloudflared's own certificate.
 
 ## Tests
+
+Over 260 tests cover the model, the builder (including the generated headers), the preview route, the importer and the command line.
 
 ```
 python -m unittest discover -s tests -t .

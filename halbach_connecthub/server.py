@@ -358,9 +358,17 @@ def make_handler(hub):
                     files += [{"module": m["id"], "path": rel, "bytes": size} for _, rel, size in fl]
             ok, why = hub.publisher.ready()
             modular = (s.state.get("settings") or {}).get("site_mode") == "modular"
+            if modular:
+                stage = s.home / "plan-stage"
+                res = hub.site.build(stage)
+                files = []
+                if res.ok:
+                    for f in sorted(stage.rglob("*")):
+                        if f.is_file() and len(files) < 400:
+                            files.append({"module": "", "path": f.relative_to(stage).as_posix(), "bytes": f.stat().st_size})
             return {"changes": changes, "files": files, "deploy_ready": ok, "note": why, "modular": modular,
                     "site_changes": hub.site.plan() if modular else [],
-                    "site_problems": hub.site.check()["errors"] if modular else []}
+                    "site_problems": ((res.errors if not res.ok else []) if modular else [])}
 
     return Handler
 

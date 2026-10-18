@@ -223,7 +223,7 @@
 
   function blockPicker(p) {
     var cats = {};
-    SS.catalog.block.filter(function (x) { return x.ok && x.enabled; }).forEach(function (x) { (cats[x.category || "other"] = cats[x.category || "other"] || []).push(x); });
+    SS.catalog.block.filter(function (x) { return x.ok && x.enabled && x.status !== "planned"; }).forEach(function (x) { (cats[x.category || "other"] = cats[x.category || "other"] || []).push(x); });
     var body = h("div");
     Object.keys(cats).sort().forEach(function (c) {
       body.appendChild(h("h2", { class: "h2", style: "margin:14px 0 8px", text: c }));

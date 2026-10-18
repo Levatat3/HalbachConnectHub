@@ -47,7 +47,7 @@ class Plugin:
                 "category": m.get("category", ""), "version": m.get("version", ""), "builtin": self.builtin,
                 "trusted": self.trusted, "enabled": self.enabled, "ok": self.ok, "errors": self.errors,
                 "digest": self.digest, "fields": m.get("fields", []), "csp": m.get("csp", {}),
-                "files": m.get("files", []), "tab": m.get("tab"), "isolated": bool(m.get("isolated"))}
+                "files": m.get("files", []), "tab": m.get("tab"), "status": m.get("status", "ready"), "isolated": bool(m.get("isolated"))}
 
 
 def digest_of(plugin):

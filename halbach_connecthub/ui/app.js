@@ -129,7 +129,7 @@
         lines.push("FILES");
       }
       lines = lines.concat(pl.files.length
-        ? pl.files.map(function (f) { return f.module + "/" + f.path + "  (" + mb(f.bytes) + ")"; })
+        ? pl.files.map(function (f) { return (f.module ? f.module + "/" : "") + f.path + "  (" + mb(f.bytes) + ")"; })
         : [pl.modular ? "No extra files." : "Nothing yet."]);
       $("#pubFiles").textContent = lines.join("\n");
     }).catch(fail);

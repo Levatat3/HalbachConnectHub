@@ -193,6 +193,18 @@ class TestPreviewRoute(unittest.TestCase):
         s, _, _ = self.req("GET", "/preview/", token=False, host="evil.example")
         self.assertEqual(s, 403)
 
+    def test_publish_plan_in_modular_mode_lists_the_real_upload_and_the_changes(self):
+        self.req("POST", "/api/settings", {"site_mode": "modular"})
+        s, raw, _ = self.req("GET", "/api/publish/plan")
+        plan = json.loads(raw)
+        self.assertTrue(plan["modular"])
+        paths = [f["path"] for f in plan["files"]]
+        self.assertIn("index.html", paths)
+        self.assertIn("_headers", paths)
+        self.assertTrue(plan["site_changes"])
+        self.assertEqual(plan["site_problems"], [])
+        self.req("POST", "/api/settings", {"site_mode": "classic"})
+
     def test_site_api_requires_the_token_and_reports_refusals(self):
         self.assertEqual(self.req("GET", "/api/site", token=False)[0], 401)
         s, raw, _ = self.req("GET", "/api/site")

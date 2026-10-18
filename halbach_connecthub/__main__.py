@@ -41,7 +41,7 @@ def main(argv=None):
     if args and args[0] == "site":
         from .sitecli import main as site_main
         return site_main(args[1:])
-    ap = argparse.ArgumentParser(prog="halbach", description="Halbach ConnectHub: choose what your site shows.")
+    ap = argparse.ArgumentParser(prog="halbach", description="Halbach ConnectHub: choose what your site shows.", formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8780, help="local port (default 8780; 0 = any free port)")
     ap.add_argument("--live-port", type=int, default=8782, help="port for the live hub (default 8782)")
     ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub)")

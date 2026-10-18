@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "halbach-connecthub"
-version = "0.3.0"
+version = "0.4.0"
 description = "Halbach ConnectHub: choose what your personal site shows, from a window on your own PC."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,7 @@ halbach = "halbach_connecthub.__main__:main"
 packages = ["halbach_connecthub"]
 
 [tool.setuptools.package-data]
-halbach_connecthub = ["ui/*"]
+halbach_connecthub = ["ui/*", "builtin/runtime/*", "builtin/blocks/*/*", "builtin/views/*/*", "builtin/themes/*/*", "builtin/templates/*"]
 
 [project.urls]
 Source = "https://github.com/Levatat3/HalbachConnectHub"
