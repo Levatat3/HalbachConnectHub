@@ -6,7 +6,9 @@ from halbach_connecthub import legacyimport as li
 from halbach_connecthub import registry as rg
 from halbach_connecthub import sitemodel as sm
 
-REAL = Path(r"F:\Codes\Website")
+import os
+
+REAL = Path(os.environ.get("HALBACH_TEST_CLASSIC_SITE", "nonexistent-folder"))   # point at a real classic site to run the extra test
 
 
 class TestJsReader(unittest.TestCase):
@@ -27,7 +29,7 @@ window.SITE = {
             li.parse_js_object("window.SITE = { a: ??? }")
 
 
-@unittest.skipUnless((REAL / "index.html").is_file(), "the real site folder is not on this PC")
+@unittest.skipUnless((REAL / "index.html").is_file(), "set HALBACH_TEST_CLASSIC_SITE to a classic site folder to run this")
 class TestRealSite(unittest.TestCase):
     def test_imports_into_a_valid_model(self):
         model, notes = li.import_classic(REAL, live_tab_modules=[("pets", "pets", "PETS")])
