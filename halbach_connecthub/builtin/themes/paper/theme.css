@@ -1,0 +1,6 @@
+/* Paper: a warm light theme. Colours come from plugin.json; only small touches here. */
+html { color-scheme: light; }
+.hs-screen { background: #1a1a1a; }
+.hs-nav a[aria-current="page"] { color: #fff; }
+.hs-mark { border-color: var(--accent); }
+.hs-card { box-shadow: 0 1px 0 rgba(0, 0, 0, .04); }

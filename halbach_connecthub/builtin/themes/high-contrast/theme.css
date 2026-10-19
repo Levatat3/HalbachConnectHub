@@ -1,0 +1,7 @@
+/* High contrast: black background, white text, yellow accents. Colours come from plugin.json. */
+html { color-scheme: dark; }
+.hs-screen { background: #000; }
+.hs-nav a { color: #e6e6e6; }
+.hs-nav a[aria-current="page"] { color: #000; background: var(--accent); }
+.hs-button, .hs-links-buttons a { border-width: 2px; }
+.hs-card { border-width: 2px; }

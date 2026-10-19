@@ -41,6 +41,17 @@ class TestBuild(Base):
             self.assertTrue((self.stage / "_headers").is_file())
             self.assertTrue((self.stage / "404.html").is_file())
 
+    def test_every_new_theme_builds_the_personal_template(self):
+        """Task 1.1: paper, solarized-dark and high-contrast must each build a real site."""
+        self.model.load_template("personal")
+        for tid in ("paper", "solarized-dark", "high-contrast"):
+            self.assertIsNotNone(self.reg.theme(tid), tid)
+            self.model.set_theme(tid)
+            res = self.build()
+            self.assertTrue(res.ok, (tid, res.errors))
+            page = page_json((self.stage / "index.html").read_text(encoding="utf-8"))
+            self.assertEqual(page["theme"]["id"], tid)
+
     def test_pages_are_real_files_with_inert_json_and_nav(self):
         self.model.load_template("personal")
         res = self.build()

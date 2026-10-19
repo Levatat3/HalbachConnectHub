@@ -70,6 +70,18 @@ class TestThemes(unittest.TestCase):
                 self.assertNotIn("}", v)
             self.assertTrue((d / "theme.css").is_file())
 
+    def test_themes_are_readable(self):
+        """Every theme's text and quiet text must be readable on its background (task 1.1)."""
+        from halbach_connecthub import quality as q
+        for tid, need in (("paper", 4.5), ("solarized-dark", 4.5), ("high-contrast", 7.0)):
+            v = load(BUILTIN / "themes" / tid / "plugin.json")["vars"]
+            text = q.contrast(v.get("--text"), v.get("--bg"))
+            muted = q.contrast(v.get("--muted"), v.get("--bg"))
+            self.assertIsNotNone(text, tid)
+            self.assertIsNotNone(muted, tid)
+            self.assertGreaterEqual(text, need, "%s text contrast %.2f" % (tid, text))
+            self.assertGreaterEqual(muted, need, "%s muted contrast %.2f" % (tid, muted))
+
 
 class TestTemplates(unittest.TestCase):
     def test_templates_use_real_blocks_and_valid_addresses(self):

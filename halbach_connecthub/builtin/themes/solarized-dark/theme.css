@@ -1,0 +1,5 @@
+/* Solarized dark: colours come from plugin.json. */
+html { color-scheme: dark; }
+.hs-screen { background: #001f27; }
+.hs-mark { border-color: var(--accent); }
+.hs-credit { color: var(--accent-2); }

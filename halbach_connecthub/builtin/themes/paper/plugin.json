@@ -1,0 +1,22 @@
+{
+  "kind": "theme",
+  "id": "paper",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "theme.css"
+  ],
+  "name": "Paper",
+  "description": "A warm, light reading theme: off-white paper and ink-brown text.",
+  "vars": {
+    "--bg": "#faf6ee",
+    "--panel": "#f1e9da",
+    "--text": "#23201b",
+    "--muted": "#5f5749",
+    "--line": "#ded3bf",
+    "--accent": "#8a4b0f",
+    "--accent-2": "#1f5f5b"
+  },
+  "effects": []
+}

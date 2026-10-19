@@ -57,6 +57,9 @@ The *Drop box* block is reserved for a browser upload form and is not offered ye
 - **Neutral dark**: A calm dark theme with no effects. The suggested starting point.
 - **Neutral light**: A clean light theme with no effects.
 - **Retro terminal**: Dark CRT green and amber: the look of the original starter site.
+- **Paper**: A warm, light reading theme (off-white paper, ink-brown text).
+- **Solarized dark**: A low-contrast dark theme in the Solarized palette.
+- **High contrast**: Black, white and yellow for maximum readability (WCAG AAA).
 
 - **FunkTheme (animated)**: Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain), designed in his theme maker. See [FunkThemes](#funkthemes).
 

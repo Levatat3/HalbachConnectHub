@@ -1,0 +1,22 @@
+{
+  "kind": "theme",
+  "id": "high-contrast",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "theme.css"
+  ],
+  "name": "High contrast",
+  "description": "Black, white and yellow for maximum readability (WCAG AAA).",
+  "vars": {
+    "--bg": "#000000",
+    "--panel": "#0a0a0a",
+    "--text": "#ffffff",
+    "--muted": "#e6e6e6",
+    "--line": "#ffffff",
+    "--accent": "#ffff00",
+    "--accent-2": "#00e5ff"
+  },
+  "effects": []
+}

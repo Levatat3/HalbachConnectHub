@@ -1,0 +1,22 @@
+{
+  "kind": "theme",
+  "id": "solarized-dark",
+  "hostapi": 1,
+  "version": "0.0.1",
+  "builtin": true,
+  "files": [
+    "theme.css"
+  ],
+  "name": "Solarized dark",
+  "description": "A low-contrast dark theme in the Solarized palette: soft teal background, warm accents.",
+  "vars": {
+    "--bg": "#002b36",
+    "--panel": "#073642",
+    "--text": "#93a1a1",
+    "--muted": "#839496",
+    "--line": "#0f4552",
+    "--accent": "#2aa198",
+    "--accent-2": "#b58900"
+  },
+  "effects": []
+}
