@@ -4,7 +4,8 @@
     halbach site build --out DIR [--preview] build the site into DIR (what Publish would upload)
     halbach site export FILE                save the site (pages, design, settings) as one JSON file
     halbach site import FILE                replace the site with an export (close the window first)
-    halbach site import-classic             read the classic site folder into pages (close the window first)
+    halbach site import-classic [--dry-run] read the classic site folder into pages (close the window first;
+                                            --dry-run only prints what it understood)
 
 Uses the same state folder as the window (--home to point elsewhere). Stdlib only.
 """
@@ -14,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 
+from .legacyimport import format_report
 from .single import InstanceLock
 from .sitemodel import ModelError
 from .siteservice import SiteService
@@ -37,12 +39,16 @@ def main(argv):
     e.add_argument("file")
     i = sub.add_parser("import")
     i.add_argument("file")
-    sub.add_parser("import-classic")
+    ic = sub.add_parser("import-classic")
+    ic.add_argument("--dry-run", action="store_true", help="print what the import understood and save nothing")
     a = ap.parse_args(argv)
 
     home = Path(a.home) if a.home else home_dir()
     store = Store(home)
     svc = SiteService(store)
+
+    if a.cmd == "import-classic" and a.dry_run:
+        return _dry_run(svc)                       # reads only, so it is fine with the window open
 
     if a.cmd in ("import", "import-classic"):
         lock = InstanceLock(home)
@@ -90,12 +96,33 @@ def _change(svc, a):
             svc.apply("import.package", {"package": pkg})
         else:
             svc.apply("import.classic", {})
-            for n in svc.import_notes:
-                print("note:", n)
+            for line in format_report(svc.import_report, svc.import_notes):
+                print(line)
     except ModelError as e:
         print("Refused:", e)
         return 1
     c = svc.check()
     print("Done. %d page%s, %d problem%s to fix." % (len(svc.model.data["pages"]), "" if len(svc.model.data["pages"]) == 1 else "s",
                                                     len(c["errors"]), "" if len(c["errors"]) == 1 else "s"))
+    return 0
+
+
+def _dry_run(svc):
+    """import-classic --dry-run: read the classic site, print what the import understood, save nothing."""
+    report = []
+    try:
+        model, notes = svc.classic_import(report=report)
+    except ModelError as e:
+        print("Refused:", e)
+        return 1
+    saved = svc.model.data                                   # check the site as the import would leave it, then put ours back
+    svc.model.data = svc.model._migrate(model)
+    try:
+        c = svc.check()
+    finally:
+        svc.model.data = saved
+    for line in format_report(report, notes):
+        print(line)
+    print("Dry run: %d page%s, %d problem%s to fix. Nothing was saved." % (len(model["pages"]), "" if len(model["pages"]) == 1 else "s",
+                                                                         len(c["errors"]), "" if len(c["errors"]) == 1 else "s"))
     return 0

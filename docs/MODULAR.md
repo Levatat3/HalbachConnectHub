@@ -102,10 +102,10 @@ halbach site check
 halbach site build --out out
 halbach site export my-site.json
 halbach site import my-site.json        (close the window first)
-halbach site import-classic             (close the window first)
+halbach site import-classic [--dry-run] (close the window first)
 ```
 
-`check` exits 1 when something blocks publishing, which makes it usable in a script. `import` refuses a file from a newer Halbach, a malformed file or an oversized one, and leaves the site alone.
+`check` exits 1 when something blocks publishing, which makes it usable in a script. `import` refuses a file from a newer Halbach, a malformed file or an oversized one, and leaves the site alone. `import-classic` prints what it understood before it saves: a table of every tab and the blocks it became, the tabs it could only bring over as plain text, and a note for each; `--dry-run` prints the same table and changes nothing, so it also works with the window open.
 
 ## Checks
 

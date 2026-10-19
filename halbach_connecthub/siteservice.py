@@ -38,6 +38,7 @@ class SiteService:
         self.last_build = None
         self.areas = None                 # AreaService, set by the hub
         self.import_notes = []
+        self.import_report = []
 
     # ---------------------------------------------------------------- what the site can refer to
     def mode(self):
@@ -101,9 +102,27 @@ class SiteService:
                 "modules": self.modules_view(), "history": self.model.history()[:30],
                 "errors": c["errors"], "warnings": c["warnings"], "last_build": self.last_build,
                 "has_site_dir": bool(self.extra_dir()), "import_notes": self.import_notes,
+                "import_report": self.import_report,
             }
 
     # ---------------------------------------------------------------- edits
+    def classic_import(self, report=None):
+        """(model, notes) read from the classic site folder, exactly what import.classic would take. Nothing is changed.
+
+        report: an optional list, filled with one dict per tab understood (see legacyimport.format_report).
+        """
+        site_dir = self.extra_dir()
+        if not site_dir:
+            raise ModelError("Set the site folder in Settings first; the import reads your current site from there.")
+        tabs = [(x["id"], x.get("view") or "auto", TAB_VIEWS.get(x.get("view"), x["name"]))
+                for x in self.store.state["modules"] if x["kind"] == "live" and x.get("view") in TAB_VIEWS and x["on"]]
+        try:
+            return legacyimport.import_classic(site_dir, live_tab_modules=tabs, report=report,
+                                               base_url=("https://" + self.store.state["settings"]["domain"])
+                                               if self.store.state["settings"].get("domain") else "")
+        except (OSError, ValueError, IndexError) as e:
+            raise ModelError("The current site could not be read: %s" % e)
+
     def apply(self, action, args):
         """Run one edit by name. Returns the new check result; raises ModelError (nothing changed) if refused."""
         if action == "linked.check":                                   # a look at another site; nothing is changed or saved
@@ -185,19 +204,11 @@ class SiteService:
             m.load_template(a.get("id"))
             return "started from template %s" % a.get("id")
         if action == "import.classic":
-            site_dir = self.extra_dir()
-            if not site_dir:
-                raise ModelError("Set the site folder in Settings first; the import reads your current site from there.")
-            tabs = [(x["id"], x.get("view") or "auto", TAB_VIEWS.get(x.get("view"), x["name"]))
-                    for x in self.store.state["modules"] if x["kind"] == "live" and x.get("view") in TAB_VIEWS and x["on"]]
-            try:
-                model, notes = legacyimport.import_classic(site_dir, live_tab_modules=tabs,
-                                                           base_url=("https://" + self.store.state["settings"]["domain"])
-                                                           if self.store.state["settings"].get("domain") else "")
-            except (OSError, ValueError, IndexError) as e:
-                raise ModelError("The current site could not be read: %s" % e)
+            report = []
+            model, notes = self.classic_import(report=report)
             m.data = m._migrate(model)
             self.import_notes = notes
+            self.import_report = report
             return "imported the current site"
         if action == "import.package":
             self.import_package(a.get("package"))

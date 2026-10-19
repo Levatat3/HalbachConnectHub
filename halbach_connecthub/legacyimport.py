@@ -129,13 +129,18 @@ def _first(rx, text, flags=re.I | re.S):
     return _text(m.group(1)) if m else ""
 
 
-def import_classic(site_dir, live_tab_modules=(), base_url="https://levmorium.com"):
-    """Return (model dict, notes). live_tab_modules: [(module id, view, tab label)] for tabs the classic site added at run time."""
+def import_classic(site_dir, live_tab_modules=(), base_url="https://levmorium.com", report=None):
+    """Return (model dict, notes). live_tab_modules: [(module id, view, tab label)] for tabs the classic site added at run time.
+
+    report: pass a list to have it filled with one dict per tab understood -- {"tab", "label", "blocks", "plain"} --
+    which is what format_report() turns into the table the CLI prints.
+    """
     site_dir = Path(site_dir)
     index = (site_dir / "index.html").read_text(encoding="utf-8")
     cfg_path = site_dir / "js" / "site-config.js"
     S = parse_js_object(cfg_path.read_text(encoding="utf-8")) if cfg_path.is_file() else {}
     notes = []
+    report = [] if report is None else report
 
     nav = NAV_RE.search(index)
     tabs = [(i, _text(label)) for i, label in TAB_RE.findall(nav.group(1))] if nav else []
@@ -172,6 +177,7 @@ def import_classic(site_dir, live_tab_modules=(), base_url="https://levmorium.co
         lede = _first(r'<p class="lede"[^>]*>(.*?)</p>', panel)
         heading = _first(r"<h2[^>]*>(.*?)</h2>", panel) or label
         blocks = []
+        plain = False
         if pid == "home":
             typed = re.search(r'id="typed"[^>]*data-text="([^"]*)"', panel)
             prompt = _first(r'<p class="prompt">(.*?)</p>', panel).rstrip("_")
@@ -230,8 +236,10 @@ def import_classic(site_dir, live_tab_modules=(), base_url="https://levmorium.co
             body = lede or _text(panel)
             blocks.append(blk("text", {"markdown": "## %s\n\n%s" % (heading, body)}))
             pg = page(pid, label, blocks)
+            plain = True
             notes.append("The tab '%s' is not one of the standard ones; it was imported as a plain text page. Check it." % pid)
         model["pages"].append(pg)
+        report.append({"tab": pid, "label": label, "blocks": [b["type"] for b in pg["blocks"]], "plain": plain})
 
     for mid, view, label in live_tab_modules:
         pid = slugify(view or mid)
@@ -242,4 +250,19 @@ def import_classic(site_dir, live_tab_modules=(), base_url="https://levmorium.co
         pg["slug"] = pid
         ids = [x["id"] for x in model["pages"]]
         model["pages"].insert(ids.index("more") + 1 if "more" in ids else len(ids), pg)       # the classic bar put it after MORE
+        report.append({"tab": pid, "label": label, "blocks": [b["type"] for b in pg["blocks"]], "plain": False})
     return model, notes
+
+
+def format_report(report, notes=()):
+    """The lines `halbach site import-classic` prints: a tab -> block recipe table, the tabs left as plain text, then the notes."""
+    width = max([len(r["tab"]) for r in report] + [3])
+    lines = ["%-*s  %s" % (width, "TAB", "BLOCK RECIPE"), "%s  %s" % ("-" * width, "-" * len("BLOCK RECIPE"))]
+    for r in report:
+        lines.append("%-*s  %s" % (width, r["tab"], " + ".join(r.get("blocks") or []) or "(no blocks)"))
+    plain = [r["tab"] for r in report if r.get("plain")]
+    if plain:
+        lines.append("")
+        lines.append("Plain text (worth a look): %s" % ", ".join(plain))
+    lines.extend("note: %s" % n for n in notes)
+    return lines
