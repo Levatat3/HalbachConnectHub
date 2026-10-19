@@ -1,0 +1,4 @@
+.hs-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.hs-stat { padding: 16px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.hs-stat-value { display: block; font-size: 32px; line-height: 1.2; color: var(--accent); font-variant-numeric: tabular-nums; }
+.hs-stat-label { color: var(--muted); font-size: 13px; letter-spacing: .04em; }

@@ -1,0 +1,29 @@
+{
+  "kind": "block",
+  "id": "code",
+  "hostapi": 1,
+  "version": "0.1.0",
+  "builtin": true,
+  "label": "Code",
+  "category": "text",
+  "description": "A block of code in a monospace box, with a small language label.",
+  "fields": [
+    {
+      "key": "lang",
+      "label": "Language",
+      "type": "text",
+      "help": "a short label shown in the corner, for example python"
+    },
+    {
+      "key": "code",
+      "label": "Code",
+      "type": "longtext",
+      "required": true,
+      "help": "shown exactly as written; it is never run"
+    }
+  ],
+  "files": [
+    "render.js",
+    "style.css"
+  ]
+}

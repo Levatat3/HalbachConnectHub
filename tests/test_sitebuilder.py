@@ -111,6 +111,48 @@ class TestBuild(Base):
         res = self.build()
         self.assertFalse(res.ok)
 
+    def test_the_four_example_blocks_build(self):
+        """Task 1.3: countdown, accordion, stat-tiles and code each render into a real page."""
+        self.model.load_template("blank")
+        pid = self.model.data["pages"][0]["id"]
+        props = {
+            "countdown": {"target": "2030-01-01T00:00", "label": "Launch", "done": "It's live!"},
+            "accordion": {"items": [{"title": "One", "text": "First **body**"}, {"title": "Two", "text": "Second"}]},
+            "stat-tiles": {"items": [{"title": "1.2k", "text": "Stars"}, {"title": "42", "text": "Repos"}]},
+            "code": {"lang": "python", "code": "print('hi')\n"},
+        }
+        for type_, p in props.items():
+            self.model.add_block(pid, type_, p)
+        errors, _ = self.model.validate()
+        self.assertEqual(errors, [])
+        res = self.build()
+        self.assertTrue(res.ok, res.errors)
+        page = page_json((self.stage / "index.html").read_text(encoding="utf-8"))
+        built = {b["type"]: b["props"] for b in page["blocks"]}
+        for type_ in props:
+            self.assertIn(type_, built, type_)
+            self.assertTrue(list((self.stage / "_halbach" / "blocks").glob(type_ + ".*.js")), type_)
+        self.assertEqual(built["countdown"]["target"], "2030-01-01T00:00")
+        self.assertEqual(built["accordion"]["items"][1]["title"], "Two")
+        self.assertEqual(built["stat-tiles"]["items"][0]["text"], "Stars")
+        self.assertIn("print", built["code"]["code"])
+        css = next((self.stage / "_halbach").glob("theme.*.css")).read_text(encoding="utf-8")
+        for cls in (".hs-countdown-num", ".hs-accordion", ".hs-stats", ".hs-code-body"):
+            self.assertIn(cls, css, cls)
+
+    def test_example_block_text_cannot_break_out_of_the_page(self):
+        """Task 1.3: text in the new blocks is inert data, never markup."""
+        self.model.load_template("blank")
+        pid = self.model.data["pages"][0]["id"]
+        nasty = "</script><script>alert(1)</script>"
+        self.model.add_block(pid, "countdown", {"target": "2030-01-01T00:00", "label": nasty})
+        self.model.add_block(pid, "code", {"lang": "html", "code": nasty})
+        res = self.build()
+        self.assertTrue(res.ok, res.errors)
+        html = (self.stage / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("<script>alert", html)
+        self.assertIn(r"\u003cscript\u003ealert", html)
+
 
 class TestHeaders(Base):
     def test_csp_is_report_only_by_default_then_enforce(self):

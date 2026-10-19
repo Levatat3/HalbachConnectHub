@@ -1,0 +1,23 @@
+{
+  "kind": "block",
+  "id": "accordion",
+  "hostapi": 1,
+  "version": "0.1.0",
+  "builtin": true,
+  "label": "Accordion",
+  "category": "layout",
+  "description": "Rows you open one at a time: a summary line and hidden Markdown text.",
+  "fields": [
+    {
+      "key": "items",
+      "label": "Rows",
+      "type": "cards",
+      "required": true,
+      "help": "each row's title is the line you click; its text is Markdown, shown when open"
+    }
+  ],
+  "files": [
+    "render.js",
+    "style.css"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "kind": "block",
+  "id": "countdown",
+  "hostapi": 1,
+  "version": "0.1.0",
+  "builtin": true,
+  "label": "Countdown",
+  "category": "text",
+  "description": "Counts down the days, hours, minutes and seconds until a date.",
+  "fields": [
+    {
+      "key": "target",
+      "label": "Count down to",
+      "type": "text",
+      "required": true,
+      "help": "a date and time, for example 2027-01-01T00:00"
+    },
+    {
+      "key": "label",
+      "label": "Label",
+      "type": "text",
+      "help": "shown above the numbers"
+    },
+    {
+      "key": "done",
+      "label": "Message after the date",
+      "type": "text",
+      "help": "shown once the date has passed, for example \"It's live!\""
+    }
+  ],
+  "files": [
+    "render.js",
+    "style.css"
+  ]
+}

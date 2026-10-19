@@ -59,22 +59,22 @@ class TestUserPlugins(unittest.TestCase):
         return rg.Registry(user_dir=self.root, trust=trust)
 
     def test_untrusted_by_default_and_trusted_only_with_matching_pin(self):
-        write_plugin(self.root, "block", "countdown", {"fields": [{"key": "to", "label": "To", "type": "text"}]})
+        write_plugin(self.root, "block", "mine", {"fields": [{"key": "to", "label": "To", "type": "text"}]})
         r = self.load()
-        p = r.plugins["block"]["countdown"]
+        p = r.plugins["block"]["mine"]
         self.assertTrue(p.ok)
         self.assertFalse(p.enabled)
-        self.assertIsNone(r.block("countdown"))
-        r = self.load({"block/countdown": p.digest})
-        self.assertTrue(r.block("countdown").enabled)
+        self.assertIsNone(r.block("mine"))
+        r = self.load({"block/mine": p.digest})
+        self.assertTrue(r.block("mine").enabled)
 
     def test_changed_file_disables_a_trusted_plugin(self):
-        d = write_plugin(self.root, "block", "countdown")
-        pin = self.load().plugins["block"]["countdown"].digest
+        d = write_plugin(self.root, "block", "mine")
+        pin = self.load().plugins["block"]["mine"].digest
         (d / "render.js").write_text("// tampered", encoding="utf-8")
-        r = self.load({"block/countdown": pin})
-        self.assertIsNone(r.block("countdown"))
-        self.assertTrue(any("changed" in e for e in r.plugins["block"]["countdown"].errors))
+        r = self.load({"block/mine": pin})
+        self.assertIsNone(r.block("mine"))
+        self.assertTrue(any("changed" in e for e in r.plugins["block"]["mine"].errors))
 
     def test_user_plugin_cannot_replace_a_builtin(self):
         write_plugin(self.root, "block", "hero")

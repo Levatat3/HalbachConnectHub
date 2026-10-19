@@ -32,8 +32,11 @@ Adding a page such as `levmorium.com/funkworkshop` is **Site → Pages → Add p
 Every block's settings form is generated from its manifest, so a block someone else writes gets a form for free.
 
 | Block | Category | What it does |
-|---|---|---|
+|---|---|---|---|
+| Accordion | layout | Rows you open one at a time: a summary line and hidden Markdown text. |
 | Cards | layout | A grid of cards that link to pages or addresses. |
+| Code | text | A block of code in a monospace box, with a small language label. |
+| Countdown | text | Counts down the days, hours, minutes and seconds until a date. |
 | Divider | layout | A horizontal rule with an optional label. |
 | Embed a page | media | Shows one of your pages or an address inside a sandboxed frame. |
 | File downloads | media | A list of downloadable files from a module. |
@@ -45,6 +48,7 @@ Every block's settings form is generated from its manifest, so a block someone e
 | Live data | modules | Live data from your PC with a chosen look (cards, or a plugin's view such as Pets). |
 | Module list | modules | A grid of your modules (docs, pages, galleries, live data). |
 | Show a module | modules | Shows one module in place: a doc, page, gallery, image, file or live data. |
+| Stat tiles | layout | A grid of value tiles with a label under each. |
 | Flash game (Ruffle) | media | Plays a Flash file in the browser using the Ruffle emulator. |
 | Text | text | Markdown text. Raw HTML is shown as text, never rendered. |
 | Twitch player | media | An embedded Twitch stream. |

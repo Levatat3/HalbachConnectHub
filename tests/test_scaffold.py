@@ -55,6 +55,20 @@ class TestBlocks(unittest.TestCase):
             for bad in ("eval(", "new Function", "document.write"):
                 self.assertNotIn(bad, text, d.name)
 
+    def test_the_four_example_blocks_never_write_html(self):
+        """Task 1.3: countdown, accordion, stat-tiles and code draw with ctx.el only."""
+        for name in ("countdown", "accordion", "stat-tiles", "code"):
+            text = (BUILTIN / "blocks" / name / "render.js").read_text(encoding="utf-8")
+            self.assertNotIn("innerHTML", text, name)
+            self.assertNotIn("outerHTML", text, name)
+
+    def test_innerHTML_is_only_ever_cleared_to_empty(self):
+        """No block may put data into the page as markup; clearing a box is fine."""
+        for d in self.blocks():
+            text = (d / "render.js").read_text(encoding="utf-8")
+            for m in re.finditer(r"innerHTML\s*=\s*([^;]*)", text):
+                self.assertEqual(m.group(1).strip(), '""', "%s: innerHTML = %s" % (d.name, m.group(1).strip()))
+
 
 class TestThemes(unittest.TestCase):
     def test_themes(self):

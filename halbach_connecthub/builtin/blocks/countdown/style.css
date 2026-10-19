@@ -1,0 +1,7 @@
+.hs-countdown { text-align: center; padding: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.hs-countdown-label { color: var(--accent); letter-spacing: .08em; text-transform: uppercase; font-size: 13px; margin-bottom: 10px; }
+.hs-countdown-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+.hs-countdown-unit { min-width: 72px; }
+.hs-countdown-num { display: block; font-size: 32px; color: var(--text); font-variant-numeric: tabular-nums; }
+.hs-countdown-cap { color: var(--muted); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.hs-countdown-done { color: var(--accent); margin: 0; }

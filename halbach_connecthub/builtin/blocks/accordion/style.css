@@ -1,0 +1,6 @@
+.hs-accordion { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.hs-acc-summary { cursor: pointer; padding: 12px 14px; background: var(--panel); color: var(--text); font-weight: 600; }
+.hs-acc-item + .hs-acc-item .hs-acc-summary { border-top: 1px solid var(--line); }
+.hs-acc-item[open] .hs-acc-summary { color: var(--accent); }
+.hs-acc-body { padding: 4px 14px 8px; }
+.hs-acc-body .hs-doc > :first-child { margin-top: 8px; }

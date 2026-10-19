@@ -1,0 +1,23 @@
+{
+  "kind": "block",
+  "id": "stat-tiles",
+  "hostapi": 1,
+  "version": "0.1.0",
+  "builtin": true,
+  "label": "Stat tiles",
+  "category": "layout",
+  "description": "A row of big numbers with a label under each.",
+  "fields": [
+    {
+      "key": "items",
+      "label": "Tiles",
+      "type": "cards",
+      "required": true,
+      "help": "each tile's title is the number or short value; its text is the label"
+    }
+  ],
+  "files": [
+    "render.js",
+    "style.css"
+  ]
+}

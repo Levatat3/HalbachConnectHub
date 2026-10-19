@@ -1,0 +1,5 @@
+.hs-code { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.hs-code-head { padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.hs-code-lang { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.hs-code-pre { margin: 0; padding: 14px; overflow: auto; }
+.hs-code-body { font-family: var(--mono); font-size: 13px; line-height: 1.55; white-space: pre; color: var(--text); }
