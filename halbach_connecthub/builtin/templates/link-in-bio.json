@@ -1,0 +1,68 @@
+{
+  "id": "link-in-bio",
+  "name": "Link in bio",
+  "description": "One page: a heading and a stack of links to everywhere else.",
+  "model": {
+    "version": 1,
+    "brand": {
+      "name": "LINK IN BIO",
+      "mark": "H",
+      "tagline": "",
+      "handle": "@your-handle",
+      "footer": ""
+    },
+    "theme": {
+      "id": "neutral-dark",
+      "vars": {}
+    },
+    "settings": {
+      "lang": "en",
+      "csp": "report-only"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "slug": "",
+        "label": "HOME",
+        "title": "Link in bio",
+        "description": "Everything I do, in one place.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "hero",
+            "props": {
+              "heading": "Your Name",
+              "typed": false,
+              "prompt": "",
+              "tagline": "Everything I do, in one place."
+            }
+          },
+          {
+            "id": "b2",
+            "type": "links",
+            "props": {
+              "style": "buttons",
+              "items": [
+                {
+                  "label": "My site",
+                  "url": "https://example.com"
+                },
+                {
+                  "label": "GitHub",
+                  "url": "https://github.com/your-github-name"
+                },
+                {
+                  "label": "Email me",
+                  "url": "mailto:you@example.com"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

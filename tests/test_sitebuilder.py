@@ -33,8 +33,10 @@ class Base(unittest.TestCase):
 
 class TestBuild(Base):
     def test_every_template_builds_cleanly(self):
-        for tid in ("blank", "personal", "streamer"):
+        for tid in ("blank", "personal", "streamer", "link-in-bio", "portfolio", "docs-site"):
             self.model.load_template(tid)
+            errors, _ = self.model.validate()
+            self.assertEqual(errors, [], (tid, errors))
             res = self.build()
             self.assertTrue(res.ok, (tid, res.errors))
             self.assertTrue((self.stage / "index.html").is_file())

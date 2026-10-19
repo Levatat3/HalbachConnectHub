@@ -16,7 +16,7 @@ Switching never deletes anything. Your site folder is only ever *read* (for extr
 ## First run
 
 1. Open **Site**.
-2. Press **My current site** to import what visitors see today, or pick a template (Blank, Personal, Streamer).
+2. Press **My current site** to import what visitors see today, or pick a template (Blank, Personal, Streamer, Link in bio, Portfolio, Docs site).
 3. Open **Preview**. It builds the site and shows it in the window with the same security headers Cloudflare will send. Use Phone / Tablet / Desktop to check sizes.
 4. Read the checks on **Overview**. Errors block publishing; notes are advice.
 5. Press **Use the modular site**, then **Publish**.

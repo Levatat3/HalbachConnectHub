@@ -1,0 +1,132 @@
+{
+  "id": "portfolio",
+  "name": "Portfolio",
+  "description": "Home, projects read from GitHub, an about page and a contact page.",
+  "model": {
+    "version": 1,
+    "brand": {
+      "name": "PORTFOLIO",
+      "mark": "H",
+      "tagline": "",
+      "handle": "",
+      "footer": ""
+    },
+    "theme": {
+      "id": "neutral-dark",
+      "vars": {}
+    },
+    "settings": {
+      "lang": "en",
+      "csp": "report-only"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "slug": "",
+        "label": "HOME",
+        "title": "Your name",
+        "description": "Things I have made and how to reach me.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "hero",
+            "props": {
+              "heading": "I make things",
+              "typed": true,
+              "prompt": "",
+              "tagline": "Projects, experiments and notes."
+            }
+          },
+          {
+            "id": "b2",
+            "type": "cards",
+            "props": {
+              "items": [
+                {
+                  "title": "Projects",
+                  "text": "Things I have built.",
+                  "page": "projects"
+                },
+                {
+                  "title": "About",
+                  "text": "Who I am.",
+                  "page": "about"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "projects",
+        "slug": "projects",
+        "label": "PROJECTS",
+        "title": "Projects",
+        "description": "My public repositories.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "github-projects",
+            "props": {
+              "user": "your-github-name"
+            }
+          }
+        ]
+      },
+      {
+        "id": "about",
+        "slug": "about",
+        "label": "ABOUT",
+        "title": "About",
+        "description": "A little about me.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "text",
+            "props": {
+              "markdown": "Write a few lines about yourself here."
+            }
+          }
+        ]
+      },
+      {
+        "id": "contact",
+        "slug": "contact",
+        "label": "CONTACT",
+        "title": "Contact",
+        "description": "How to reach me.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "links",
+            "props": {
+              "style": "buttons",
+              "items": [
+                {
+                  "label": "Email me",
+                  "url": "mailto:you@example.com"
+                },
+                {
+                  "label": "GitHub",
+                  "url": "https://github.com/your-github-name"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

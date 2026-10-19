@@ -1,0 +1,127 @@
+{
+  "id": "docs-site",
+  "name": "Docs site",
+  "description": "A home page and three documentation pages.",
+  "model": {
+    "version": 1,
+    "brand": {
+      "name": "DOCS",
+      "mark": "H",
+      "tagline": "Documentation",
+      "handle": "",
+      "footer": ""
+    },
+    "theme": {
+      "id": "neutral-dark",
+      "vars": {}
+    },
+    "settings": {
+      "lang": "en",
+      "csp": "report-only"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "slug": "",
+        "label": "HOME",
+        "title": "Documentation",
+        "description": "Guides and reference.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "hero",
+            "props": {
+              "heading": "Documentation",
+              "typed": false,
+              "prompt": "",
+              "tagline": "Everything you need to get started."
+            }
+          },
+          {
+            "id": "b2",
+            "type": "cards",
+            "props": {
+              "items": [
+                {
+                  "title": "Getting started",
+                  "text": "Install and run it.",
+                  "page": "getting-started"
+                },
+                {
+                  "title": "Guides",
+                  "text": "How to do common things.",
+                  "page": "guides"
+                },
+                {
+                  "title": "Reference",
+                  "text": "Every setting explained.",
+                  "page": "reference"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "getting-started",
+        "slug": "getting-started",
+        "label": "GETTING STARTED",
+        "title": "Getting started",
+        "description": "Install and run it.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "text",
+            "props": {
+              "markdown": "## Getting started\n\nWrite the first steps here."
+            }
+          }
+        ]
+      },
+      {
+        "id": "guides",
+        "slug": "guides",
+        "label": "GUIDES",
+        "title": "Guides",
+        "description": "How to do common things.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "text",
+            "props": {
+              "markdown": "## Guides\n\nAdd one section per task."
+            }
+          }
+        ]
+      },
+      {
+        "id": "reference",
+        "slug": "reference",
+        "label": "REFERENCE",
+        "title": "Reference",
+        "description": "Every setting explained.",
+        "nav": true,
+        "listed": true,
+        "enabled": true,
+        "blocks": [
+          {
+            "id": "b1",
+            "type": "text",
+            "props": {
+              "markdown": "Reference"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

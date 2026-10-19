@@ -282,7 +282,7 @@ class TestValidateWholeModel(Base):
         self.assertTrue(any("no description" in w["message"] for w in warnings))
 
     def test_templates_load_and_report_what_to_fill_in(self):
-        for tid in ("blank", "personal", "streamer"):
+        for tid in ("blank", "personal", "streamer", "link-in-bio", "portfolio", "docs-site"):
             self.m.load_template(tid)
             errors, _ = self.m.validate()
             for e in errors:                                          # only "fill this in" errors, never structural ones
