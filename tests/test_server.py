@@ -48,6 +48,28 @@ class TestServer(unittest.TestCase):
         self.assertIn(b'content="tok"', raw)
         self.assertNotIn(b"__TOKEN__", raw)
 
+    def test_dashboard_site_and_area_tiles_are_wired(self):
+        """Task 1.5: the two extra tiles exist and each request that fills them survives a failure."""
+        s, raw = self.req("GET", "/")
+        self.assertEqual(s, 200)
+        for needle in (b'id="tSite"', b'id="tAreas"', b'data-act="go:site"', b'data-act="go:areas"'):
+            self.assertIn(needle, raw)
+        s, js = self.req("GET", "/app.js")
+        self.assertEqual(s, 200)
+        self.assertIn(b'api("/api/site").catch', js)      # a broken site must not break the dashboard
+        self.assertIn(b'api("/api/areas").catch', js)
+
+    def test_site_and_area_summaries_are_available(self):
+        s, j = self.api("GET", "/api/site")
+        self.assertEqual(s, 200)
+        for key in ("mode", "exists", "model", "errors"):
+            self.assertIn(key, j)
+        self.assertIn("pages", j["model"])
+        s, j = self.api("GET", "/api/areas")
+        self.assertEqual(s, 200)
+        self.assertIn("areas", j)
+        self.assertIn("pending", j)
+
     def test_api_needs_token(self):
         self.assertEqual(self.req("GET", "/api/state")[0], 401)
         self.assertEqual(self.req("GET", "/api/state", headers={"X-Halbach-Token": "nope"})[0], 401)

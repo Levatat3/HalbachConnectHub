@@ -11,6 +11,7 @@
   var LV = { port: null, stats: {}, tunnel: {} };
   var busy = null;           // {preview} while a publish runs
   var seenNew = null;        // ids of unreviewed submissions already announced (null until the first load)
+  var dashSite = null, dashAreas = null;   // last /api/site and /api/areas answers (null until they load, or on failure)
 
   function esc(t) {
     return String(t == null ? "" : t).replace(/[&<>"']/g, function (c) {
@@ -86,6 +87,19 @@
     $("#subBannerText").textContent = waiting + (waiting === 1 ? " submission" : " submissions") + " from chats waiting for review. They are switched off until you switch them on.";
     var vw = 0; Object.keys(LV.stats || {}).forEach(function (k) { vw += LV.stats[k].viewers; });
     $("#tViewers").textContent = vw;
+    // Site and Areas tiles, filled from /api/site and /api/areas; a failed request leaves them blank.
+    var ds = dashSite;
+    $("#tSite").textContent = ds ? (ds.mode === "modular" ? "Modular" : "Classic") : "—";
+    $("#tSiteSub").textContent = !ds ? "unavailable"
+      : ds.mode !== "modular" ? "the folder you publish"
+      : (!ds.exists || !ds.model.pages.length ? "no pages yet"
+        : ds.model.pages.length + (ds.model.pages.length === 1 ? " page" : " pages") +
+          (ds.errors.length ? " · " + ds.errors.length + " to fix" : " · looks good"));
+    var da = dashAreas;
+    $("#tAreas").textContent = da ? da.areas.length : "—";
+    $("#tAreasSub").textContent = !da ? "unavailable"
+      : da.pending ? da.pending + " waiting for review"
+      : da.areas.length ? "none waiting for review" : "no areas yet";
     var tn = LV.tunnel || {};
     $("#pillTunnel").textContent = tn.running ? (tn.connected ? "connected" : "starting") : (tn.installed ? "stopped" : "not set up");
     $("#dotTunnel").className = "dot " + (tn.connected ? "ok pulse" : (tn.running ? "warn" : ""));
@@ -149,9 +163,11 @@
   }
 
   function refresh(keepDrawer) {
-    return Promise.all([api("/api/state"), api("/api/live").catch(function () { return LV; })]).then(function (r) {
+    return Promise.all([api("/api/state"), api("/api/live").catch(function () { return LV; }),
+                        api("/api/site").catch(function () { return null; }),
+                        api("/api/areas").catch(function () { return null; })]).then(function (r) {
       var before = seenNew;
-      S = r[0]; LV = r[1];
+      S = r[0]; LV = r[1]; dashSite = r[2]; dashAreas = r[3];
       var fresh = S.modules.filter(function (m) { return m.from_inbox && m.new; });
       seenNew = {}; fresh.forEach(function (m) { seenNew[m.id] = 1; });
       if (before) fresh.filter(function (m) { return !before[m.id]; }).forEach(function (m) { toast("New submission from a chat: " + m.name); });
