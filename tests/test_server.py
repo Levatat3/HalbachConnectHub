@@ -108,7 +108,22 @@ class TestServer(unittest.TestCase):
         s, j = self.api("POST", "/api/modules", {"kind": "nope", "name": "x", "source": "y"})
         self.assertEqual(s, 400)
 
-    def test_bad_json_is_400(self):
+    def test_window_responses_carry_a_strict_csp_and_anti_framing(self):
+        s, raw = self.req("GET", "/")
+        # headers come back on the response; re-request to inspect them
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        c.request("GET", "/", headers={"Host": "127.0.0.1:%d" % self.port})
+        r = c.getresponse()
+        r.read()
+        csp = r.getheader("Content-Security-Policy", "")
+        self.assertIn("frame-ancestors 'none'", csp)
+        # Inline scripts must not be allowed (default-src 'self' covers script-src).
+        self.assertNotIn("unsafe-eval", csp)
+        # 'unsafe-inline' is permitted only for styles, never for scripts.
+        without_style = csp.replace("style-src 'self' 'unsafe-inline'", "")
+        self.assertNotIn("unsafe-inline", without_style)
+        self.assertEqual(r.getheader("X-Frame-Options"), "DENY")
+        c.close()
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
         c.request("POST", "/api/modules", b"{nope", {"Host": "127.0.0.1:%d" % self.port, "X-Halbach-Token": "tok",
                                                        "Content-Length": "5"})
