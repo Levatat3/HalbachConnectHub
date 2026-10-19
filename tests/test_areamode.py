@@ -100,5 +100,27 @@ class TestAreaModel(unittest.TestCase):
             self.assertEqual(doc["pages"][0]["blocks"][0]["type"], "hero")
 
 
+class TestAreaFolderLoading(unittest.TestCase):
+    def test_area_folder_loads_into_the_model(self):
+        with tempfile.TemporaryDirectory() as t:
+            root, folder = Path(t), Path(t) / "page"
+            areaclient.init_folder(folder)
+            srv, hub = server.serve(Path(t) / "hub", 0, token="tok", area=True, area_folder=str(folder))
+            port = srv.server_address[1]
+            server.run_in_thread(srv)
+            try:
+                c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                c.request("GET", "/api/site", headers={"Host": "127.0.0.1:%d" % port, "X-Halbach-Token": "tok"})
+                r = c.getresponse()
+                body = json.loads(r.read())
+                c.close()
+                self.assertEqual(r.status, 200)
+                self.assertEqual(len(body["model"]["pages"]), 1)
+                self.assertEqual(len(body["model"]["pages"][0]["blocks"]), 2)
+            finally:
+                srv.shutdown()
+                srv.server_close()
+
+
 if __name__ == "__main__":
     unittest.main()

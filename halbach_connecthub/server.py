@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 from . import __version__
 from .live import UpstreamError, fetch_upstream, field_names, start_live_hub
 from .net import LoopbackServer
-from . import funkthemes, sitebuilder
+from . import areaclient, areamode, funkthemes, sitebuilder
 from .publisher import Publisher, classify
 from .sitemodel import ModelError
 from .areas import AreaService
@@ -37,18 +37,23 @@ PREVIEW_CHARS = 4000
 # In the collaborator's area window only these routes exist. Everything else answers 404 exactly like it would for a
 # stranger, so a restricted window can never reach the owner's modules, publish, tunnel, settings or areas.
 AREA_UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js"}
-AREA_GET = {"/api/site"}
-AREA_POST = {"/api/site/preview", "/api/area/send", "/api/area/status", "/api/area/limits"}
+AREA_GET = {"/api/site", "/api/area/limits", "/api/area/status"}
+AREA_POST = {"/api/site/preview", "/api/area/send"}
 
 
 class Hub:
     """Server-side state shared by all requests."""
 
-    def __init__(self, store, token=None, publisher=None, area=False):
+    def __init__(self, store, token=None, publisher=None, area=False, area_folder=None):
         self.store = store
         self.token = token or secrets.token_urlsafe(24)
         self.area = area                                       # collaborator's restricted window: only area routes work
+        self.area_folder = Path(area_folder) if area_folder else None
         self.site = SiteService(store)
+        if area and self.area_folder:
+            # The collaborator edits one page kept as area.json + files/ in their own folder.
+            areamode.load_area(self.area_folder, self.site.model)
+            self.store.state["settings"]["site_dir"] = str(self.area_folder)   # so images in files/ preview correctly
         self.areas = AreaService(store, self.site.registry,
                                  slug_taken=lambda s: any(p["slug"] == s for p in self.site.model.data["pages"]))
         self.site.areas = self.areas
@@ -63,6 +68,35 @@ class Hub:
         self.live_srv = None
         self.live_state = None
         self.tunnel = Tunnel(store, lambda: self.live_srv.server_address[1] if self.live_srv else 0)
+
+    def area_client(self):
+        """The collaborator's stored connection, or a clear error when not connected."""
+        conn = areaclient.load_connection()
+        if not (conn.get("url") and conn.get("area") and conn.get("key")):
+            raise ValidationError("Not connected yet. Run: halbach area connect --url https://live.example.com --area NAME")
+        return areaclient.Area(conn["url"], conn["area"], conn["key"])
+
+    def send_area(self):
+        """Write the edited page back to area.json, zip it and send it through the drop endpoint."""
+        areamode.dump_area(self.site.model, self.area_folder)
+        client = self.area_client()
+        lim = client.limits()
+        if lim.get("paused"):
+            raise ValidationError("The area is paused by its owner; nothing can be sent right now.")
+        tmp = self.area_folder / ".halbach-bundle.zip"
+        try:
+            areaclient.build_zip(self.area_folder, tmp, lim.get("limits"))
+            code, body = client.send_zip(tmp)
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        if code in (200, 201):
+            return body
+        if code == 422:
+            raise ValidationError("The bundle was refused: " + "; ".join(body.get("reasons") or ["unknown reason"]))
+        raise ValidationError(body.get("error") or ("The site answered %d." % code))
 
     def start_inbox_watcher(self, interval=3.0):
         """Import new drop-off folders as switched-off modules, now and every few seconds."""
@@ -174,6 +208,15 @@ def make_handler(hub):
                 return path in AREA_POST or path.startswith("/api/site/")
             return False
 
+        def _area_json(self, fn):
+            """Run an area-mode operation and turn its errors into plain answers (never a traceback)."""
+            try:
+                return self._json(fn())
+            except ValidationError as e:
+                return self._err(400, str(e))
+            except areaclient.ClientError as e:
+                return self._err(502, str(e))
+
         # ---- routes ----
         def do_GET(self):
             path = urlparse(self.path).path
@@ -214,6 +257,10 @@ def make_handler(hub):
                 return self._json({"rows": hub.areas.audit_log(m_audit.group(1))})
             if path == "/api/site":
                 return self._json(hub.site.view())
+            if path == "/api/area/limits":
+                return self._area_json(hub.area_client().limits)
+            if path == "/api/area/status":
+                return self._area_json(hub.area_client().status)
             if path == "/api/site/export":
                 data = json.dumps(hub.site.export_package(), indent=1).encode("utf-8")
                 self.send_response(200)
@@ -329,6 +376,8 @@ def make_handler(hub):
                 if path == "/api/site/preview":
                     res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None)
                     return self._json(res.summary())
+                if path == "/api/area/send":
+                    return self._area_json(hub.send_area)
                 if path.startswith("/api/site/"):
                     return self._json(hub.site.apply(path[len("/api/site/"):], b))
                 if path == "/api/settings":
@@ -486,14 +535,14 @@ def pick_path(kind):
     return out.stdout.strip()
 
 
-def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False, area=False):
+def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False, area=False, area_folder=None):
     """Start the server; returns (server, hub). Port 0 picks a free one.
 
     With area=True the window is a collaborator's restricted editor: no live hub, no tunnel, no publisher,
     and only the area routes (AREA_UI_FILES / AREA_GET / AREA_POST) are served.
     """
     store = Store(home)
-    hub = Hub(store, token, publisher, area=area)
+    hub = Hub(store, token, publisher, area=area, area_folder=area_folder)
     srv = LoopbackServer(("127.0.0.1", port), make_handler(hub))
     if not area and live_port is not None:
         hub.start_live(live_port)

@@ -19,7 +19,7 @@ from pathlib import Path
 from .store import MAX_FILES, TAB_VIEWS, ValidationError, collect_files
 
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"}
-SITE_EXTRA_EXCLUDE = ("readme.md",)       # the site folder's own notes are never public
+SITE_EXTRA_EXCLUDE = ("readme.md", "area.json")       # the site folder's own notes and the area source manifest are never public
 RESERVED = ("manifest.json",)             # written by the builder
 RESERVED_DIR = "modules"
 URL_RE = re.compile(r"https://[a-z0-9.-]+\.pages\.dev")

@@ -49,9 +49,11 @@ def main(argv=None):
     ap.add_argument("--live-port", type=int, default=8782, help="port for the live hub (default 8782)")
     ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub)")
     ap.add_argument("--no-open", action="store_true", help="don't open a window")
+    ap.add_argument("--area", help="open the collaborator's restricted editor for this folder (area.json + files/), instead of the owner's window")
     ap.epilog = ("To send something for review from a script or chat:  halbach submit <folder|file> --name NAME\n"
                  "To build, check or publish the modular site without the window:  halbach site check | build | publish | export | import\n"
-                 "To send content to someone's site (an area you have a key for):  halbach area init | connect | send | status")
+                 "To send content to someone's site (an area you have a key for):  halbach area init | connect | send | status\n"
+                 "To edit and send your area from a window:  halbach --area <folder>")
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
     a = ap.parse_args(args)
 
@@ -65,15 +67,22 @@ def main(argv=None):
             _app_window(where)
         return 0
     try:
-        srv, hub = serve(a.home, a.port, live_port=a.live_port, inbox=True)
+        if a.area:
+            srv, hub = serve(home, a.port, area=True, area_folder=a.area)
+        else:
+            srv, hub = serve(home, a.port, live_port=a.live_port, inbox=True)
     except OSError:
         print("Port %d is in use; picking a free one." % a.port)
-        srv, hub = serve(a.home, 0, live_port=a.live_port, inbox=True)
+        if a.area:
+            srv, hub = serve(home, 0, area=True, area_folder=a.area)
+        else:
+            srv, hub = serve(home, 0, live_port=a.live_port, inbox=True)
     url = "http://127.0.0.1:%d/" % srv.server_address[1]
-    lock.publish_info(url, hub.live_srv.server_address[1])
-    hub.store.log("info", "Hub started")
+    lock.publish_info(url, hub.live_srv.server_address[1] if hub.live_srv else 0)
+    hub.store.log("info", "Area editor started" if a.area else "Hub started")
     print("Halbach ConnectHub %s running at %s  (Ctrl+C to stop)" % (__version__, url))
-    print("Live hub (for the tunnel) on 127.0.0.1:%d" % hub.live_srv.server_address[1])
+    if not a.area:
+        print("Live hub (for the tunnel) on 127.0.0.1:%d" % hub.live_srv.server_address[1])
     if not a.no_open:
         _app_window(url)
     try:
