@@ -90,7 +90,20 @@ class TestHelpers(unittest.TestCase):
             self.assertFalse(gone["reachable"])
             self.assertTrue(gone["notes"])
 
-    def test_probe_sends_nothing_identifying(self):
+    def test_probe_resolves_once_and_refuses_private_results(self):
+        private_resolver = lambda host: [(2, 1, 6, "", ("10.0.0.5", 0))]
+        op = FakeOpener(FakeResponse())
+        r = ls.probe(PLAIN, opener=op, resolver=private_resolver)
+        self.assertFalse(r["reachable"])
+        self.assertEqual(op.calls, [])
+        self.assertTrue(any("private network" in n for n in r["notes"]))
+
+    def test_probe_proceeds_when_resolver_returns_a_public_address(self):
+        public_resolver = lambda host: [(2, 1, 6, "", ("93.184.216.34", 0))]
+        op = FakeOpener(FakeResponse(200, {"Server": "cloudflare", "CF-Ray": "abc"}))
+        r = ls.probe(PLAIN, opener=op, resolver=public_resolver)
+        self.assertTrue(r["reachable"])
+        self.assertEqual(len(op.calls), 1)
         with mock.patch.object(ls, "is_private_host", return_value=False):
             op = FakeOpener(FakeResponse())
             ls.probe(PLAIN, opener=op)
