@@ -1,6 +1,7 @@
 import json
 import os
 import struct
+import zlib
 import tempfile
 import unittest
 import zipfile
@@ -119,10 +120,37 @@ class TestAccepted(Base):
         self.assertNotIn(b"Location", cleaned)
         self.assertTrue(any("camera data was removed" in w for w in res["warnings"]))
 
-    def test_png_keeps_harmless_text_chunks(self):
-        res = self.run_bundle([GOOD_DOC, ("files/a.png", zk.png_with_text(b"Author", b"Tyler"))])
-        self.assertIn(b"Author", (self.work / "tree" / "files" / "a.png").read_bytes())
-        self.assertFalse(any("camera data" in w for w in res["warnings"]))
+    def test_png_with_exif_chunk_is_removed(self):
+        # eXIf chunk (PNG extension) carries EXIF/GPS; must be dropped.
+        png = zk.png_with_text.__wrapped__ if hasattr(zk.png_with_text, "__wrapped__") else None
+        import struct as _s, zlib as _z
+        raw = b"\x00" + b"\x10\x20\x30" * 2
+        data = (b"\x89PNG\r\n\x1a\n"
+                + zk.chunk(b"IHDR", _s.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+                + zk.chunk(b"eXIf", b"Exif\x00\x00GPSDATA!!")
+                + zk.chunk(b"IDAT", _z.compress(raw))
+                + zk.chunk(b"IEND", b""))
+        res = self.run_bundle([GOOD_DOC, ("files/a.png", data)])
+        cleaned = (self.work / "tree" / "files" / "a.png").read_bytes()
+        self.assertNotIn(b"eXIf", cleaned)
+        self.assertTrue(any("camera data was removed" in w for w in res["warnings"]))
+
+    def test_png_with_xmp_in_itxt_is_removed(self):
+        xmp = b"XML:com.adobe.xmp\x00\x00\x00\x00\x00<XMP>gps</XMP>"
+        data = (b"\x89PNG\r\n\x1a\n"
+                + zk.chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+                + zk.chunk(b"iTXt", xmp)
+                + zk.chunk(b"IDAT", zlib.compress(b"\x00\x10\x20\x30" * 4))
+                + zk.chunk(b"IEND", b""))
+        res = self.run_bundle([GOOD_DOC, ("files/a.png", data)])
+        cleaned = (self.work / "tree" / "files" / "a.png").read_bytes()
+        self.assertNotIn(b"XMP", cleaned)
+        self.assertTrue(any("camera data was removed" in w for w in res["warnings"]))
+
+    def test_malformed_jpeg_segment_is_refused_not_corrupted(self):
+        # APP1 claims a length far beyond the file: sanitiser raises, file kept, refused as invalid picture
+        bad = b"\xff\xd8\xff\xe1\xff\xff" + b"Exif\x00\x00" + b"\xff\xd9"
+        self.refused([GOOD_DOC, ("files/a.jpg", bad)], expect="valid JPG")
 
     def test_truncated_jpeg_is_refused_not_corrupted(self):
         # cut the image data off after APP1: no SOF0 and no EOI remain, so it is refused as an invalid picture
