@@ -146,6 +146,10 @@ def _receive(h, areas, area, ip):
             _reply(h, 400)
             return True
         meta = areas.ingest(aid, tmp, areas.ip_hash(ip))
+        try:
+            os.remove(tmp)                                           # gone before the sender hears back, not after
+        except OSError:
+            pass
         if meta["state"] == "invalid":
             _reply(h, 422, {"id": meta["id"], "state": "invalid", "error": "The bundle was refused.", "reasons": meta["reasons"]})
         else:
