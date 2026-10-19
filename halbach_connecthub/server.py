@@ -34,13 +34,20 @@ UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "
 MAX_BODY = 256 * 1024
 PREVIEW_CHARS = 4000
 
+# In the collaborator's area window only these routes exist. Everything else answers 404 exactly like it would for a
+# stranger, so a restricted window can never reach the owner's modules, publish, tunnel, settings or areas.
+AREA_UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js"}
+AREA_GET = {"/api/site"}
+AREA_POST = {"/api/site/preview", "/api/area/send", "/api/area/status", "/api/area/limits"}
+
 
 class Hub:
     """Server-side state shared by all requests."""
 
-    def __init__(self, store, token=None, publisher=None):
+    def __init__(self, store, token=None, publisher=None, area=False):
         self.store = store
         self.token = token or secrets.token_urlsafe(24)
+        self.area = area                                       # collaborator's restricted window: only area routes work
         self.site = SiteService(store)
         self.areas = AreaService(store, self.site.registry,
                                  slug_taken=lambda s: any(p["slug"] == s for p in self.site.model.data["pages"]))
@@ -48,9 +55,11 @@ class Hub:
         self.publisher = publisher or Publisher(store, site=self.site)
         if getattr(self.publisher, "site", None) is None:
             self.publisher.site = self.site
-        self.autopublish = AutoPublisher(store, self.areas, self.publisher)
-        self.areas.on_auto_publish = self.autopublish.schedule
-        self.autopublish.arm()                                 # picks up anything a crash left waiting
+        self.autopublish = None
+        if not area:                                           # an area window never publishes by itself
+            self.autopublish = AutoPublisher(store, self.areas, self.publisher)
+            self.areas.on_auto_publish = self.autopublish.schedule
+            self.autopublish.arm()                             # picks up anything a crash left waiting
         self.live_srv = None
         self.live_state = None
         self.tunnel = Tunnel(store, lambda: self.live_srv.server_address[1] if self.live_srv else 0)
@@ -79,7 +88,8 @@ class Hub:
     def close(self):
         if getattr(self, "_inbox_stop", None):
             self._inbox_stop.set()
-        self.autopublish.close()
+        if self.autopublish:
+            self.autopublish.close()
         self.tunnel.stop()
         if self.live_srv:
             self.live_srv.shutdown()
@@ -152,9 +162,23 @@ def make_handler(hub):
                 return False
             return True
 
+        def _area_allowed(self, method, path):
+            """In area mode only the collaborator's own routes exist; every owner route 404s."""
+            if not hub.area:
+                return True
+            if path in AREA_UI_FILES or path == "/funktheme.js" or path.startswith("/preview"):
+                return True
+            if method == "GET":
+                return path in AREA_GET
+            if method == "POST":
+                return path in AREA_POST or path.startswith("/api/site/")
+            return False
+
         # ---- routes ----
         def do_GET(self):
             path = urlparse(self.path).path
+            if not self._area_allowed("GET", path):
+                return self._err(404, "Not found")
             if path == "/funktheme.js":
                 if not self._guard():
                     return
@@ -222,6 +246,8 @@ def make_handler(hub):
 
         def do_POST(self):
             path = urlparse(self.path).path
+            if not self._area_allowed("POST", path):
+                return self._err(404, "Not found")
             if not path.startswith("/api/"):
                 return self._err(404, "Not found")
             if not self._api_guard():
@@ -460,14 +486,18 @@ def pick_path(kind):
     return out.stdout.strip()
 
 
-def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False):
-    """Start the server; returns (server, hub). Port 0 picks a free one."""
+def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False, area=False):
+    """Start the server; returns (server, hub). Port 0 picks a free one.
+
+    With area=True the window is a collaborator's restricted editor: no live hub, no tunnel, no publisher,
+    and only the area routes (AREA_UI_FILES / AREA_GET / AREA_POST) are served.
+    """
     store = Store(home)
-    hub = Hub(store, token, publisher)
+    hub = Hub(store, token, publisher, area=area)
     srv = LoopbackServer(("127.0.0.1", port), make_handler(hub))
-    if live_port is not None:
+    if not area and live_port is not None:
         hub.start_live(live_port)
-    if inbox:
+    if not area and inbox:
         hub.start_inbox_watcher()
     return srv, hub
 
