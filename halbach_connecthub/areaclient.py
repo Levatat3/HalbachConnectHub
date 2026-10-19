@@ -9,7 +9,8 @@ read back how the owner decided.
     halbach area limits                                 what this area allows
 
 The passphrase is never written into the folder or a URL. It is kept in the state folder (owner-only permissions
-where the system supports them), or read from HALBACH_AREA_KEY. Stdlib only.
+where the system supports them; on Windows the connection file's ACL is narrowed to the current account with
+icacls), or read from HALBACH_AREA_KEY. Stdlib only.
 """
 
 import argparse
@@ -17,6 +18,7 @@ import getpass
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -198,6 +200,31 @@ def _conn_path(home=None):
     return Path(home or home_dir()) / CONNECTION_FILE
 
 
+def _restrict_to_current_user(p):
+    """Windows: chmod cannot touch the ACL, so icacls takes inheritance away and grants only this account.
+
+    Never fatal -- the connection is written either way. A failure prints one line saying the file kept its
+    inherited permissions, and nothing else happens.
+    """
+    if os.name != "nt":
+        return
+    user = os.environ.get("USERNAME", "")
+    if not user:
+        print("warning: %s was not limited to your Windows account (USERNAME is not set)." % p.name)
+        return
+    cmd = ["icacls", str(p), "/inheritance:r", "/grant:r", "%s:F" % user]
+    try:
+        r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), encoding="utf-8", errors="replace")
+    except (OSError, subprocess.SubprocessError) as e:
+        why = " ".join(str(e).split()) or e.__class__.__name__           # keep it to one line
+        print("warning: %s was saved but not limited to your Windows account (%s)." % (p.name, why))
+        return
+    if r.returncode != 0:
+        why = next((ln.strip() for ln in (r.stderr or "").splitlines() if ln.strip()), "icacls refused")
+        print("warning: %s was saved but not limited to your Windows account (%s)." % (p.name, why))
+
+
 def save_connection(url, area, key, home=None):
     p = _conn_path(home)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -206,6 +233,7 @@ def save_connection(url, area, key, home=None):
         os.chmod(p, 0o600)
     except OSError:
         pass
+    _restrict_to_current_user(p)
     return p
 
 

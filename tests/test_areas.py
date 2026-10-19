@@ -648,8 +648,14 @@ class TestClient(DropBase):
             code = entry.main(["area", "--home", str(self.root / "client-home")] + list(args))
         return code, buf.getvalue()
 
+    def connect(self):
+        """Run the connect command with icacls mocked out (the tests never touch the real one)."""
+        done = mock.Mock(returncode=0, stderr="")
+        with mock.patch.object(areaclient.subprocess, "run", return_value=done):
+            return self.run_cli("--url", self.url, "--area", "workshop", "connect", env={"HALBACH_AREA_KEY": self.key})
+
     def test_cli_connect_send_status_and_the_key_never_lands_in_the_folder(self):
-        code, out = self.run_cli("--url", self.url, "--area", "workshop", "connect", env={"HALBACH_AREA_KEY": self.key})
+        code, out = self.connect()
         self.assertEqual(code, 0, out)
         saved = (self.root / "client-home" / areaclient.CONNECTION_FILE)
         self.assertTrue(saved.is_file())
@@ -666,7 +672,7 @@ class TestClient(DropBase):
         self.assertIn("already received", again)
 
     def test_cli_shows_the_reasons_when_a_bundle_is_refused(self):
-        self.run_cli("--url", self.url, "--area", "workshop", "connect", env={"HALBACH_AREA_KEY": self.key})
+        self.connect()
         doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
         doc["pages"][0]["blocks"].append({"type": "embed", "props": {"url": "https://evil.example"}})
         (self.folder / "area.json").write_text(json.dumps(doc), encoding="utf-8")
@@ -745,6 +751,74 @@ class TestValidateOffline(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("area.json", out)
         self.assertEqual(self.temp_leftovers(), [])
+
+
+class TestConnectionFilePermissions(unittest.TestCase):
+    """area-connection.json holds the passphrase: on Windows its ACL is narrowed to the current account only.
+
+    icacls is always mocked; nothing in this suite touches the real one.
+    """
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.root = Path(self._t.name)
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def save(self, run_patch):
+        """save_connection() under the given subprocess.run patch. Returns (path, printed lines, the mock)."""
+        buf = io.StringIO()
+        with run_patch as patched, redirect_stdout(buf):
+            p = areaclient.save_connection("https://live.example.com", "workshop", "the-key", home=self.root)
+        return p, [ln for ln in buf.getvalue().splitlines() if ln.strip()], patched
+
+    @unittest.skipUnless(os.name == "nt", "icacls only exists on Windows")
+    def test_icacls_gets_the_file_and_only_this_account(self):
+        user = os.environ.get("USERNAME")
+        self.assertTrue(user, "this test needs USERNAME in the environment")
+        p, lines, patched = self.save(mock.patch.object(areaclient.subprocess, "run",
+                                                        return_value=mock.Mock(returncode=0, stderr="")))
+        self.assertEqual(lines, [])                                       # quiet when it worked
+        args, kw = patched.call_args
+        self.assertEqual(args[0], ["icacls", str(p), "/inheritance:r", "/grant:r", "%s:F" % user])
+        self.assertEqual(len(args), 1)                                    # a list, never a shell line
+        self.assertNotIn("shell", kw)
+        self.assertEqual(kw.get("capture_output"), True)
+        self.assertEqual(json.loads(p.read_text(encoding="utf-8"))["key"], "the-key")
+
+    @unittest.skipUnless(os.name == "nt", "icacls only exists on Windows")
+    def test_icacls_refusing_still_saves_the_connection_with_one_line_of_warning(self):
+        p, lines, _ = self.save(mock.patch.object(areaclient.subprocess, "run",
+                                                  return_value=mock.Mock(returncode=1, stderr="Access is denied.\n")))
+        self.assertEqual(len(lines), 1)
+        self.assertIn("warning:", lines[0])
+        self.assertIn("Access is denied.", lines[0])
+        self.assertEqual(areaclient.load_connection(home=self.root)["key"], "the-key")   # still written
+
+    @unittest.skipUnless(os.name == "nt", "icacls only exists on Windows")
+    def test_a_missing_icacls_is_one_line_and_not_a_crash(self):
+        p, lines, _ = self.save(mock.patch.object(areaclient.subprocess, "run",
+                                                  side_effect=FileNotFoundError("icacls")))
+        self.assertEqual(len(lines), 1)
+        self.assertIn("warning:", lines[0])
+        self.assertTrue(p.is_file())
+        self.assertEqual(areaclient.load_connection(home=self.root)["area"], "workshop")
+
+    @unittest.skipUnless(os.name == "nt", "icacls only exists on Windows")
+    def test_without_a_user_name_nothing_is_run_and_the_file_is_still_saved(self):
+        with mock.patch.dict(os.environ, {"USERNAME": ""}):
+            p, lines, patched = self.save(mock.patch.object(areaclient.subprocess, "run"))
+        patched.assert_not_called()
+        self.assertEqual(len(lines), 1)
+        self.assertIn("USERNAME", lines[0])
+        self.assertTrue(p.is_file())
+
+    def test_off_windows_nothing_extra_is_run(self):
+        p = Path("area-connection.json")                                 # never touched: the guard returns first
+        with mock.patch.object(areaclient.os, "name", "posix"), mock.patch.object(areaclient.subprocess, "run") as run:
+            areaclient._restrict_to_current_user(p)
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

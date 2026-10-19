@@ -35,6 +35,15 @@ halbach area status                            what happened to earlier sends, w
 
 `connect` asks for the passphrase without echoing it (or reads `HALBACH_AREA_KEY`) and keeps it in your Halbach state folder, never in the page folder and never in a URL. `send` checks your folder against the area's limits first, so most mistakes show up before anything is uploaded.
 
+### The passphrase file is for your account only
+
+The connection is a single file, `area-connection.json`, in your Halbach state folder, and it holds the passphrase, so it is narrowed to the account that wrote it:
+
+- **Linux and macOS:** the file's mode is set to `0600` (you only).
+- **Windows:** modes do not control who can read a file, so Halbach runs `icacls <file> /inheritance:r /grant:r "%USERNAME%:F"` — inheritance off, then full control granted to your account only. It is run as a plain argument list (no shell) with a short timeout.
+
+If Windows refuses that step for any reason (`icacls` missing, access denied, no `USERNAME` in the environment), the save still succeeds and **one** warning line is printed; the connection works as before, the file simply keeps the permissions the folder gave it. Nothing in the page folder is ever affected either way.
+
 ### What goes in `area.json`
 
 ```json
