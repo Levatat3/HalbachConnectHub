@@ -18,10 +18,19 @@ def png_header_only(w, h):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IEND", b"")
 
 
+def png_with_text(key=b"Location", value=b"51.5,-0.12"):
+    """A valid PNG carrying a tEXt chunk whose key can name a place (for sanitization tests)."""
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+            + chunk(b"tEXt", key + b"\x00" + value)
+            + chunk(b"IDAT", zlib.compress(b"\x00\x10\x20\x30" * 4))
+            + chunk(b"IEND", b""))
+
+
 def jpeg(w=3, h=2, exif=False):
     app = b"\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
     if exif:
-        app += b"\xff\xe1\x00\x10Exif\x00\x00GPSDATA!!"
+        payload = b"Exif\x00\x00GPSDATA!!"
+        app += b"\xff\xe1" + struct.pack(">H", 2 + len(payload)) + payload
     return b"\xff\xd8" + app + b"\xff\xc0\x00\x0b\x08" + struct.pack(">HH", h, w) + b"\x01\x01\x11\x00" + b"\xff\xd9"
 
 

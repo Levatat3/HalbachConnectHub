@@ -1,5 +1,6 @@
 import json
 import os
+import struct
 import tempfile
 import unittest
 import zipfile
@@ -92,7 +93,47 @@ class TestAccepted(Base):
 
     def test_exif_is_flagged(self):
         res = self.run_bundle([GOOD_DOC, ("files/a.jpg", zk.jpeg(exif=True))])
-        self.assertTrue(any("camera data" in w for w in res["warnings"]))
+        self.assertTrue(any("camera data was removed" in w for w in res["warnings"]))
+
+    def test_crafted_jpeg_with_app1_gps_blob_comes_out_without_it_and_still_passes_check_content(self):
+        res = self.run_bundle([GOOD_DOC, ("files/a.jpg", zk.jpeg(exif=True))])
+        cleaned = (self.work / "tree" / "files" / "a.jpg").read_bytes()
+        self.assertNotIn(b"Exif\x00\x00", cleaned)
+        self.assertIn(b"\xff\xd8", cleaned)          # SOI still there
+        self.assertIn(b"\xff\xd9", cleaned)          # EOI still there
+        self.assertEqual(bundle._image_size("jpg", cleaned)[:2], (3, 2))   # dimensions still readable
+        self.assertEqual(res["files"]["files/a.jpg"]["sha256"], bundle.sha256_file(self.work / "tree" / "files" / "a.jpg"))
+
+    def test_jpeg_app13_photoshop_irb_is_removed(self):
+        payload = b"Photoshop 3.0\x008BIM\x04\x04\x00\x00\x00\x00\x00\x00IRBDATA"
+        app13 = b"\xff\xed" + struct.pack(">H", 2 + len(payload)) + payload
+        jpg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00" + app13 + \
+              b"\xff\xc0\x00\x0b\x08" + struct.pack(">HH", 2, 3) + b"\x01\x01\x11\x00" + b"\xff\xd9"
+        res = self.run_bundle([GOOD_DOC, ("files/a.jpg", jpg)])
+        self.assertNotIn(b"Photoshop", (self.work / "tree" / "files" / "a.jpg").read_bytes())
+        self.assertTrue(any("camera data was removed" in w for w in res["warnings"]))
+
+    def test_png_with_location_text_chunk_is_removed(self):
+        res = self.run_bundle([GOOD_DOC, ("files/a.png", zk.png_with_text(b"Location", b"51.5,-0.12"))])
+        cleaned = (self.work / "tree" / "files" / "a.png").read_bytes()
+        self.assertNotIn(b"Location", cleaned)
+        self.assertTrue(any("camera data was removed" in w for w in res["warnings"]))
+
+    def test_png_keeps_harmless_text_chunks(self):
+        res = self.run_bundle([GOOD_DOC, ("files/a.png", zk.png_with_text(b"Author", b"Tyler"))])
+        self.assertIn(b"Author", (self.work / "tree" / "files" / "a.png").read_bytes())
+        self.assertFalse(any("camera data" in w for w in res["warnings"]))
+
+    def test_truncated_jpeg_is_refused_not_corrupted(self):
+        # cut the image data off after APP1: no SOF0 and no EOI remain, so it is refused as an invalid picture
+        jpg = zk.jpeg(exif=True)
+        cut = jpg.index(b"\xff\xc0")                      # everything before the SOF0 frame header
+        self.refused([GOOD_DOC, ("files/a.jpg", jpg[:cut])], expect="valid JPG")
+
+    def test_jpeg_with_a_segment_length_that_overruns_the_file_is_refused(self):
+        # APP1 claims a length longer than the bytes that remain
+        bad = b"\xff\xd8\xff\xe1\xff\xff" + b"Exif\x00\x00short" + b"\xff\xd9"
+        self.refused([GOOD_DOC, ("files/a.jpg", bad)], expect="valid JPG")
 
     def test_duplicate_submission_is_the_same_bytes(self):
         res = self.run_bundle([GOOD_DOC, ("files/a.png", zk.png())])

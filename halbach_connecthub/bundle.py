@@ -155,8 +155,138 @@ def _image_size(ext, head):
     return None
 
 
+# --------------------------------------------------------------------------- image sanitization
+def _sanitize_jpeg(path, rel, warnings):
+    """Strip camera metadata (EXIF/GPS, XMP, Photoshop IRB) from a JPEG. Raises BundleError if truncated/corrupted."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except Exception:
+        raise BundleError("'%s' is damaged." % _show(rel))
+    if len(data) < 4 or data[:2] != b"\xff\xd8":
+        raise BundleError("'%s' is not a valid JPG picture" % _show(rel))
+    out = bytearray(b"\xff\xd8")          # SOI
+    i = 2
+    removed = False
+    while i + 1 < len(data):
+        if data[i] != 0xFF:
+            raise BundleError("'%s' is damaged." % _show(rel))
+        marker = data[i + 1]
+        if marker == 0xD9:                  # EOI
+            out.extend(b"\xff\xd9")
+            i += 2
+            break
+        if marker in (0xFF, 0x00) or marker == 0x01 or 0xD0 <= marker <= 0xD8:
+            out.extend(data[i:i + 2])       # RSTn / TEM / fill - kept byte for byte
+            i += 2
+            continue
+        if i + 4 > len(data):
+            raise BundleError("'%s' is damaged or truncated." % _show(rel))
+        seglen = struct.unpack(">H", data[i + 2:i + 4])[0]
+        if seglen < 2:
+            raise BundleError("'%s' is damaged." % _show(rel))
+        segend = i + 2 + seglen
+        if segend > len(data):
+            raise BundleError("'%s' is damaged or truncated." % _show(rel))
+        drop = False
+        if marker == 0xE1:                  # APP1
+            payload = data[i + 4:segend]
+            if payload.startswith(b"Exif\x00\x00") or payload.startswith(b"http://ns.adobe.com/xap/"):
+                drop = True
+                removed = True
+        if marker == 0xED:                  # APP13 (Photoshop IRB)
+            drop = True
+            removed = True
+        if not drop:
+            out.extend(data[i:segend])
+        i = segend
+        if marker == 0xDA:                  # SOS: entropy-coded scan data follows until EOI
+            j = i
+            while j + 1 < len(data):
+                if data[j] == 0xFF and data[j + 1] == 0xD9:
+                    out.extend(data[j:j + 2])
+                    i = j + 2
+                    break
+                out.append(data[j])
+                j += 1
+            else:
+                raise BundleError("'%s' is damaged or truncated." % _show(rel))
+            break
+    else:
+        raise BundleError("'%s' is damaged or truncated." % _show(rel))
+    if removed:
+        with open(path, "wb") as f:
+            f.write(out)
+        warnings.append("'%s' camera data was removed." % _show(rel))
+    return removed
+
+
+PNG_TEXT_KEYS = {"location", "gps", "geotag", "lat", "lon", "latitude", "longitude", "gpslatitude", "gpslongitude"}
+PNG_TEXT_CHUNKS = {b"tEXt", b"zTXt", b"iTXt"}
+
+
+def _sanitize_png(path, rel, warnings):
+    """Strip PNG text chunks whose key names a place (Location/GPS). Raises BundleError if truncated/corrupted."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except Exception:
+        raise BundleError("'%s' is damaged." % _show(rel))
+    if len(data) < 12 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise BundleError("'%s' is not a valid PNG picture" % _show(rel))
+    out = bytearray(data[:8])               # signature
+    i = 8
+    removed = False
+    while i + 12 <= len(data):
+        length = struct.unpack(">I", data[i:i + 4])[0]
+        ctype = data[i + 4:i + 8]
+        cdata_start = i + 8
+        cdata_end = cdata_start + length
+        crc_start = cdata_end
+        crc_end = crc_start + 4
+        if crc_end > len(data):
+            raise BundleError("'%s' is damaged or truncated." % _show(rel))
+        chunk_data = data[cdata_start:cdata_end]
+        if zlib.crc32(ctype + chunk_data) & 0xFFFFFFFF != struct.unpack(">I", data[crc_start:crc_end])[0]:
+            raise BundleError("'%s' is damaged." % _show(rel))
+        drop = False
+        if ctype in PNG_TEXT_CHUNKS and b"\x00" in chunk_data:
+            try:
+                key = chunk_data.split(b"\x00", 1)[0].decode("latin-1").lower()
+                if any(g in key for g in PNG_TEXT_KEYS):
+                    drop = True
+                    removed = True
+            except Exception:
+                drop = False
+        if not drop:
+            out.extend(data[i:i + 8 + length + 4])
+        i += 12 + length
+        if ctype == b"IEND":
+            break
+    else:
+        raise BundleError("'%s' is damaged or truncated." % _show(rel))
+    if removed:
+        with open(path, "wb") as f:
+            f.write(out)
+        warnings.append("'%s' camera data was removed." % _show(rel))
+    return removed
+
+
 def check_content(path, rel, ext, limits, warnings):
     """Make sure the bytes are what the extension claims. Returns None or a reason."""
+    # Strip camera metadata first. If the segment structure is malformed we leave the file
+    # exactly as it was (never rewrite hostile bytes into a half-parsed shape) and let the
+    # checks below refuse it with the usual message.
+    if ext in ("jpg", "jpeg"):
+        try:
+            _sanitize_jpeg(path, rel, warnings)
+        except BundleError:
+            pass
+    elif ext == "png":
+        try:
+            _sanitize_png(path, rel, warnings)
+        except BundleError:
+            pass
     with open(path, "rb") as f:
         head = f.read(4 * 1024 * 1024 if ext in ("jpg", "jpeg") else 64 * 1024)
     if ext in ("png", "jpg", "jpeg", "gif", "webp"):
@@ -167,8 +297,6 @@ def check_content(path, rel, ext, limits, warnings):
         side = int(limits.get("max_image_px", MAX_SIDE_DEFAULT))
         if w < 1 or h < 1 or w > side or h > side or w * h > MAX_PIXELS:
             return "'%s' is %dx%d pixels; pictures may be at most %d on a side" % (_show(rel), w, h, side)
-        if ext in ("jpg", "jpeg") and b"Exif\x00\x00" in head[:70000]:
-            warnings.append("'%s' may still contain camera data such as location. Remove it before sending if that matters." % _show(rel))
         return None
     if ext == "pdf":
         return None if head[:5] == b"%PDF-" else "'%s' is not a PDF" % _show(rel)
