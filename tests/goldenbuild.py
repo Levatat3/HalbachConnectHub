@@ -17,7 +17,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import zipkit as zk                                    # noqa: E402  (tiny fixed png for the area fixture)
+# A fixed 2x2 PNG as a byte literal so the golden hash is identical on every
+# machine (zlib.compress output varies by zlib version; generating it at test
+# time made the golden machine-dependent).
+_PIC_PNG = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x02\x00\x00\x00\x02\x08\x02\x00\x00\x00\xfd\xd4\x9as\x00\x00\x00\x10IDATx\x9cc\x10P0\x00"\x06\x08\x05\x00\n\x0e\x01\x81V3\xee\xf3\x00\x00\x00\x00IEND\xaeB`\x82'
 
 from halbach_connecthub import registry as rg          # noqa: E402
 from halbach_connecthub import sitebuilder as sb       # noqa: E402
@@ -41,7 +44,7 @@ def _area_fixture(root):
     """
     tree = root / "workshop-tree"
     (tree / "files").mkdir(parents=True)
-    (tree / "files" / "pic.png").write_bytes(zk.png())
+    (tree / "files" / "pic.png").write_bytes(_PIC_PNG)
     doc = {"format": 1, "title": "Workshop", "description": "Approved content from a collaborator",
            "pages": [{"name": "", "title": "Workshop", "blocks": [
                {"id": "b1", "type": "hero", "props": {"heading": "The workshop", "typed": False}},

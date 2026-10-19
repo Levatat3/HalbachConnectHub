@@ -146,11 +146,11 @@
     var trust = h("select", null,
       h("option", { value: "review", text: "Review every submission (recommended)" }),
       h("option", { value: "trusted", text: "Trusted: approve valid submissions automatically" }),
-      h("option", { value: "auto", text: "Auto: approve valid submissions and publish them to the site automatically" }));
+      h("option", { value: "auto", text: "Auto (experimental): approve valid submissions and publish them to the site automatically" }));
     trust.value = a.trust;
     trust.addEventListener("change", function () {
       if (trust.value === "auto" && a.trust !== "auto" && !confirm(
-        "Turn on auto-publish for '" + a.name + "'?\n\nValid submissions will be approved AND published to your live site by themselves, " +
+        "Turn on AUTO-PUBLISH (experimental) for '" + a.name + "'?\n\nThis is an experimental feature, off by default. Valid submissions will be approved AND published to your live site by themselves, " +
         "at most one automatic publish every five minutes. You can freeze it from the banner at any time.")) {
         trust.value = a.trust;
       }

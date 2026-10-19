@@ -550,6 +550,8 @@ class Store:
     def set_settings(self, **kw):
         with self.lock:
             s = self.state["settings"]
+            if "auto_publish_enabled" in kw and kw["auto_publish_enabled"] is not None:
+                s["auto_publish_enabled"] = bool(kw["auto_publish_enabled"])
             for k in ("site_dir", "project", "domain", "live_host", "tunnel_name", "cloudflared_path", "extra_origins", "site_mode"):
                 if k in kw and kw[k] is not None:
                     v = str(kw[k]).strip()

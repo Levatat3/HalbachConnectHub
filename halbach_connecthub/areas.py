@@ -424,6 +424,9 @@ class AreaService:
         A failure here must never undo an approval that already happened, so it is logged instead.
         """
         cb = self.on_auto_publish
+        if not (self.store.state.get("settings") or {}).get("auto_publish_enabled"):
+            self.audit(aid, "owner", "auto-publish skipped", 0, "auto-publish is disabled (experimental, opt-in)")
+            return
         if cb is None:
             return
         try:

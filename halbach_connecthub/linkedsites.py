@@ -65,7 +65,7 @@ def is_private_host(host):
             ip = ipaddress.ip_address(info[4][0])
         except ValueError:
             continue
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+        if _ip_is_private(ip):
             return True
     return False
 
@@ -100,7 +100,19 @@ class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
         return self.do_open(lambda h, **kw: _PinnedHTTPSConnection(h, vetted_ip=self._vetted_ip, **kw), req)
 
 
+def _ip_is_private(ip):
+    """Private/loopback/etc. check that also covers IPv4-mapped IPv6 (::ffff:a.b.c.d)."""
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+        return True
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        return (mapped.is_private or mapped.is_loopback or mapped.is_link_local
+                or mapped.is_reserved or mapped.is_multicast)
+    return False
+
+
 def _name_is_private(host):
+    return (not host) or host in ("localhost",) or host.endswith((".local", ".internal", ".localhost"))
     return (not host) or host in ("localhost",) or host.endswith((".local", ".internal", ".localhost"))
 
 
@@ -147,7 +159,7 @@ def probe(url, opener=None, resolver=None):
                 ip = ipaddress.ip_address(ipstr)
             except ValueError:
                 continue
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            if _ip_is_private(ip):
                 private_found = True
                 break
             if str(ip) not in ips:

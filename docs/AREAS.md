@@ -19,7 +19,9 @@ A **new passphrase** makes the old one stop working immediately. **Revoke** stop
 
 - **Review** (default): every valid submission waits for you.
 - **Trusted**: a valid submission is approved automatically (still checked, still a saved version, still needs your Publish).
-- **Auto**: a valid submission is approved *and published automatically* — at most one automatic publish every five minutes, no matter how fast submissions arrive. It goes out through the same Publish pipeline, so the area's content can only ever land under its own address. A standing banner in the window shows which areas publish by themselves, and **Freeze it** there (or pause the area, or switch its trust back) cancels the waiting publish at once and returns it to review. If the live site does not confirm a new automatic build, everything that publish pushed is put back, the area is frozen, and the previous content is deployed once more.
+- **Auto**: a valid submission is approved *and published automatically* - at most one automatic publish every five minutes, no matter how fast submissions arrive. It goes out through the same Publish pipeline, so the area's content can only ever land under its own address. A standing banner in the window shows which areas publish by themselves, and **Freeze it** there (or pause the area, or switch its trust back) cancels the waiting publish at once and returns it to review. If the live site does not confirm a new automatic build, everything that publish pushed is put back, the area is frozen, and the previous content is deployed once more.
+
+**Auto-publish is experimental and off by default.** It is gated behind the `auto_publish_enabled` setting (off unless you turn it on). Leave it off unless you have reviewed the threat model in `docs/SECURITY-REVIEW.md`.
 
 ## For the collaborator (for example Funk)
 

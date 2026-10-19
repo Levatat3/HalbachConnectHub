@@ -60,5 +60,11 @@ below for the owner to decide.
 - Themes: a `.funktheme` whose `name` or a colour value contains `</style><script>`; assert it is refused or sanitized, and that the window never renders it unescaped.
 - Linked sites: a host whose DNS returns a private IP after a public one (rebinding) — covered by the new resolver test; extend to a second resolution returning a different IP.
 
-## Conclusion
+## Auto-publish threat model (area content, added 2.6)
+
+- A stolen area passphrase can put content live within about 5 minutes (the debounce floor), because an `auto` area approves and publishes without the owner pressing Publish.
+- Mitigations: content is confined to the area's own address (`/<slug>/`) and to the blocks the owner allow-listed; the whole-site publish still only ships the area's prefix merge, but it also pushes any of the owner's own half-finished edits elsewhere on the site (owner-edits-pending guard is a recommended follow-up).
+- A single deploy is the whole site, so the debounce floor is hub-wide: a collaborator cannot force a publish loop.
+- A failed live check rolls back once (restore previous version + freeze + one redeploy); a failed deploy clears the pending wait without rolling back (the site still holds the previous build).
+- Auto-publish is gated behind an opt-in flag (`auto_publish_enabled`, default off) and is labelled experimental in the UI.
 No CRITICAL or HIGH findings. The two MED items (TA-001 theme XSS surface, TA-002 sid traversal) are the priority fixes before release; both are small and localized. The 18 invariants hold as implemented. Symlink handling (invariants 7) remains unverified on this Windows account and must be run under Linux/WSL before release.

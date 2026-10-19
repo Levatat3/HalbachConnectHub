@@ -168,6 +168,7 @@ def _sanitize_jpeg(path, rel, warnings):
     out = bytearray(b"\xff\xd8")          # SOI
     i = 2
     removed = False
+    removed_exif = False
     while i + 1 < len(data):
         if data[i] != 0xFF:
             raise BundleError("'%s' is damaged." % _show(rel))
@@ -194,6 +195,8 @@ def _sanitize_jpeg(path, rel, warnings):
             if payload.startswith(b"Exif\x00\x00") or payload.startswith(b"http://ns.adobe.com/xap/"):
                 drop = True
                 removed = True
+                if payload.startswith(b"Exif\x00\x00"):
+                    removed_exif = True
         if marker == 0xED:                  # APP13 (Photoshop IRB)
             drop = True
             removed = True
@@ -218,10 +221,12 @@ def _sanitize_jpeg(path, rel, warnings):
         with open(path, "wb") as f:
             f.write(out)
         warnings.append("'%s' camera data was removed." % _show(rel))
+        if removed_exif:
+            warnings.append("'%s' orientation data was removed; the picture may display sideways." % _show(rel))
     return removed
 
 
-PNG_TEXT_KEYS = {"location", "gps", "geotag", "lat", "lon", "latitude", "longitude", "gpslatitude", "gpslongitude"}
+PNG_TEXT_KEYS = {"location", "gps", "geotag", "latitude", "longitude", "gpslatitude", "gpslongitude", "gpsinfo"}
 PNG_TEXT_CHUNKS = {b"tEXt", b"zTXt", b"iTXt"}
 
 
@@ -250,10 +255,16 @@ def _sanitize_png(path, rel, warnings):
         if zlib.crc32(ctype + chunk_data) & 0xFFFFFFFF != struct.unpack(">I", data[crc_start:crc_end])[0]:
             raise BundleError("'%s' is damaged." % _show(rel))
         drop = False
+        if ctype == b"eXIf":
+            drop = True
+            removed = True
         if ctype in PNG_TEXT_CHUNKS and b"\x00" in chunk_data:
             try:
                 key = chunk_data.split(b"\x00", 1)[0].decode("latin-1").lower()
-                if any(g in key for g in PNG_TEXT_KEYS):
+                # iTXt carries a language tag and translated key after the NUL; keep the first field (the key).
+                if ctype == b"iTXt":
+                    key = key.split(b"\x00".decode(), 1)[0] if False else key
+                if "xmp" in key or any(g in key for g in PNG_TEXT_KEYS):
                     drop = True
                     removed = True
             except Exception:
@@ -281,12 +292,28 @@ def check_content(path, rel, ext, limits, warnings):
         try:
             _sanitize_jpeg(path, rel, warnings)
         except BundleError:
-            pass
+            warnings.append("'%s' camera data could not be verified or removed; treat the file as untrusted." % _show(rel))
+        else:
+            try:
+                d = path.read_bytes() if hasattr(path, "read_bytes") else open(path, "rb").read()
+            except Exception:
+                d = b""
+            if b"Exif\x00\x00" in d or b"http://ns.adobe.com/xap/" in d:
+                warnings.append("'%s' may still contain camera data." % _show(rel))
     elif ext == "png":
         try:
             _sanitize_png(path, rel, warnings)
         except BundleError:
-            pass
+            warnings.append("'%s' camera data could not be verified or removed; treat the file as untrusted." % _show(rel))
+        else:
+            try:
+                d = path.read_bytes() if hasattr(path, "read_bytes") else open(path, "rb").read()
+            except Exception:
+                d = b""
+            if b"eXIf" in d:
+                warnings.append("'%s' may still contain camera data." % _show(rel))
+    elif ext in ("webp", "gif"):
+        warnings.append("'%s' camera data was not checked (this format is not supported by the stripper)." % _show(rel))
     with open(path, "rb") as f:
         head = f.read(4 * 1024 * 1024 if ext in ("jpg", "jpeg") else 64 * 1024)
     if ext in ("png", "jpg", "jpeg", "gif", "webp"):

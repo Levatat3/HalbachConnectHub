@@ -52,7 +52,7 @@ class Base(unittest.TestCase):
         self.site_dir.mkdir()
         (self.site_dir / "index.html").write_text("<h1>site</h1>", encoding="utf-8")
         self.store.set_settings(site_dir=str(self.site_dir), project="my-site", domain="example.com",
-                                site_mode="modular")
+                                site_mode="modular", auto_publish_enabled=True)
         self.reg = rg.Registry()
         self.svc = areas.AreaService(self.store, self.reg, min_free_bytes=0, clock=self.clock)
         self.site = ss.SiteService(self.store)
