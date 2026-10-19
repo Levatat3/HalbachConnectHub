@@ -51,6 +51,20 @@ class TestPersistence(Base):
         (self.home / "site" / "site.json").write_text("{nope", encoding="utf-8")
         self.assertFalse(sm.SiteModel(self.home, self.reg).exists)
 
+    def test_older_version_is_backed_up_before_migrating(self):
+        old = self.home / "site" / "site.json"
+        old.write_text(json.dumps({"version": 0, "brand": {"name": "Old"}}), encoding="utf-8")
+        original = old.read_bytes()
+        model = sm.SiteModel(self.home, self.reg)
+        self.assertEqual(model.data["version"], sm.MODEL_VERSION)
+        baks = sorted((self.home / "site").glob("site.json.bak-*"))
+        self.assertEqual(len(baks), 1)
+        self.assertEqual(baks[0].read_bytes(), original)
+
+    def test_current_version_is_not_backed_up(self):
+        sm.SiteModel(self.home, self.reg)
+        self.assertEqual(list((self.home / "site").glob("site.json.bak-*")), [])
+
 
 class TestHistory(Base):
     def test_snapshots_only_when_changed_and_restore_is_undoable(self):

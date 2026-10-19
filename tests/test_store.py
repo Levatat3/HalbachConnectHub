@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import time
@@ -5,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from halbach_connecthub import store as st
+from halbach_connecthub import __version__
 
 
 class Base(unittest.TestCase):
@@ -164,6 +166,65 @@ class TestModules(Base):
         self.s.log("info", "one")
         self.s.log("ok", "two")
         self.assertEqual([r["msg"] for r in self.s.activity()][:2], ["two", "one"])
+
+
+class TestUpgradeBackup(unittest.TestCase):
+    """Task 0.2: back up state.json before new code opens an older one."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.home = Path(self._t.name) / "hub"
+        self.home.mkdir()
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def _write_state(self, version, marker="keep-me"):
+        state = {"version": 1, "settings": {}, "modules": [{"id": "m", "note": marker}]}
+        if version is not None:
+            state["app_version"] = version
+        path = self.home / "state.json"
+        path.write_text(json.dumps(state), encoding="utf-8")
+        return path.read_bytes()
+
+    def _backups(self):
+        return sorted(self.home.glob("state.json.bak-*"))
+
+    def test_upgrade_creates_one_backup_with_identical_bytes(self):
+        original = self._write_state("0.0.1")
+        st.Store(self.home)
+        baks = self._backups()
+        self.assertEqual(len(baks), 1)
+        self.assertEqual(baks[0].read_bytes(), original)
+        self.assertEqual(st.Store(self.home).state["app_version"], __version__)
+
+    def test_missing_version_is_backed_up(self):
+        self._write_state(None)
+        st.Store(self.home)
+        self.assertEqual(len(self._backups()), 1)
+
+    def test_second_open_creates_no_second_backup(self):
+        self._write_state("0.0.1")
+        st.Store(self.home)
+        st.Store(self.home)
+        st.Store(self.home)
+        self.assertEqual(len(self._backups()), 1)
+
+    def test_six_upgrades_leave_five_backups(self):
+        for i in range(6):
+            self._write_state("0.0.%d" % i)
+            st.Store(self.home)
+        self.assertEqual(len(self._backups()), st.BACKUP_KEEP)
+
+    def test_no_state_file_no_backup(self):
+        store = st.Store(self.home)
+        self.assertEqual(self._backups(), [])
+        self.assertEqual(store.state["app_version"], __version__)
+
+    def test_corrupt_state_file_does_not_crash_or_back_up(self):
+        self.home.joinpath("state.json").write_text("{not json", encoding="utf-8")
+        self.assertEqual(st.Store(self.home).state["modules"], [])
+        self.assertEqual(self._backups(), [])
 
 
 if __name__ == "__main__":

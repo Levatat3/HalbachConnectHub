@@ -12,10 +12,16 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
 import time
 from pathlib import Path
+
+from . import __version__
+
+# Keep this many state.json.bak-* files (newest kept) when the app is upgraded.
+BACKUP_KEEP = 5
 
 MAX_FILE_BYTES = 25 * 1024 * 1024  # Cloudflare Pages per-file limit
 MAX_FILES = 20000                  # Cloudflare Pages per-site limit
@@ -54,6 +60,44 @@ MAX_HIDE = 50
 
 class ValidationError(ValueError):
     """The user asked for something that is not allowed or does not make sense."""
+
+
+def backup_file(path, keep=BACKUP_KEEP):
+    """Copy an existing state file aside before an upgrade. Never raises; returns the backup path.
+
+    The copy keeps the original bytes (shutil.copy2) and lives beside the original as
+    <name>.bak-<YYYYmmdd-HHMMSS>, with a numeric suffix if that name is already taken. Older
+    backups beyond `keep` are removed. Returns None when there is nothing to copy or the copy fails.
+    """
+    p = Path(path)
+    try:
+        if not p.is_file():
+            return None
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        dest = p.with_name("%s.bak-%s" % (p.name, stamp))
+        n = 1
+        while dest.exists():
+            dest = p.with_name("%s.bak-%s-%d" % (p.name, stamp, n))
+            n += 1
+        shutil.copy2(str(p), str(dest))
+    except OSError:
+        return None
+    prune_backups(p.parent, p.name + ".bak-*", keep)
+    return dest
+
+
+def prune_backups(folder, pattern, keep=BACKUP_KEEP):
+    """Keep the `keep` newest matching backups (by name) and delete the rest. Never raises."""
+    try:
+        baks = sorted(Path(folder).glob(pattern), key=lambda x: x.name)
+    except OSError:
+        return
+    doomed = baks if keep <= 0 else baks[:-keep]
+    for old in doomed:
+        try:
+            old.unlink()
+        except OSError:
+            pass
 
 
 def home_dir():
@@ -188,19 +232,56 @@ class Store:
         self.path = self.home / "state.json"
         self.log_path = self.home / "activity.jsonl"
         self.lock = threading.RLock()
+        self._state_ok = False      # True when an existing, parseable state file was loaded
+        self._loaded_version = None
         self.state = self._load()
+        self._backup_on_upgrade()
 
     # ---- persistence -------------------------------------------------
     def _load(self):
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 s = json.load(f)
-            if isinstance(s, dict) and isinstance(s.get("modules"), list):
-                s.setdefault("settings", {})
-                return s
         except (OSError, ValueError):
+            return self._fresh_state()
+        if isinstance(s, dict) and isinstance(s.get("modules"), list):
+            self._state_ok = True
+            self._loaded_version = s.get("app_version")
+            s.setdefault("settings", {})
+            s.setdefault("app_version", __version__)
+            return s
+        return self._fresh_state()
+
+    def _fresh_state(self):
+        return {"version": 1, "app_version": __version__, "settings": {}, "modules": [], "last_deploy": None}
+
+    def _backup_on_upgrade(self):
+        """Copy the previous state aside the first time new code opens an older state file.
+
+        Runs before anything is saved, records the running version so the next open does not back
+        up again, and never raises: a missing, unreadable or read-only folder is left alone with a
+        warning in the activity log.
+        """
+        if not getattr(self, "_state_ok", False):
+            return
+        if self._loaded_version == __version__:
+            return
+        dest = backup_file(self.path)
+        if dest is None:
+            try:
+                self.log("warn", "Could not back up state.json before upgrading; it was left as it was")
+            except OSError:
+                pass
+            return
+        self.state["app_version"] = __version__
+        try:
+            self._save()
+        except OSError:
             pass
-        return {"version": 1, "settings": {}, "modules": [], "last_deploy": None}
+        try:
+            self.log("info", "Backed up the previous state to %s before upgrading" % dest.name)
+        except OSError:
+            pass
 
     def _save(self):
         fd, tmp = tempfile.mkstemp(dir=str(self.home), suffix=".tmp")

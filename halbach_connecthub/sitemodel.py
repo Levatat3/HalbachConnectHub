@@ -17,6 +17,7 @@ from pathlib import Path
 
 from . import linkedsites as ls
 from . import siteschema as sc
+from .store import backup_file
 
 MODEL_VERSION = 1
 HISTORY_KEEP = 100
@@ -78,8 +79,18 @@ class SiteModel:
             except (OSError, ValueError):
                 self.data, self.exists = default_model(), False
                 return
+            self._backup_if_upgrading(raw)
             self.data = self._migrate(raw)
             self.exists = True
+
+    def _backup_if_upgrading(self, raw):
+        """Copy site.json aside before migrating an older model version. Never raises."""
+        if not isinstance(raw, dict):
+            return
+        v = raw.get("version", MODEL_VERSION)
+        if not isinstance(v, int) or v >= MODEL_VERSION:
+            return
+        backup_file(self.path)
 
     def _migrate(self, raw):
         if not isinstance(raw, dict):
