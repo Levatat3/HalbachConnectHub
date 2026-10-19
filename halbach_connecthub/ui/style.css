@@ -63,7 +63,7 @@ button.tile.link:hover{border-color:var(--green2)}
 .spark{height:30px;margin-top:8px;display:block;width:100%}
 
 /* module cards */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:14px}
 .mod{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;transition:.15s;position:relative}
 .mod:hover{border-color:var(--line2);transform:translateY(-1px)}
 .mod.sel{border-color:var(--green2);box-shadow:0 0 0 1px var(--green2)}
@@ -168,7 +168,7 @@ select,input[type=number],textarea{box-sizing:border-box;background:#050806;bord
 select:focus,input[type=number]:focus,textarea:focus{outline:none;border-color:var(--green2)}
 textarea{display:block;width:100%;resize:vertical}
 textarea.mono{font-size:12.5px;line-height:1.5}
-.set .r select,.set .r input[type=text],.set .r textarea{width:340px}
+.set .r select,.set .r input[type=text],.set .r textarea{width:340px;max-width:100%}
 .pagerow.off b{opacity:.55;text-decoration:line-through}
 .pagerow .btn{padding:6px 10px}
 .blockform{border:1px solid var(--line2);background:var(--bg2);border-radius:10px;margin:4px 6px 14px;padding:14px 16px}
