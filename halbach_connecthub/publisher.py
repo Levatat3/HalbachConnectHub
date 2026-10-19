@@ -246,6 +246,51 @@ def fetch_manifest_build(host, build, wait=60, interval=4):
     return False
 
 
+def deploy_site(store, site=None, preview=False, deployer=None, verifier=None, progress=None):
+    """Build the site into the store's stage folder, deploy it, then check the live site.
+
+    This is the whole publish; the window's Publisher and `halbach site publish` both run it, so the
+    two can never drift apart. site is the SiteService for the modular site (None builds the classic
+    site folder). Returns (url, verified): verified is None unless a live check was actually made.
+    Raises PublishError. deployer/verifier default to wrangler and the live-manifest poll (tests pass
+    fakes); progress("Uploading") is called between the steps when given.
+    """
+    t0 = time.time()
+    dep = deployer or wrangler_deploy
+    ver = verifier or fetch_manifest_build
+    s = store.state["settings"]
+    kind = "preview" if preview else "production"
+    store.log("info", "Publish started (%s)" % kind)
+    stage = store.home / "stage"
+    if s.get("site_mode") == "modular" and site is not None:
+        res = site.build(stage)
+        if not res.ok:
+            raise PublishError("The site has problems to fix first: " + site.explain(res))
+        manifest = res.manifest
+    else:
+        manifest = build_stage(store, stage)
+    n = sum(1 for p in Path(stage).rglob("*") if p.is_file())
+    if progress:
+        progress("Uploading")
+    url = dep(stage, s["project"], "preview" if preview else "main", store.log)
+    store.log("ok", "Uploaded %d files%s" % (n, " to " + url if url else ""))
+    if not preview:
+        store.mark_published()
+        if s.get("site_mode") == "modular" and site is not None:
+            site.record_published()
+    verified = None
+    if not preview and s.get("domain"):
+        if progress:
+            progress("Checking the live site")
+        verified = ver(s["domain"], manifest["build"])
+        store.log("ok" if verified else "warn",
+                   "Live site matches the new build" if verified else
+                   "Uploaded, but %s hasn't shown the change yet (it can take a minute to appear)" % s["domain"])
+    secs = time.time() - t0
+    store.log("ok", "Publish finished in %.1f s%s" % (secs, " (preview only, the live site is unchanged)" if preview else ""))
+    return url, verified
+
+
 class Publisher:
     """Runs one publish at a time in a background thread; the UI polls status()."""
 
@@ -288,36 +333,9 @@ class Publisher:
         threading.Thread(target=self._run, args=(preview,), daemon=True).start()
 
     def _run(self, preview):
-        t0 = time.time()
-        s = self.store.state["settings"]
-        kind = "preview" if preview else "production"
         try:
-            self.store.log("info", "Publish started (%s)" % kind)
-            stage = self.store.home / "stage"
-            if s.get("site_mode") == "modular" and self.site is not None:
-                res = self.site.build(stage)
-                if not res.ok:
-                    raise PublishError("The site has problems to fix first: " + self.site.explain(res))
-                manifest = res.manifest
-            else:
-                manifest = build_stage(self.store, stage)
-            n = sum(1 for _ in Path(stage).rglob("*") if _.is_file())
-            self._set(step="Uploading")
-            url = self.deployer(stage, s["project"], "preview" if preview else "main", self.store.log)
-            self.store.log("ok", "Uploaded %d files%s" % (n, " to " + url if url else ""))
-            if not preview:
-                self.store.mark_published()
-                if s.get("site_mode") == "modular" and self.site is not None:
-                    self.site.record_published()
-            verified = None
-            if not preview and s.get("domain"):
-                self._set(step="Checking the live site")
-                verified = self.verifier(s["domain"], manifest["build"])
-                self.store.log("ok" if verified else "warn",
-                               "Live site matches the new build" if verified else
-                               "Uploaded, but %s hasn't shown the change yet (it can take a minute to appear)" % s["domain"])
-            secs = time.time() - t0
-            self.store.log("ok", "Publish finished in %.1f s%s" % (secs, " (preview only, the live site is unchanged)" if preview else ""))
+            url, verified = deploy_site(self.store, self.site, preview=preview, deployer=self.deployer,
+                                        verifier=self.verifier, progress=lambda step: self._set(step=step))
             self._set(state="done", step="", url=url, finished=int(time.time()),
                       message=("Preview ready" if preview else "Published") + (" (verified live)" if verified else ""))
         except PublishError as e:

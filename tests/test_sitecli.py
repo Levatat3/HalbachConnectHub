@@ -4,11 +4,14 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from halbach_connecthub import __main__ as entry
+from halbach_connecthub import publisher as pub
 from halbach_connecthub import quality
 from halbach_connecthub import siteservice as ss
 from halbach_connecthub import store as st
+from halbach_connecthub.single import InstanceLock
 
 
 def run(*args):
@@ -64,6 +67,85 @@ class TestCli(unittest.TestCase):
             bad.write_text(content, encoding="utf-8")
             self.assertEqual(run("site", "--home", str(self.home), "import", str(bad))[0], 1, content[:30])
         self.assertEqual(ss.SiteService(st.Store(self.home)).model.data["brand"]["name"], "PERSONAL SITE")
+
+
+class TestPublish(unittest.TestCase):
+    """`halbach site publish`: the window's Publish button, run headless. Never deploys for real in tests."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.root = Path(self._t.name)
+        self.home = self.root / "hub"
+        self.store = st.Store(self.home)
+        self.store.set_settings(site_mode="modular", project="my-site", domain="example.com")
+        ss.SiteService(self.store).apply("template.load", {"id": "personal"})
+        self.deployed = []
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def run_publish(self, *args, deployer=None):
+        def dep(stage, project, branch, log):
+            self.deployed.append(branch)
+            self.assertTrue((Path(stage) / "manifest.json").is_file())
+            return "https://abc123.my-site.pages.dev"
+        with mock.patch.object(pub, "find_npx", return_value="npx"), \
+                mock.patch.object(pub, "wrangler_deploy", deployer or dep), \
+                mock.patch.object(pub, "fetch_manifest_build", lambda host, build: True):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = entry.main(["site", "--home", str(self.home), "publish"] + list(args))
+        return code, buf.getvalue()
+
+    def test_publishes_prints_the_url_and_exits_zero(self):
+        code, out = self.run_publish()
+        self.assertEqual(code, 0, out)
+        self.assertIn("https://abc123.my-site.pages.dev", out)
+        self.assertEqual(self.deployed, ["main"])
+        self.assertIsNotNone(st.Store(self.home).state["last_deploy"])
+        lock = InstanceLock(self.home)                             # the state folder is free again afterwards
+        self.assertTrue(lock.acquire())
+        lock.release()
+
+    def test_preview_deploys_the_preview_branch_and_keeps_the_live_site(self):
+        code, out = self.run_publish("--preview")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Preview ready", out)
+        self.assertEqual(self.deployed, ["preview"])
+        self.assertIsNone(st.Store(self.home).state.get("last_deploy"))
+
+    def test_refuses_a_classic_site(self):
+        self.store.set_settings(site_mode="classic")
+        code, out = self.run_publish()
+        self.assertEqual(code, 1)
+        self.assertIn("classic", out)
+        self.assertEqual(self.deployed, [])
+
+    def test_refuses_while_the_window_is_open(self):
+        held = InstanceLock(self.home)                             # what the hub window holds while it runs
+        self.assertTrue(held.acquire())
+        try:
+            code, out = self.run_publish()
+        finally:
+            held.release()
+        self.assertEqual(code, 1)
+        self.assertIn("Halbach is open", out)
+        self.assertEqual(self.deployed, [])                        # nothing was uploaded over the window
+
+    def test_a_failed_deploy_prints_the_reason_and_exits_one(self):
+        def boom(stage, project, branch, log):
+            raise pub.PublishError("Not signed in to Cloudflare.")
+        code, out = self.run_publish(deployer=boom)
+        self.assertEqual(code, 1)
+        self.assertIn("Not signed in to Cloudflare.", out)
+        self.assertIsNone(st.Store(self.home).state.get("last_deploy"))
+
+    def test_not_ready_without_a_project_name(self):
+        self.store.set_settings(project="")
+        code, out = self.run_publish()
+        self.assertEqual(code, 1)
+        self.assertIn("Pages project", out)
+        self.assertEqual(self.deployed, [])
 
 
 class TestQuality(unittest.TestCase):

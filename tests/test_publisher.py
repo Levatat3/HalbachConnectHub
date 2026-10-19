@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from halbach_connecthub import publisher as pub
+from halbach_connecthub import siteservice as ss
 from halbach_connecthub import store as st
 
 
@@ -228,6 +229,58 @@ class TestPublisher(Base):
         self.assertEqual(s["state"], "done")
         self.assertNotIn("verified", s["message"])
         self.assertTrue(any(r["level"] == "warn" for r in self.s.activity()))
+
+
+class TestDeploySite(Base):
+    """The one deploy function: the window's Publisher and `halbach site publish` both run it."""
+
+    def fake(self, calls, url="https://abc123.my-site.pages.dev"):
+        def dep(stage, project, branch, log):
+            calls.append((project, branch))
+            self.assertTrue((Path(stage) / "manifest.json").is_file())
+            return url
+        return dep
+
+    def test_builds_deploys_verifies_and_marks_published(self):
+        self.mod("Demo", {"index.html": "x", "a.js": "y"})
+        calls = []
+        url, verified = pub.deploy_site(self.s, deployer=self.fake(calls), verifier=lambda h, b: True)
+        self.assertEqual((url, verified), ("https://abc123.my-site.pages.dev", True))
+        self.assertEqual(calls, [("my-site", "main")])
+        self.assertEqual(self.s.pending(), [])                     # a deploy counts as published
+        self.assertIsNotNone(self.s.state["last_deploy"])
+        self.assertTrue(any("Publish finished" in r["msg"] for r in self.s.activity()))
+
+    def test_progress_reports_the_steps_between_building_and_checking(self):
+        steps = []
+        pub.deploy_site(self.s, deployer=self.fake([]), verifier=lambda h, b: True, progress=steps.append)
+        self.assertEqual(steps, ["Uploading", "Checking the live site"])
+
+    def test_preview_only_uploads_and_keeps_changes_pending(self):
+        self.mod("Demo", {"index.html": "x", "a.js": "y"})
+        calls = []
+        url, verified = pub.deploy_site(self.s, deployer=self.fake(calls), verifier=lambda h, b: True, preview=True)
+        self.assertIsNone(verified)                               # a preview never checks the live site
+        self.assertEqual(calls, [("my-site", "preview")])
+        self.assertIsNone(self.s.state.get("last_deploy"))
+        self.assertTrue(any(x["id"] == "__site__" for x in self.s.pending()))
+
+    def test_modular_site_is_built_by_the_site_service(self):
+        self.s.set_settings(site_mode="modular")
+        svc = ss.SiteService(self.s)
+        svc.apply("template.load", {"id": "personal"})
+        calls = []
+        pub.deploy_site(self.s, svc, deployer=self.fake(calls), verifier=lambda h, b: True)
+        self.assertEqual(calls, [("my-site", "main")])
+        self.assertEqual(self.s.pending(), [])                     # mark_published plus record_published
+        self.assertTrue(svc.published_path.is_file())              # so the window can say what changed
+
+    def test_a_failed_deploy_is_a_publish_error(self):
+        def boom(stage, project, branch, log):
+            raise pub.PublishError("Not signed in to Cloudflare.")
+        with self.assertRaises(pub.PublishError):
+            pub.deploy_site(self.s, deployer=boom, verifier=lambda h, b: True)
+        self.assertNotEqual(self.s.pending(), [])                  # nothing was marked published
 
 
 class TestWranglerErrors(unittest.TestCase):

@@ -50,7 +50,7 @@ def main(argv=None):
     ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub)")
     ap.add_argument("--no-open", action="store_true", help="don't open a window")
     ap.epilog = ("To send something for review from a script or chat:  halbach submit <folder|file> --name NAME\n"
-                 "To build or check the modular site without the window:  halbach site check | build | export | import\n"
+                 "To build, check or publish the modular site without the window:  halbach site check | build | publish | export | import\n"
                  "To send content to someone's site (an area you have a key for):  halbach area init | connect | send | status")
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
     a = ap.parse_args(args)

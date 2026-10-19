@@ -2,6 +2,8 @@
 
     halbach site check                      list problems and advice (exit 1 if anything blocks publishing)
     halbach site build --out DIR [--preview] build the site into DIR (what Publish would upload)
+    halbach site publish [--preview]        build and deploy, like the window's Publish button (close the
+                                            window first; exits 0 with the URL, 1 with the reason)
     halbach site export FILE                save the site (pages, design, settings) as one JSON file
     halbach site import FILE                replace the site with an export (close the window first)
     halbach site import-classic [--dry-run] read the classic site folder into pages (close the window first;
@@ -16,6 +18,7 @@ import sys
 from pathlib import Path
 
 from .legacyimport import format_report
+from .publisher import Publisher, PublishError, deploy_site
 from .single import InstanceLock
 from .sitemodel import ModelError
 from .siteservice import SiteService
@@ -35,6 +38,8 @@ def main(argv):
     b = sub.add_parser("build")
     b.add_argument("--out", required=True, help="folder to build into (it is emptied first)")
     b.add_argument("--preview", action="store_true", help="include drafts and use /preview/ addresses")
+    p = sub.add_parser("publish", help="build and deploy, like the window's Publish button (close the window first)")
+    p.add_argument("--preview", action="store_true", help="deploy to the preview address; the live site is unchanged")
     e = sub.add_parser("export")
     e.add_argument("file")
     i = sub.add_parser("import")
@@ -60,6 +65,9 @@ def main(argv):
         finally:
             lock.release()
 
+    if a.cmd == "publish":
+        return _publish(store, svc, a.preview)
+
     if a.cmd == "check":
         c = svc.check()
         print("%d problem%s, %d note%s" % (len(c["errors"]), "" if len(c["errors"]) == 1 else "s", len(c["warnings"]), "" if len(c["warnings"]) == 1 else "s"))
@@ -83,6 +91,44 @@ def main(argv):
         print("Saved %d pages to %s" % (len(svc.model.data["pages"]), a.file))
         return 0
     return 2
+
+
+def _publish(store, svc, preview):
+    """`halbach site publish`: the whole publish the window's Publish button does, headless. Exit code.
+
+    A running hub holds this state folder's instance lock and keeps its own copy of the site in
+    memory, so publishing into the same folder from here would race the window's publisher -- it is a
+    refusal, not a retry. Only the modular site can be published this way; a classic site is built
+    and published from the window. Exit 0 with the address, 1 with the reason.
+    """
+    if svc.mode() != "modular":
+        print("This state folder publishes a classic site, which only the window can publish. "
+              "Switch to the modular site in Site settings first.")
+        return 1
+    ok, why = Publisher(store, site=svc).ready()
+    if not ok:
+        print("Cannot publish yet: %s" % why)
+        return 1
+    lock = InstanceLock(store.home)
+    if not lock.acquire():
+        print("Halbach is open on this state folder. Close it first so the two don't publish over each other.")
+        return 1
+    try:
+        url, verified = deploy_site(store, svc, preview=preview)
+    except PublishError as e:
+        print("Publish failed: %s" % e)
+        return 1
+    except Exception as e:
+        print("Publish failed unexpectedly: %s" % e)
+        return 1
+    finally:
+        lock.release()
+    label = "Preview ready" if preview else "Published"
+    print("%s at %s" % (label, url) if url else "%s (wrangler printed no address)" % label)
+    if verified is not None:
+        print("Live site matches the new build" if verified else
+              "Uploaded, but the live site hasn't shown the change yet (it can take a minute to appear)")
+    return 0
 
 
 def _change(svc, a):

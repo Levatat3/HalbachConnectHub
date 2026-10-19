@@ -100,12 +100,13 @@ Every change is saved as a snapshot (the last 100 are kept). **History** restore
 ```
 halbach site check
 halbach site build --out out
+halbach site publish [--preview]           (close the window first)
 halbach site export my-site.json
 halbach site import my-site.json        (close the window first)
 halbach site import-classic [--dry-run] (close the window first)
 ```
 
-`check` exits 1 when something blocks publishing, which makes it usable in a script. `import` refuses a file from a newer Halbach, a malformed file or an oversized one, and leaves the site alone. `import-classic` prints what it understood before it saves: a table of every tab and the blocks it became, the tabs it could only bring over as plain text, and a note for each; `--dry-run` prints the same table and changes nothing, so it also works with the window open.
+`check` exits 1 when something blocks publishing, which makes it usable in a script. `publish` is the Publish button for a script or CI: it builds the modular site and deploys it, prints the address and exits 0, or prints the reason and exits 1. It refuses while the window is open on the same state folder (the two publishers would overwrite each other) and on a classic site, which is only published from the window; `--preview` deploys to the preview address and leaves the live site unchanged. `import` refuses a file from a newer Halbach, a malformed file or an oversized one, and leaves the site alone. `import-classic` prints what it understood before it saves: a table of every tab and the blocks it became, the tabs it could only bring over as plain text, and a note for each; `--dry-run` prints the same table and changes nothing, so it also works with the window open.
 
 ## Checks
 
