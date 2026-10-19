@@ -55,9 +55,10 @@ def check_site(model, theme_vars, stage=None, extra_warnings=()):
             warn("theme", "%s is hard to read on the background (contrast %.1f:1, aim for %.1f:1 or better)." % (label, r, need))
 
     # ---- leftovers from a template
-    for p in data["pages"]:
-        if not p["enabled"] or p["draft"]:
-            continue
+    enabled_pages = [p for p in data["pages"] if p["enabled"] and not p["draft"]]
+    for p in enabled_pages:
+        heading_blocks = 0
+        block_count = len([b for b in p["blocks"] if b.get("enabled", True) is not False])
         for b in p["blocks"]:
             if b.get("enabled", True) is False:
                 continue
@@ -68,9 +69,43 @@ def check_site(model, theme_vars, stage=None, extra_warnings=()):
                     break
             if b["type"] == "image" and not (b.get("props", {}).get("alt") or "").strip():
                 warn("pages/%s/%s" % (p["id"], b["id"]), "An image on '%s' has no description for screen readers." % p["label"])
+            if b["type"] == "text":
+                md = str(b.get("props", {}).get("markdown", ""))
+                # (c) Markdown image with empty alt
+                if re.search(r'!\[\]\([^)]*\)', md):
+                    warn("pages/%s/%s" % (p["id"], b["id"]), "A text block on '%s' has an image with no alt text." % p["label"])
+                # (d) count heading blocks
+                for line in md.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith('# '):
+                        heading_blocks += 1
+                        break
         heroes = [b for b in p["blocks"] if b["type"] == "hero" and b.get("enabled", True)]
         if len(heroes) > 1:
             warn("pages/" + p["id"], "'%s' has more than one big heading block; a page should have one main heading." % p["label"])
+        # (d) page with more than one #-level heading block
+        if heading_blocks > 1:
+            warn("pages/%s" % p["id"], "'%s' has more than one big heading block." % p["label"])
+        # (b) title over 60 chars OR description over 160 chars
+        if len(p.get("title", "")) > 60 or len(p.get("description", "")) > 160:
+            warn("pages/%s" % p["id"], "'%s' has a long title or description that may not look good in search results." % p["label"])
+        # (e) og_image empty while base_url is set
+        if not p.get("og_image") and data.get("settings", {}).get("base_url"):
+            warn("pages/%s" % p["id"], "'%s' has no social image but a site address is set." % p["label"], "info")
+        # (g) an enabled page with no blocks
+        if block_count == 0:
+            warn("pages/%s" % p["id"], "'%s' has no content blocks." % p["label"])
+
+    # (a) two pages with the same title (case-insensitive)
+    title_map = {}
+    for p in enabled_pages:
+        t = p.get("title", "").lower()
+        if t:
+            title_map.setdefault(t, []).append(p["label"])
+    for t, labels in title_map.items():
+        if len(labels) > 1:
+            # message naming both labels
+            warn("pages", "Two pages have the same title: %s and %s." % (labels[0], labels[1]) if len(labels) == 2 else "Multiple pages have the same title (%s)." % ", ".join(labels[:3]))
 
     # ---- links to places inside the site that do not exist
     if stage is not None:
