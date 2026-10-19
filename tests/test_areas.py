@@ -98,7 +98,9 @@ class TestService(Base):
         with self.assertRaises(st.ValidationError):
             self.svc.create("   ")
         with self.assertRaises(st.ValidationError):
-            self.svc.create("X", trust="auto")                                    # auto-publish is deliberately not offered yet
+            self.svc.create("X", trust="always")                                   # only the three known levels exist
+        view, _ = self.svc.create("Auto", trust="auto")                            # auto is a real level: approved and published by itself
+        self.assertEqual(view["trust"], "auto")
 
     def test_limits_and_blocks_are_clamped_to_what_is_safe(self):
         view, _ = self.make_area(limits={"max_file_mb": 5, "extensions": ["png", "html", "exe", "pdf"]}, blocks=["text", "embed", "live-view", "hero"])

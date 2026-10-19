@@ -36,7 +36,7 @@ LOCK_SECONDS = 15 * 60
 REJECT_KEEP_SECONDS = 30 * 24 * 3600
 UPLOADS_PER_WINDOW = 12
 UPLOAD_WINDOW = 10 * 60
-TRUST_LEVELS = ("review", "trusted")                   # "auto" (auto-publish) is deliberately not offered yet
+TRUST_LEVELS = ("review", "trusted", "auto")           # "auto" = approved and published automatically (debounced, freezable)
 HARD_CAPS = {"max_file_mb": 90, "max_bundle_mb": 90, "max_total_mb": 5000, "max_files": 2000, "max_image_px": 12000}
 
 
@@ -103,6 +103,7 @@ class AreaService:
         self.fails = {}                 # ip hash -> [count, locked until]
         self.recent = {}                # (area id, ip hash) -> [upload times]
         self.upload_slots = threading.Semaphore(2)
+        self.on_auto_publish = None     # set by the hub: (area id, version that was live before) when an auto area gains content
         self.recover()
 
     # ---------------------------------------------------------------- state helpers
@@ -158,7 +159,7 @@ class AreaService:
     def view(self, a):
         subs = self.submissions(a["id"], limit=200)
         return {"id": a["id"], "name": a["name"], "slug": a["slug"], "enabled": a["enabled"], "paused": a["paused"], "trust": a["trust"],
-                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "created": a["created"],
+                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "created": a["created"], "auto": a.get("auto"),
                 "key": {"hint": (a.get("key") or {}).get("hint"), "created": (a.get("key") or {}).get("created"),
                         "last_used": (a.get("key") or {}).get("last_used"), "active": bool(a.get("key"))},
                 "current": a.get("current"), "versions": self.versions(a["id"]),
@@ -215,6 +216,9 @@ class AreaService:
                 a["limits"] = _clamp_limits(dict(a["limits"], **kw["limits"]))
             if "blocks" in kw and kw["blocks"] is not None:
                 a["blocks"] = [b for b in kw["blocks"] if b in ALLOWABLE_BLOCKS]
+            if a.get("auto") and not (a["trust"] == "auto" and a["enabled"] and not a["paused"]):
+                a.pop("auto", None)                     # switched away from auto (or paused/off): nothing publishes by itself
+                self.audit(aid, "owner", "auto-publish cancelled", 0, "the area is no longer on auto")
             self._save()
             self.audit(aid, "owner", "updated", 0, ",".join(sorted(k for k in kw)))
             return self.view(a)
@@ -358,8 +362,8 @@ class AreaService:
             meta["changes"] = self._changes(aid, res)
             self._write_meta(aid, sid, meta)
             self.audit(aid, ip_hash, "received", meta["size"], "%d files" % meta["files"])
-            if a["trust"] == "trusted" and not a["paused"]:
-                return self.approve(aid, sid, note="approved automatically (trusted area)", by="auto")
+            if a["trust"] in ("trusted", "auto") and not a["paused"]:
+                return self.approve(aid, sid, note="approved automatically (%s area)" % a["trust"], by="auto")
             return meta
 
     def _changes(self, aid, res):
@@ -404,12 +408,28 @@ class AreaService:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(tree, str(dest) + ".part")
             os.replace(str(dest) + ".part", dest)
+            prev = a["current"]                                 # what an auto-publish would have to roll back to
             a["current"] = ver
             self._save()
             meta.update(state="approved", note=sc.clean_line(note, 300), decided=int(self.clock()), version=ver, decided_by=by)
             self._write_meta(aid, sid, meta)
             self.audit(aid, by, "approved", meta["size"], ver)
+            if a["trust"] == "auto":
+                self._notify_auto(aid, prev)
             return meta
+
+    def _notify_auto(self, aid, prev):
+        """An auto area just gained content: hand it to the auto-publisher (set by the hub).
+
+        A failure here must never undo an approval that already happened, so it is logged instead.
+        """
+        cb = self.on_auto_publish
+        if cb is None:
+            return
+        try:
+            cb(aid, prev)
+        except Exception as e:
+            self.store.log("warn", "Could not line up the automatic publish: %s" % e)
 
     def reject(self, aid, sid, note=""):
         with self.lock:
@@ -431,6 +451,31 @@ class AreaService:
             a["current"] = version
             self._save()
             self.audit(aid, "owner", "rolled-back", 0, version)
+
+    def freeze(self, aid, by="owner", reason=""):
+        """Stop this area publishing by itself, at once: back to review, any waiting publish cancelled.
+
+        One click, and always in the safe direction: freezing can never put content on the site.
+        """
+        with self.lock:
+            a = self._must(aid)
+            waiting = bool(a.get("auto"))
+            a["trust"] = "review"
+            a.pop("auto", None)
+            self._save()
+            self.audit(aid, by, "frozen", 0, reason or ("auto-publish cancelled" if waiting else ""))
+            return self.view(a)
+
+    def auto_rollback(self, aid, version, why):
+        """After an automatic publish whose live check failed: put back what was live before and freeze the area."""
+        with self.lock:
+            a = self._must(aid)
+            a["current"] = version
+            a["trust"] = "review"
+            a.pop("auto", None)
+            self._save()
+            self.audit(aid, "auto", "auto-rollback", 0, "%s; back to %s" % (why, version or "nothing live"))
+            return self.view(a)
 
     # ---------------------------------------------------------------- what the builder uses
     def current_tree(self, aid):

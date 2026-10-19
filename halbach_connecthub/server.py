@@ -23,6 +23,7 @@ from . import funkthemes, sitebuilder
 from .publisher import Publisher, classify
 from .sitemodel import ModelError
 from .areas import AreaService
+from .autopublish import AutoPublisher
 from .siteservice import SiteService
 from .store import Store, ValidationError, collect_files, is_locked_field
 from .tunnel import Tunnel
@@ -47,6 +48,9 @@ class Hub:
         self.publisher = publisher or Publisher(store, site=self.site)
         if getattr(self.publisher, "site", None) is None:
             self.publisher.site = self.site
+        self.autopublish = AutoPublisher(store, self.areas, self.publisher)
+        self.areas.on_auto_publish = self.autopublish.schedule
+        self.autopublish.arm()                                 # picks up anything a crash left waiting
         self.live_srv = None
         self.live_state = None
         self.tunnel = Tunnel(store, lambda: self.live_srv.server_address[1] if self.live_srv else 0)
@@ -75,6 +79,7 @@ class Hub:
     def close(self):
         if getattr(self, "_inbox_stop", None):
             self._inbox_stop.set()
+        self.autopublish.close()
         self.tunnel.stop()
         if self.live_srv:
             self.live_srv.shutdown()
@@ -291,6 +296,8 @@ def make_handler(hub):
                     if act == "rollback":
                         ar.rollback(aid, b.get("version"))
                         return self._json({"ok": True})
+                    if act == "freeze":
+                        return self._json({"area": ar.freeze(aid)})
                     return self._err(404, "Not found")
                 if path == "/api/site/preview":
                     res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None)

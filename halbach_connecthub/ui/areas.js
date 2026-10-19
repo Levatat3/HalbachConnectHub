@@ -23,7 +23,23 @@
     if (!DATA.drop_url) r.appendChild(h("div", { class: "prob", text: "⚠ Set the live host in Settings and start the tunnel, so collaborators can reach your drop address." }));
     else r.appendChild(h("div", { class: "hint", style: "margin-bottom:12px", text: "Drop address for collaborators: " + DATA.drop_url + "  (reached through your tunnel, so your PC and the tunnel must be on while they send)." }));
     if (!DATA.areas.length) r.appendChild(h("p", { class: "empty", text: "No areas yet. Create one, then give its passphrase to the person who will fill it." }));
-    DATA.areas.forEach(function (a) { r.appendChild(areaCard(a)); });
+    DATA.areas.forEach(function (a) {
+      if (a.trust === "auto" && a.enabled) r.appendChild(autoBanner(a));
+      r.appendChild(areaCard(a));
+    });
+  }
+
+  function autoBanner(a) {
+    // A standing banner while an area publishes by itself: what that means and the one-click way out.
+    var waiting = a.auto ? " The next publish is lined up for " + when(a.auto.due) + "." : "";
+    return h("div", { class: "prob", style: "max-width:980px;margin-bottom:10px" },
+      h("div", { text: "Auto-publish is on for " + a.name + ": approved content goes live by itself, at most one publish every five minutes." + waiting }),
+      h("div", { class: "row", style: "margin-top:8px" }, h("span", { style: "flex:1" }),
+        btn("Freeze it", "", function () {
+          if (confirm("Freeze '" + a.name + "'? It goes back to review-only: nothing publishes by itself until you turn auto back on.")) {
+            post("/api/areas/" + a.id + "/freeze", {}, "Frozen. Nothing publishes by itself now.");
+          }
+        })));
   }
 
   function chip(text, cls) { return h("span", { class: "tag " + (cls || "static"), style: "margin-left:8px", text: text }); }
@@ -32,8 +48,9 @@
     var card = h("div", { class: "set", style: "max-width:980px;margin-bottom:16px" });
     var head = h("div", { class: "r" },
       h("div", { style: "flex:1;min-width:0" }, h("b", { text: a.name }), a.paused ? chip("PAUSED", "new") : null, !a.enabled ? chip("OFF", "new") : null,
+        a.trust === "auto" ? chip("AUTO-PUBLISH", "live") : null,
         a.pending ? chip(a.pending + " WAITING", "live") : null,
-        h("small", { text: "/" + a.slug + "/  ·  trust: " + a.trust + "  ·  " + (a.current ? "live version " + a.current : "nothing live yet") + "  ·  " + mb(a.bytes) + " used" })),
+        h("small", { text: "/" + a.slug + "/  ·  trust: " + a.trust + "  ·  " + (a.current ? "live version " + a.current : "nothing live yet") + "  ·  " + mb(a.bytes) + " used" + (a.auto ? "  ·  publishes automatically at " + when(a.auto.due) : "") })),
       btn(openArea === a.id ? "Close" : "Open", "", function () { openArea = openArea === a.id ? null : a.id; render(); }));
     card.appendChild(head);
     card.appendChild(h("div", { class: "r" }, h("div", null, h("b", { text: "Passphrase" }),
@@ -96,7 +113,10 @@
             if (note !== null) post("/api/areas/" + a.id + "/reject", { sid: s.id, note: note }, "Rejected.");
           }),
           btn("Approve", "primary", function () {
-            if (confirm("Approve this? It becomes the area's live content at your next Publish.")) post("/api/areas/" + a.id + "/approve", { sid: s.id }, "Approved. Publish to put it on the site.");
+            var what = a.trust === "auto"
+              ? "Approve this? It becomes the area's live content and goes live on the site by itself within about five minutes."
+              : "Approve this? It becomes the area's live content at your next Publish.";
+            if (confirm(what)) post("/api/areas/" + a.id + "/approve", { sid: s.id }, a.trust === "auto" ? "Approved. It goes live automatically." : "Approved. Publish to put it on the site.");
           })));
       }
       box.appendChild(line);
@@ -123,8 +143,18 @@
   // ---------------------------------------------------------------- settings
   function settingsPanel(box, a) {
     var name = h("input", { type: "text", value: a.name });
-    var trust = h("select", null, h("option", { value: "review", text: "Review every submission (recommended)" }), h("option", { value: "trusted", text: "Trusted: approve valid submissions automatically" }));
+    var trust = h("select", null,
+      h("option", { value: "review", text: "Review every submission (recommended)" }),
+      h("option", { value: "trusted", text: "Trusted: approve valid submissions automatically" }),
+      h("option", { value: "auto", text: "Auto: approve valid submissions and publish them to the site automatically" }));
     trust.value = a.trust;
+    trust.addEventListener("change", function () {
+      if (trust.value === "auto" && a.trust !== "auto" && !confirm(
+        "Turn on auto-publish for '" + a.name + "'?\n\nValid submissions will be approved AND published to your live site by themselves, " +
+        "at most one automatic publish every five minutes. You can freeze it from the banner at any time.")) {
+        trust.value = a.trust;
+      }
+    });
     var en = sw(a.enabled, function () {}), pa = sw(a.paused, function () {}), nav = sw(a.nav, function () {});
     var blockBoxes = ALL_BLOCKS.map(function (b) { var i = h("input", { type: "checkbox", checked: a.blocks.indexOf(b) >= 0 }); return [b, i]; });
     var lim = {}, limRow = h("div", { class: "row", style: "flex-wrap:wrap" });

@@ -1,6 +1,6 @@
 # Areas: letting someone else have a page without handing over keys
 
-> **Status (0.5):** the review-only pipeline is built (areas, bundle validation, drop endpoint, review/versions/rollback, builder merge, command-line client). Not built yet: area mode window, single-file uploads, notifications, the `auto` trust level, EXIF stripping. See [../AREAS.md](../AREAS.md) for what exists.
+> **Status (0.5):** the review-only pipeline is built (areas, bundle validation, drop endpoint, review/versions/rollback, builder merge, command-line client), and so is the `auto` trust level (auto-approve + debounced automatic publish, standing banner, one-click freeze, rollback on a failed live check). Not built yet: area mode window, single-file uploads, notifications, EXIF stripping. See [../AREAS.md](../AREAS.md) for what exists.
 
 An **area** is a lane on your site that one other person can send content into. They never log into anything of yours. Content travels one way, as data, into a review queue on your machine; you approve it; it joins your next Publish. A collaborator can run their own Halbach in **area mode** to edit their area comfortably and press "Send".
 

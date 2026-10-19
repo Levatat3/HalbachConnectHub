@@ -300,7 +300,7 @@ class Publisher:
         self.deployer = deployer or wrangler_deploy
         self.verifier = verifier or fetch_manifest_build
         self.lock = threading.Lock()
-        self._status = {"state": "idle", "step": "", "message": "", "url": None, "finished": None}
+        self._status = {"state": "idle", "step": "", "message": "", "url": None, "finished": None, "verified": None}
 
     def status(self):
         with self.lock:
@@ -329,15 +329,35 @@ class Publisher:
         with self.lock:
             if self._status["state"] == "running":
                 raise ValidationError("A publish is already running.")
-            self._status = {"state": "running", "step": "Building", "message": "", "url": None, "finished": None}
+            self._status = {"state": "running", "step": "Building", "message": "", "url": None, "finished": None,
+                            "verified": None}
         threading.Thread(target=self._run, args=(preview,), daemon=True).start()
 
-    def _run(self, preview):
+    def run_blocking(self, preview=False, label=None):
+        """Run one publish in the calling thread and return the final status dict.
+
+        Used by the auto-publisher (which owns its own thread and needs the outcome
+        before moving on). Raises like start(): not ready, or a publish already running.
+        """
+        ok, why = self.ready()
+        if not ok:
+            raise ValidationError(why)
+        with self.lock:
+            if self._status["state"] == "running":
+                raise ValidationError("A publish is already running.")
+            self._status = {"state": "running", "step": "Building", "message": "", "url": None, "finished": None,
+                            "verified": None}
+        self._run(preview, label)
+        return self.status()
+
+    def _run(self, preview, label=None):
         try:
             url, verified = deploy_site(self.store, self.site, preview=preview, deployer=self.deployer,
                                         verifier=self.verifier, progress=lambda step: self._set(step=step))
-            self._set(state="done", step="", url=url, finished=int(time.time()),
-                      message=("Preview ready" if preview else "Published") + (" (verified live)" if verified else ""))
+            msg = ("Preview ready" if preview else "Published") + (" (verified live)" if verified else "")
+            if label:
+                msg = "%s: %s" % (label, msg)
+            self._set(state="done", step="", url=url, finished=int(time.time()), message=msg, verified=verified)
         except PublishError as e:
             self.store.log("warn", "Publish failed: %s" % e)
             self._set(state="error", step="", message=str(e), finished=int(time.time()))

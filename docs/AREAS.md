@@ -9,7 +9,7 @@ The full design is in [design/AREAS.md](design/AREAS.md). This page says what is
 1. **Set up the drop address once.** In Settings, set the **live host** (the tunnel's host name, for example `live.example.com`) and start the tunnel. Areas are reached through the same tunnel your live modules use. Your PC and the tunnel must be on while someone sends.
 2. Open **Areas → New area**. Give it a name and an address (`/funkworkshop/`). Halbach shows its **passphrase once** (26 random characters). It keeps only a scrypt fingerprint of it. Send the passphrase to the person privately.
 3. When they send something, **Areas** shows a badge. Open the area, then **Review**: you see how many pages, blocks and files, and what changed from what is live. **Preview it** builds the site with their content in your local preview. **Approve** or **Reject** (with a note they can read).
-4. **Publish** as usual. Approving does not put anything on the internet by itself.
+4. **Publish** as usual. Approving does not put anything on the internet by itself — unless the area is on the **Auto** trust level (below), where approved content is published by itself, debounced to at most one automatic publish every five minutes.
 
 Everything else is in the area's tabs: **Versions** (every approval is a saved snapshot; roll back in one click), **Settings** (name, on/off, **paused** to stop new submissions instantly, which blocks they may use, size limits, show in menu), **Activity** (every attempt, with a hashed address, never the passphrase).
 
@@ -19,7 +19,7 @@ A **new passphrase** makes the old one stop working immediately. **Revoke** stop
 
 - **Review** (default): every valid submission waits for you.
 - **Trusted**: a valid submission is approved automatically (still checked, still a saved version, still needs your Publish).
-- An *auto-publish* level exists in the design and is **not offered**: nothing should go live without you pressing Publish until that has had its own security review.
+- **Auto**: a valid submission is approved *and published automatically* — at most one automatic publish every five minutes, no matter how fast submissions arrive. It goes out through the same Publish pipeline, so the area's content can only ever land under its own address. A standing banner in the window shows which areas publish by themselves, and **Freeze it** there (or pause the area, or switch its trust back) cancels the waiting publish at once and returns it to review. If the live site does not confirm a new automatic build, everything that publish pushed is put back, the area is frozen, and the previous content is deployed once more.
 
 ## For the collaborator (for example Funk)
 
@@ -160,6 +160,6 @@ check the current user limit on Cloudflare's plans if you add many people.
 ## Not built yet
 
 - **Area mode window** (a cut-down Halbach with a page editor and a Send button for the collaborator). Today the collaborator edits `area.json` and uses the command line.
-- Single-file uploads (`/drop/<area>/file`), notifications by chat, an auto-publish trust level, and stripping camera data from pictures.
+- Single-file uploads (`/drop/<area>/file`), notifications by chat, and stripping camera data from pictures.
 - A browser upload form for senders; the area's `GET /status` is only used by the command-line client.
-- **Risks to weigh:** a stolen passphrase can send *valid* content, but it still waits for your review (or, in a Trusted area, goes live at your next Publish, limited to the area's own address and blocks). Revoke or replace the passphrase in the window at any time.
+- **Risks to weigh:** a stolen passphrase can send *valid* content, but it still waits for your review (or, in a Trusted area, goes live at your next Publish, limited to the area's own address and blocks). On an **Auto** area it is published by itself, debounced to one automatic publish every five minutes — with the standing banner, the freeze button and the automatic rollback as the ways back. Revoke or replace the passphrase in the window at any time.
