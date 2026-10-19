@@ -81,7 +81,71 @@ Areas add `POST /drop/<area>/bundle`, `GET /drop/<area>/status` and `GET /drop/<
 
 ## Private areas
 
-Unlisted is not private. For a page only certain people can open, put **Cloudflare Access** in front of its address: in Cloudflare's Zero Trust dashboard add a self-hosted application for `https://example.com/<area>/*` and allow your collaborator's email (free for up to 50 users, one-time PIN by email). Halbach cannot do this for you and does not fake a password box.
+Unlisted is not private. Anyone who knows the address can open it. For a page
+only certain people can open, put **Cloudflare Access** in front of that
+address: Access asks each visitor to prove who they are with an emailed code
+before they reach the page. Halbach cannot do this for you and does not fake a
+password box.
+
+This recipe protects the **page's address on your site's domain** (for example
+`https://example.com/funkworkshop/`). It does **not** go in front of the drop
+address the collaborator uploads to (the tunnel's live host, for example
+`https://live.example.com/drop/funkworkshop/...`) — putting Access there would
+stop `halbach area send` from working. They are different host names.
+
+The steps follow Cloudflare's own documentation for a **self-hosted** Access
+application and for **one-time PIN** login. Cloudflare's dashboard wording
+changes from time to time — if a label has moved, look for the same words.
+
+1. Sign in at [dash.cloudflare.com](https://dash.cloudflare.com/) and choose
+   **Zero Trust**.
+2. Go to **Access controls → Applications**, then select **Create new
+   application**.
+3. Choose **Self-hosted and private**, then select **Add public hostname**.
+4. In **Domain**, pick your site's domain (for example `example.com`). In the
+   path box beside it, enter the area followed by `/*` — for `funkworkshop`
+   that is `funkworkshop/*`. This one rule covers the area page **and**
+   everything under its `/files/` folder, so the page and its pictures are
+   protected together.
+5. Under **Access policies**, create a policy:
+   - **Action:** Allow.
+   - **Include:** **Emails**, then add your collaborator's address (add each
+     person who should get in). Access is deny by default: nobody passes without
+     an Allow rule that matches them.
+6. For authentication, make sure the **One-time PIN** provider is enabled (see
+   below) — it is what lets your collaborator sign in with an emailed code and
+   no account.
+7. Select **Create**.
+
+### Turn on the one-time PIN
+
+New Zero Trust accounts use Cloudflare's own identity provider by default and
+**do not** add one-time PIN automatically. Check this on Cloudflare's current
+dashboard:
+
+1. Go to **Zero Trust → Integrations → Identity providers**.
+2. Under **Your identity providers**, select **Add new identity provider**.
+3. Choose **One-time PIN**.
+
+Your collaborator can now enter their email on the Access page and select
+**Send login code**. The code arrives from `notify.cloudflare.com` and expires
+after 10 minutes.
+
+### Check it works
+
+- Open `https://example.com/funkworkshop/` in a **private / incognito window**.
+  You should get Cloudflare's sign-in page, not the area. Enter an allowed
+  email, paste the code, and you reach the page.
+- Open the same address and enter an email that is **not** on the policy: you
+  should see *That account does not have access.*
+- A direct link to a file (`.../funkworkshop/files/picture.png`) is stopped too,
+  because the same path rule covers it.
+
+If your email provider scans or blocks the login mail, allowlist the sender
+domain `notify.cloudflare.com` and the sender address
+`noreply@notify.cloudflare.com` (Cloudflare's one-time PIN page lists the exact
+IP addresses as well). Cloudflare's Zero Trust free plan covers a small team;
+check the current user limit on Cloudflare's plans if you add many people.
 
 ## Not built yet
 
