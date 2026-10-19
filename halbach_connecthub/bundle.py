@@ -261,9 +261,8 @@ def _sanitize_png(path, rel, warnings):
         if ctype in PNG_TEXT_CHUNKS and b"\x00" in chunk_data:
             try:
                 key = chunk_data.split(b"\x00", 1)[0].decode("latin-1").lower()
-                # iTXt carries a language tag and translated key after the NUL; keep the first field (the key).
-                if ctype == b"iTXt":
-                    key = key.split(b"\x00".decode(), 1)[0] if False else key
+                # iTXt puts the keyword before the first NUL too, so the split above already gives the key;
+                # drop anything that names a place or is an XMP block.
                 if "xmp" in key or any(g in key for g in PNG_TEXT_KEYS):
                     drop = True
                     removed = True

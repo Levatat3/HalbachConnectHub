@@ -113,7 +113,6 @@ def _ip_is_private(ip):
 
 def _name_is_private(host):
     return (not host) or host in ("localhost",) or host.endswith((".local", ".internal", ".localhost"))
-    return (not host) or host in ("localhost",) or host.endswith((".local", ".internal", ".localhost"))
 
 
 def probe(url, opener=None, resolver=None):
@@ -138,7 +137,7 @@ def probe(url, opener=None, resolver=None):
         resolve_fn = resolver if resolver is not None else socket.getaddrinfo
         try:
             infos = resolve_fn(host, None) if resolver is None else resolve_fn(host)
-        except (OSError, Exception):
+        except Exception:
             infos = []
         ips = []
         private_found = False
