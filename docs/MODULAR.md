@@ -44,6 +44,7 @@ Every block's settings form is generated from its manifest, so a block someone e
 | GitHub projects | modules | Your public repositories, read live from GitHub. |
 | Hero | text | A big heading with an optional typed effect, a prompt line and a tagline. |
 | Image | media | One image. |
+| Linked sites | layout | Cards, menu links or embedded pages for other https sites you link to. |
 | Links | layout | A row or list of links. |
 | Live data | modules | Live data from your PC with a chosen look (cards, or a plugin's view such as Pets). |
 | Module list | modules | A grid of your modules (docs, pages, galleries, live data). |

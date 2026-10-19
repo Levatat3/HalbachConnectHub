@@ -31,6 +31,7 @@ halbach area init my-page                      a folder with area.json and files
 halbach area connect --url https://live.example.com --area funkworkshop
 halbach area send my-page --wait 60            zip, check, upload, wait up to 60 s for the decision
 halbach area status                            what happened to earlier sends, with the owner's notes
+halbach area validate my-page                   check a folder against the server's limits, no network needed
 ```
 
 `connect` asks for the passphrase without echoing it (or reads `HALBACH_AREA_KEY`) and keeps it in your Halbach state folder, never in the page folder and never in a URL. `send` checks your folder against the area's limits first, so most mistakes show up before anything is uploaded.
