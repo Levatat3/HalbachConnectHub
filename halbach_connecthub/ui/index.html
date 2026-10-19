@@ -115,7 +115,7 @@
 
     <div class="view" id="v-tun-anchor" style="display:none"></div>
     <aside class="drawer" id="drawer">
-      <div class="dh"><div class="ico" id="dIco"></div><div><div id="dName" style="font-weight:600;font-size:15px"></div><div id="dKind" style="margin-top:3px"></div></div><button class="x" data-act="drawerClose">&times;</button></div>
+      <div class="dh"><div class="ico" id="dIco"></div><div><div id="dName" style="font-weight:600;font-size:15px"></div><div id="dKind" style="margin-top:3px"></div></div><button class="x" data-act="drawerClose" aria-label="Close">&times;</button></div>
       <div class="db" id="dBody"></div>
       <div class="df"><button class="btn ghost" data-act="drawerClose">Close</button><span style="flex:1"></span><button class="btn" id="dRemove" data-act="removeModule">Remove module</button></div>
     </aside>
@@ -129,21 +129,21 @@
   </footer>
 </div>
 
-<div class="scrim" id="scrim">
-  <div class="modal">
-    <div class="mh"><b>Add a module</b><button class="x" data-act="addClose">&times;</button></div>
+<div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+  <div class="modal" tabindex="-1">
+    <div class="mh"><b id="addTitle">Add a module</b><button class="x" data-act="addClose" aria-label="Close">&times;</button></div>
     <div class="mb" id="addBody"></div>
     <div class="mf"><button class="btn ghost" data-act="addClose">Cancel</button><button class="btn" id="addBack" style="display:none" data-act="addBack">Back</button><button class="btn primary" id="addNext" data-act="addNext" disabled>Next</button></div>
   </div>
 </div>
-<div class="scrim" id="dlg">
-  <div class="modal">
-    <div class="mh"><b id="dlgTitle"></b><button class="x" id="dlgClose">&times;</button></div>
+<div class="scrim" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+  <div class="modal" tabindex="-1">
+    <div class="mh"><b id="dlgTitle"></b><button class="x" id="dlgClose" aria-label="Close">&times;</button></div>
     <div class="mb" id="dlgBody" style="max-height:70vh;overflow:auto"></div>
     <div class="mf"><button class="btn ghost" id="dlgCancel">Close</button><button class="btn primary" id="dlgOk" style="display:none"></button></div>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="/funktheme.js"></script>
 <script src="/app.js"></script>

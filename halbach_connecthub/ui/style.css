@@ -186,6 +186,11 @@ textarea.mono{font-size:12.5px;line-height:1.5}
 .pview{display:block;height:calc(100vh - 280px);min-height:420px;border:0;background:#fff;margin:0 auto;max-width:none}
 .tag.new{color:#d9b3ff}
 
+/* Keyboard focus: every control shows where the focus is, including the ones that reset all styles */
+.btn:focus-visible,.x:focus-visible,.nav button:focus-visible,.subnav .sub:focus-visible,.mod:focus-visible,
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.modal:focus{outline:none}
+
 /* FunkThemes: the engine paints --page behind everything; surfaces turn glassy so it shows through */
 body.ft-on{background:transparent}
 body.ft-on::before{content:"";position:fixed;inset:0;z-index:-2;background:var(--page);filter:blur(var(--page-blur,0px))}

@@ -283,8 +283,8 @@
   }
 
   // ---------- add-module wizard ----------
-  function addOpen() { add = { step: 1, kind: null, source: "", name: "" }; $("#scrim").classList.add("open"); addStep(1); }
-  function addClose() { $("#scrim").classList.remove("open"); }
+  function addOpen() { add = { step: 1, kind: null, source: "", name: "" }; addStep(1); openOverlay($("#scrim")); }
+  function addClose() { closeOverlay($("#scrim")); }
   function addStep(n) {
     add.step = n;
     $("#addBack").style.display = n > 1 ? "" : "none";
@@ -409,13 +409,52 @@
     var b = $("#dlgBody"); b.textContent = ""; b.appendChild(bodyNode);
     var ok = $("#dlgOk"); ok.style.display = okLabel ? "" : "none"; ok.textContent = okLabel || "";
     dlgOk = okFn || null;
-    $("#dlg").classList.add("open");
+    openOverlay($("#dlg"));
   }
-  function closeDialog() { $("#dlg").classList.remove("open"); dlgOk = null; }
+  function closeDialog() { closeOverlay($("#dlg")); dlgOk = null; }
   document.addEventListener("click", function (ev) {
     if (ev.target.id === "dlgOk" && dlgOk) { Promise.resolve(dlgOk()).then(function (done) { if (done !== false) closeDialog(); }); }
     else if (ev.target.id === "dlgClose" || ev.target.id === "dlgCancel" || ev.target.id === "dlg") closeDialog();
   });
+
+  // Opening a dialog moves the focus into it and closing puts it back where it was, so the
+  // keyboard never gets stranded behind the overlay. Esc closes, and Tab stays inside.
+  var overlayReturn = {};
+  function overlayFocusable(box) {
+    return $$('#' + box.id + ' button, #' + box.id + ' [href], #' + box.id + ' input, #' + box.id + ' select, #' + box.id + ' textarea')
+      .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+  }
+  function openOverlay(box) {
+    if (box.classList.contains("open")) return;
+    overlayReturn[box.id] = document.activeElement;
+    box.classList.add("open");
+    var start = box.querySelector(".modal") || overlayFocusable(box)[0];
+    if (start && start.focus) start.focus();
+  }
+  function closeOverlay(box) {
+    if (!box.classList.contains("open")) return;
+    box.classList.remove("open");
+    var back = overlayReturn[box.id];
+    overlayReturn[box.id] = null;
+    if (back && back.focus && document.body.contains(back)) back.focus();
+  }
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" || ev.key === "Esc") {
+      if ($("#dlg").classList.contains("open")) { closeDialog(); ev.preventDefault(); }
+      else if ($("#scrim").classList.contains("open")) { addClose(); ev.preventDefault(); }
+      return;
+    }
+    if (ev.key !== "Tab") return;
+    var box = $("#dlg").classList.contains("open") ? $("#dlg") : ($("#scrim").classList.contains("open") ? $("#scrim") : null);
+    if (!box) return;
+    var list = overlayFocusable(box), active = document.activeElement;
+    if (!list.length) { (box.querySelector(".modal") || box).focus(); ev.preventDefault(); return; }
+    var first = list[0], last = list[list.length - 1], i = list.indexOf(active);
+    if (i === -1) { (ev.shiftKey ? last : first).focus(); ev.preventDefault(); }        // focus on the modal itself, or behind it
+    else if (ev.shiftKey && i === 0) { last.focus(); ev.preventDefault(); }
+    else if (!ev.shiftKey && i === list.length - 1) { first.focus(); ev.preventDefault(); }
+  });
+
   // ---------- FunkThemes (Funk's theme engine and maker): window theme + the shared theme library ----------
   var WT_KEY = "halbach.windowtheme";
   var WT_MAP = { "--bg": "--bg", "--bg2": "--s1", "--card": "--s1", "--card2": "--s2", "--line": "--line", "--line2": "--line2",

@@ -8,7 +8,7 @@
   var sub = "overview";          // which sub-screen is showing
   var curPage = null;            // page id open in the editor
   var curBlock = null;           // block id open in the editor ("new:<type>" while adding)
-  var previewWidth = 1100;
+  var previewWidth = 0;          // 0 means fill the available width; Phone/Tablet/Desktop set fixed widths
   var FUNK_DEFAULT = { funkTheme: 1, name: "Funk", style: "gradient", colors: ["#462a50", "#2f0a66"], angle: 135, strength: 0.45, accent: null, blur: 0, fx: "ascii", fxColor: "#c604fb", fxSpeed: 2.6, fxAmount: 0.88 };
 
   // ---------------------------------------------------------------- tiny DOM helpers (text only, never HTML)
@@ -64,14 +64,16 @@
   function render() {
     var r = root(); if (!r || !SS) return;
     r.textContent = "";
-    var bar = h("div", { class: "subnav" });
+    var bar = h("div", { class: "subnav", role: "tablist", "aria-label": "Site screens" });
     SUBS.forEach(function (s) {
       var label = s[1], extra = s[0] === "overview" && SS.errors.length ? " (" + SS.errors.length + ")" : "";
-      bar.appendChild(h("button", { class: "sub" + (sub === s[0] || (s[0] === "pages" && sub === "page") ? " on" : ""), type: "button", text: label + extra,
+      var on = sub === s[0] || (s[0] === "pages" && sub === "page");
+      bar.appendChild(h("button", { class: "sub" + (on ? " on" : ""), type: "button", role: "tab", id: "sitetab-" + s[0],
+        "aria-selected": on ? "true" : "false", "aria-controls": "site-panel", text: label + extra,
         on: { click: function () { sub = s[0]; curBlock = null; render(); } } }));
     });
     r.appendChild(bar);
-    var body = h("div", { class: "subbody" });
+    var body = h("div", { class: "subbody", id: "site-panel", role: "tabpanel", "aria-labelledby": "sitetab-" + (sub === "page" ? "pages" : sub) });
     r.appendChild(body);
     ({ overview: overview, pages: pages, page: pageEditor, design: design, menu: menu, linked: linkedSites, settings: siteSettings, history: history, preview: preview }[sub] || overview)(body);
   }
@@ -545,9 +547,18 @@
         }
         var sel = h("select", null, r.pages.map(function (p) { return h("option", { value: p.path, text: p.path }); }));
         var fr = h("iframe", { class: "pview", title: "Preview", src: "/preview" + r.pages[0].path });
-        fr.style.width = previewWidth + "px";
+        fr.style.width = previewWidth ? previewWidth + "px" : "100%";
         sel.addEventListener("change", function () { fr.src = "/preview" + sel.value; });
-        var widths = h("span", { class: "row" }, [["Phone", 390], ["Tablet", 780], ["Desktop", 1100]].map(function (w) { return btn(w[0], "ghost", function () { previewWidth = w[1]; fr.style.width = w[1] + "px"; }); }));
+        var widthBtns = [["Fit", 0], ["Phone", 390], ["Tablet", 780], ["Desktop", 1100]].map(function (w) {
+          return btn(w[0], "ghost", function () { setWidth(w[1]); }, { "data-w": w[1] });
+        });
+        function setWidth(px) {
+          previewWidth = px;
+          fr.style.width = px ? px + "px" : "100%";
+          widthBtns.forEach(function (b) { b.classList.toggle("primary", +b.dataset.w === px); });
+        }
+        setWidth(previewWidth);
+        var widths = h("span", { class: "row" }, widthBtns);
         frameBox.appendChild(h("div", { class: "row", style: "margin-bottom:8px" }, sel, widths, h("span", { style: "flex:1" }),
           h("a", { class: "btn", href: "/preview/", target: "_blank", rel: "noopener", text: "Open in a new tab ↗" })));
         frameBox.appendChild(h("div", { class: "pscroll" }, fr));

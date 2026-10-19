@@ -48,12 +48,16 @@
 
   function areaPanel(a) {
     var box = h("div", { style: "padding:10px 14px 16px" });
-    var tabs = h("div", { class: "subnav" });
+    var tabs = h("div", { class: "subnav", role: "tablist", "aria-label": "Area panels" });
     [["review", "Review (" + a.pending + ")"], ["versions", "Versions"], ["settings", "Settings"], ["audit", "Activity"]].forEach(function (t) {
-      tabs.appendChild(h("button", { class: "sub" + (openPanel === t[0] ? " on" : ""), type: "button", text: t[1], on: { click: function () { openPanel = t[0]; render(); } } }));
+      var on = openPanel === t[0];
+      tabs.appendChild(h("button", { class: "sub" + (on ? " on" : ""), type: "button", role: "tab", id: "areatab-" + a.id + "-" + t[0],
+        "aria-selected": on ? "true" : "false", "aria-controls": "areapanel-" + a.id, text: t[1], on: { click: function () { openPanel = t[0]; render(); } } }));
     });
     box.appendChild(tabs);
-    ({ review: reviewPanel, versions: versionsPanel, settings: settingsPanel, audit: auditPanel }[openPanel] || reviewPanel)(box, a);
+    var panel = h("div", { id: "areapanel-" + a.id, role: "tabpanel", "aria-labelledby": "areatab-" + a.id + "-" + openPanel });
+    ({ review: reviewPanel, versions: versionsPanel, settings: settingsPanel, audit: auditPanel }[openPanel] || reviewPanel)(panel, a);
+    box.appendChild(panel);
     return box;
   }
 
