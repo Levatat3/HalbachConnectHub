@@ -121,7 +121,7 @@ A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](exampl
 
 ## Tests
 
-386 tests cover the model, the builder (including the generated headers), the preview route, the importer and the command line.
+403 tests cover the model, the builder (including the generated headers), the preview route, the importer and the command line.
 
 ```
 python -m unittest discover -s tests -t .
@@ -133,6 +133,7 @@ python -m unittest discover -s tests -t .
 - The change detector uses whole-second modification times.
 - Live data is only as available as your PC and home upload.
 - See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and threat model.
+- Something not working? [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) lists the common ones (theme not sticking, blank preview, publish refused, tunnel, area uploads).
 
 ## Credits
 

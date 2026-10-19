@@ -135,11 +135,16 @@ class TestRuntime(unittest.TestCase):
 class TestDesignDocs(unittest.TestCase):
     def test_docs_exist_and_cross_link(self):
         docs = BUILTIN.parent.parent / "docs"
-        for rel in ("MODULAR-PLAN.md", "design/RESEARCH.md", "design/SITE-MODEL.md", "design/PLUGINS.md", "design/AREAS.md"):
+        for rel in ("MODULAR-PLAN.md", "TROUBLESHOOTING.md", "design/RESEARCH.md", "design/SITE-MODEL.md", "design/PLUGINS.md", "design/AREAS.md"):
             self.assertTrue((docs / rel).is_file(), rel)
         plan = (docs / "MODULAR-PLAN.md").read_text(encoding="utf-8")
         for img in re.findall(r"\]\((img/[^)]+)\)", plan):
             self.assertTrue((docs / img).is_file(), "plan links a missing image: " + img)
+
+    def test_readme_links_the_troubleshooting_page(self):
+        """Task 1.10: the FAQ has to be reachable from the README."""
+        readme = (BUILTIN.parent.parent / "README.md").read_text(encoding="utf-8")
+        self.assertIn("docs/TROUBLESHOOTING.md", readme)
 
 
 if __name__ == "__main__":
