@@ -4,6 +4,7 @@ read back how the owner decided.
     halbach area init <folder>                         start a folder (area.json + files/)
     halbach area connect --url U --area A [--key K]     remember where to send (the key is asked for, not echoed)
     halbach area send <folder>                          zip, pre-check, upload, wait for the decision
+    halbach area validate <folder>                      check the folder against the rules, offline (no key needed)
     halbach area status                                 recent submissions and what happened to them
     halbach area limits                                 what this area allows
 
@@ -15,7 +16,9 @@ import argparse
 import getpass
 import json
 import os
+import shutil
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -23,7 +26,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from .bundle import BundleError, check_name, extension_problem, DEFAULT_LIMITS
+from .bundle import BundleError, check_name, extension_problem, DEFAULT_LIMITS, validate_bundle
+from .registry import Registry
 from .store import home_dir
 
 CONNECTION_FILE = "area-connection.json"
@@ -110,6 +114,26 @@ def build_zip(folder, out_path, limits=None):
         os.remove(out_path)
         raise ClientError("The bundle is %.1f MB; this area takes at most %d MB." % (size / 1048576, int(limits["max_bundle_mb"])))
     return size
+
+
+def validate_folder(folder, limits=None, registry=None):
+    """Offline check: zip the folder and run the owner's exact validator over it, without contacting anyone.
+
+    Returns {"pages", "blocks", "files", "warnings"}. Raises ClientError (the folder cannot even be zipped) or
+    BundleError (the bundle would be refused; .reasons says why). Nothing is left behind in the temp folder.
+    """
+    limits = dict(DEFAULT_LIMITS, **(limits or {}))
+    area = {"slug": "area", "limits": limits}                 # the real slug only matters for URLs, not for the rules
+    tmp = Path(tempfile.mkdtemp(prefix="halbach-validate-"))
+    try:
+        zip_path, dest = tmp / "bundle.zip", tmp / "tree"
+        build_zip(folder, zip_path, limits)
+        result = validate_bundle(zip_path, dest, area, registry or Registry())
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    doc = result["doc"]
+    return {"pages": len(doc["pages"]), "blocks": sum(len(p["blocks"]) for p in doc["pages"]),
+            "files": len(result["files"]), "warnings": result["warnings"]}
 
 
 class Area:
@@ -214,6 +238,9 @@ def main(argv):
     s.add_argument("--wait", type=int, default=0, help="seconds to wait for the owner's decision (default: do not wait)")
     sub.add_parser("status")
     sub.add_parser("limits")
+    v = sub.add_parser("validate")
+    v.add_argument("folder")
+    v.add_argument("--limits", help="JSON file of limits to check against (default: this area's standard limits)")
     a = ap.parse_args(argv)
     try:
         if a.cmd == "init":
@@ -226,6 +253,24 @@ def main(argv):
             client = Area(url, area, key)
             client.limits()                                          # fails clearly when something is wrong
             print("Connected. Saved to", save_connection(url, area, key, a.home))
+            return 0
+        if a.cmd == "validate":                                     # offline; needs no connection file
+            limits = None
+            if a.limits:
+                try:
+                    limits = json.loads(Path(a.limits).read_text(encoding="utf-8"))
+                except (OSError, ValueError) as e:
+                    raise ClientError("Could not read the limits file (%s)." % e)
+            try:
+                summary = validate_folder(a.folder, limits)
+            except BundleError as e:
+                print("This folder would be refused:")
+                for r in e.reasons:
+                    print("  -", r)
+                return 1
+            print("Looks good: %d page(s), %d block(s), %d file(s)." % (summary["pages"], summary["blocks"], summary["files"]))
+            for w in summary["warnings"]:
+                print("  note:", w)
             return 0
         client = _resolve(a)
         if a.cmd == "limits":

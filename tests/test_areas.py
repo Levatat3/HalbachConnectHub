@@ -681,5 +681,71 @@ class TestClient(DropBase):
         self.assertIn("Not connected", out)
 
 
+class TestValidateOffline(unittest.TestCase):
+    """halbach area validate checks a folder against the owner's rules with no connection and no server."""
+
+    def setUp(self):
+        self._t = tempfile.TemporaryDirectory()
+        self.root = Path(self._t.name)
+        self.folder = self.root / "mine"
+        areaclient.init_folder(self.folder)
+        (self.folder / "files" / "example.png").write_bytes(zk.png())
+
+    def tearDown(self):
+        self._t.cleanup()
+
+    def run_cli(self, *args):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = entry.main(["area", "--home", str(self.root / "client-home")] + list(args))
+        return code, buf.getvalue()
+
+    def temp_leftovers(self):
+        return list(Path(tempfile.gettempdir()).glob("halbach-validate-*"))
+
+    def test_a_valid_folder_passes_with_a_summary_and_without_a_connection_file(self):
+        code, out = self.run_cli("validate", str(self.folder))
+        self.assertEqual(code, 0, out)
+        self.assertIn("Looks good: 1 page(s), 2 block(s), 1 file(s).", out)
+        self.assertFalse((self.root / "client-home" / areaclient.CONNECTION_FILE).exists())     # worked offline
+        self.assertFalse((self.folder / ".halbach-bundle.zip").exists())                       # nothing left in the folder
+        self.assertEqual(self.temp_leftovers(), [])                                            # nothing left in the temp folder
+
+    def test_an_exe_is_refused_with_a_reason_and_nothing_left_behind(self):
+        (self.folder / "files" / "run.exe").write_bytes(b"MZ")
+        code, out = self.run_cli("validate", str(self.folder))
+        self.assertEqual(code, 1)
+        self.assertIn("run.exe", out)
+        self.assertIn("allowed file type", out)
+        self.assertEqual(self.temp_leftovers(), [])
+
+    def test_a_bad_block_is_refused_with_readable_reasons(self):
+        doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
+        doc["pages"][0]["blocks"].append({"type": "embed", "props": {"url": "https://evil.example"}})
+        (self.folder / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+        code, out = self.run_cli("validate", str(self.folder))
+        self.assertEqual(code, 1)
+        self.assertIn("refused", out)
+        self.assertIn("does not allow", out)
+        self.assertEqual(self.temp_leftovers(), [])
+
+    def test_limits_from_a_file_change_what_passes(self):
+        (self.folder / "files" / "notes.txt").write_text("hi", encoding="utf-8")
+        code, out = self.run_cli("validate", str(self.folder))
+        self.assertEqual(code, 0, out)
+        lim = self.root / "limits.json"
+        lim.write_text(json.dumps({"extensions": ["md", "png"]}), encoding="utf-8")
+        code, out = self.run_cli("validate", str(self.folder), "--limits", str(lim))
+        self.assertEqual(code, 1)
+        self.assertIn("notes.txt", out)
+        self.assertIn("allowed file type", out)
+
+    def test_a_folder_without_area_json_says_what_is_missing(self):
+        code, out = self.run_cli("validate", str(self.root / "nowhere"))
+        self.assertEqual(code, 1)
+        self.assertIn("area.json", out)
+        self.assertEqual(self.temp_leftovers(), [])
+
+
 if __name__ == "__main__":
     unittest.main()
