@@ -181,7 +181,8 @@ def make_handler(hub):
             if path == "/api/areas":
                 lh = (hub.store.state.get("settings") or {}).get("live_host")
                 return self._json({"areas": hub.areas.list_view(), "pending": hub.areas.pending_count(),
-                                   "drop_url": ("https://%s/drop/" % lh) if lh else None})
+                                   "drop_url": ("https://%s/drop/" % lh) if lh else None,
+                                   "auto_publish_enabled": bool((hub.store.state.get("settings") or {}).get("auto_publish_enabled"))})
             m_audit = re.match(r"^/api/areas/([a-z0-9-]+)/audit$", path)
             if m_audit:
                 if not hub.areas.get(m_audit.group(1)):
@@ -308,7 +309,8 @@ def make_handler(hub):
                     return self._json(s.set_settings(site_dir=b.get("site_dir"), project=b.get("project"),
                                                      domain=b.get("domain"), live_host=b.get("live_host"),
                                                      tunnel_name=b.get("tunnel_name"), extra_origins=b.get("extra_origins"),
-                                                     cloudflared_path=b.get("cloudflared_path"), site_mode=b.get("site_mode")))
+                                                     cloudflared_path=b.get("cloudflared_path"), site_mode=b.get("site_mode"),
+                                                     auto_publish_enabled=b.get("auto_publish_enabled")))
                 if path == "/api/publish":
                     hub.publisher.start(preview=bool(b.get("preview")))
                     return self._json(hub.publisher.status(), 202)

@@ -87,6 +87,16 @@ class TestServer(unittest.TestCase):
         self.assertEqual(self.req("GET", "/../store.py")[0], 404)
         self.assertEqual(self.req("GET", "/connecthub/store.py")[0], 404)
 
+    def test_auto_publish_flag_is_settable_and_visible(self):
+        s, _ = self.api("POST", "/api/settings", {"auto_publish_enabled": True})
+        self.assertEqual(s, 200)
+        s, areas = self.api("GET", "/api/areas")
+        self.assertTrue(areas["auto_publish_enabled"])
+        s, _ = self.api("POST", "/api/settings", {"auto_publish_enabled": False})
+        self.assertEqual(s, 200)
+        s, areas = self.api("GET", "/api/areas")
+        self.assertFalse(areas["auto_publish_enabled"])
+
     def test_add_toggle_remove_roundtrip(self):
         s, m = self.api("POST", "/api/modules", {"kind": "static", "name": "Roundtrip", "source": str(self.site)})
         self.assertEqual(s, 201)

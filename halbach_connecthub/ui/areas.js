@@ -145,8 +145,11 @@
     var name = h("input", { type: "text", value: a.name });
     var trust = h("select", null,
       h("option", { value: "review", text: "Review every submission (recommended)" }),
-      h("option", { value: "trusted", text: "Trusted: approve valid submissions automatically" }),
-      h("option", { value: "auto", text: "Auto (experimental): approve valid submissions and publish them to the site automatically" }));
+      h("option", { value: "trusted", text: "Trusted: approve valid submissions automatically" }));
+    var autoAllowed = DATA.auto_publish_enabled || a.trust === "auto";
+    if (autoAllowed) {
+      trust.appendChild(h("option", { value: "auto", text: "Auto (experimental): approve valid submissions and publish them to the site automatically" }));
+    }
     trust.value = a.trust;
     trust.addEventListener("change", function () {
       if (trust.value === "auto" && a.trust !== "auto" && !confirm(
@@ -165,6 +168,7 @@
     box.appendChild(h("div", { class: "set", style: "max-width:860px" },
       row("Name", "", name), row("On", "Off hides the area's page and refuses uploads.", en), row("Paused", "Stops new submissions at once; the live page stays up.", pa),
       row("Show in the menu", "", nav), row("Review", "Even when trusted, every bundle is still checked and every approval is a saved version.", trust),
+      DATA.auto_publish_enabled ? null : h("div", { class: "hint", style: "margin:0 0 8px", text: "Auto-publish is off. Turn it on in Settings → 'Auto-publish areas' to see the Auto trust level here." }),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Blocks they may use" }), h("div", { class: "row", style: "flex-wrap:wrap;margin-top:6px" },
         blockBoxes.map(function (p) { return h("label", { class: "hint", style: "margin-right:12px" }, p[1], " " + p[0]); })))),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Limits" }), limRow)),

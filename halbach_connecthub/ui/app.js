@@ -160,6 +160,7 @@
   function fillSettings() {
     var st = S.settings || {};
     $("#setSite").value = st.site_dir || ""; $("#setProject").value = st.project || ""; $("#setDomain").value = st.domain || ""; $("#setLive").value = st.live_host || ""; $("#setTunnel").value = st.tunnel_name || ""; $("#setOrig").value = st.extra_origins || ""; $("#setCf").value = st.cloudflared_path || "";
+    $("#setAuto").checked = !!st.auto_publish_enabled;
   }
 
   function refresh(keepDrawer) {
@@ -387,7 +388,7 @@
         case "publish": return startPublish(false);
         case "previewPublish": return startPublish(true);
         case "saveSettings":
-          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value, tunnel_name: $("#setTunnel").value, extra_origins: $("#setOrig").value, cloudflared_path: $("#setCf").value })
+          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value, tunnel_name: $("#setTunnel").value, extra_origins: $("#setOrig").value, cloudflared_path: $("#setCf").value, auto_publish_enabled: !!$("#setAuto").checked })
             .then(function () { $("#setErr").textContent = ""; toast("Settings saved"); return refresh(); })
             .catch(function (e) { $("#setErr").textContent = e.message; });
       }
