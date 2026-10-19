@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shutil
 import threading
@@ -24,6 +25,8 @@ import time
 from . import siteschema as sc
 from .bundle import ALLOWABLE_BLOCKS, DEFAULT_BLOCKS, DEFAULT_LIMITS, KNOWN_EXT, BundleError, validate_bundle
 from .store import ValidationError
+
+_SAFE_SID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"          # no look-alike characters
 KEY_LENGTH = 26
@@ -289,6 +292,8 @@ class AreaService:
 
     # ---------------------------------------------------------------- submissions
     def _sub_dir(self, aid, sid):
+        if not isinstance(sid, str) or not _SAFE_SID.match(sid):
+            raise ValidationError("That submission does not exist.")
         return self.dir(aid) / "submissions" / sid
 
     def _read_meta(self, aid, sid):
