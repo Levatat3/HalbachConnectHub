@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from halbach_connecthub import server
+from halbach_connecthub import areaclient, areamode, server
+from halbach_connecthub.registry import Registry
+from halbach_connecthub.sitemodel import SiteModel
 
 
 class Base(unittest.TestCase):
@@ -60,6 +62,42 @@ class TestAreaMode(Base):
         s, raw = self.req("POST", "/api/site/page.add", {"label": "x", "slug": "x"})
         self.assertNotEqual(s, 404, raw)
         self.assertNotEqual(self.req("POST", "/api/site/preview")[0], 404)      # the preview route exists
+
+
+class TestAreaModel(unittest.TestCase):
+    def test_round_trip_keeps_blocks(self):
+        with tempfile.TemporaryDirectory() as t:
+            root, folder = Path(t), Path(t) / "page"
+            areaclient.init_folder(folder)
+            reg = Registry()
+            m = SiteModel(root / "hub", reg)
+            areamode.load_area(folder, m)
+            self.assertEqual(m.data["pages"][0]["slug"], "")
+            self.assertEqual(len(m.data["pages"][0]["blocks"]), 2)         # hero + text from the template
+            # an edit and dump survive a reload
+            m.data["pages"][0]["blocks"][0]["props"]["heading"] = "Edited"
+            areamode.dump_area(m, folder)
+            m2 = SiteModel(root / "hub2", reg)
+            areamode.load_area(folder, m2)
+            self.assertEqual(m2.data["pages"][0]["blocks"][0]["props"]["heading"], "Edited")
+
+    def test_missing_folder_is_a_clear_error(self):
+        with tempfile.TemporaryDirectory() as t:
+            reg = Registry()
+            m = SiteModel(Path(t) / "hub", reg)
+            with self.assertRaises(Exception):
+                areamode.load_area(Path(t) / "nope", m)
+
+    def test_dump_writes_area_json(self):
+        with tempfile.TemporaryDirectory() as t:
+            root, folder = Path(t), Path(t) / "page"
+            areaclient.init_folder(folder)
+            m = SiteModel(root / "hub", Registry())
+            areamode.load_area(folder, m)
+            areamode.dump_area(m, folder)
+            doc = json.loads((folder / "area.json").read_text(encoding="utf-8"))
+            self.assertEqual(doc["format"], 1)
+            self.assertEqual(doc["pages"][0]["blocks"][0]["type"], "hero")
 
 
 if __name__ == "__main__":
