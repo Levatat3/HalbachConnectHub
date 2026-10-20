@@ -112,6 +112,19 @@ class TestAreaModel(unittest.TestCase):
             self.assertEqual(doc["format"], 1)
             self.assertEqual(doc["pages"][0]["blocks"][0]["type"], "hero")
 
+    def test_dump_never_drops_a_disabled_block(self):
+        # The area format has no per-block on/off switch, so a block with enabled=False must still be written
+        # (never silently dropped), rather than lost on the round-trip.
+        with tempfile.TemporaryDirectory() as t:
+            root, folder = Path(t), Path(t) / "page"
+            areaclient.init_folder(folder)
+            m = SiteModel(root / "hub", Registry())
+            areamode.load_area(folder, m)
+            m.data["pages"][0]["blocks"][0]["enabled"] = False
+            areamode.dump_area(m, folder)
+            doc = json.loads((folder / "area.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(doc["pages"][0]["blocks"]), 2)     # nothing dropped
+
     def test_every_page_and_block_round_trips(self):
         with tempfile.TemporaryDirectory() as t:
             root, folder = Path(t), Path(t) / "page"
@@ -151,6 +164,82 @@ class TestAreaFolderLoading(unittest.TestCase):
             finally:
                 srv.shutdown()
                 srv.server_close()
+
+
+class TestAreaWindowEndToEnd(unittest.TestCase):
+    """Drive the collaborator window over HTTP the way the browser would: load, edit, add/update/delete blocks,
+    preview, and persist back to area.json. No browser needed."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._t = tempfile.TemporaryDirectory()
+        cls.folder = Path(cls._t.name) / "page"
+        areaclient.init_folder(cls.folder)
+        cls.srv, cls.hub = server.serve(Path(cls._t.name) / "hub", 0, token="tok", area=True, area_folder=str(cls.folder))
+        cls.port = cls.srv.server_address[1]
+        server.run_in_thread(cls.srv)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+        cls._t.cleanup()
+
+    def req(self, method, path, body=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        h = {"Host": "127.0.0.1:%d" % self.port, "X-Halbach-Token": "tok"}
+        data = json.dumps(body).encode() if body is not None else None
+        if data:
+            h["Content-Type"] = "application/json"
+        c.request(method, path, data, h)
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        return r.status, raw
+
+    def model(self):
+        s, d = self.req("GET", "/api/site")
+        self.assertEqual(s, 200)
+        return json.loads(d)["model"]
+
+    def test_full_edit_flow(self):
+        page = self.model()["pages"][0]
+        self.assertEqual(page["id"], "page")
+        self.assertEqual(page["slug"], "")
+        self.assertEqual([b["type"] for b in page["blocks"]], ["hero", "text"])
+
+        # title + description
+        self.assertEqual(self.req("POST", "/api/site/page.update", {"id": "page", "title": "Workshop", "label": "Workshop", "description": "A page"})[0], 200)
+        self.assertEqual(self.model()["pages"][0]["title"], "Workshop")
+
+        # add a block
+        s, raw = self.req("POST", "/api/site/block.add", {"page": "page", "type": "text", "props": {"markdown": "Hello **there**"}})
+        self.assertEqual(s, 200, raw)
+        blocks = self.model()["pages"][0]["blocks"]
+        self.assertEqual(len(blocks), 3)
+        self.assertEqual(blocks[-1]["props"]["markdown"], "Hello **there**")
+        bid = blocks[-1]["id"]
+
+        # update it
+        self.assertEqual(self.req("POST", "/api/site/block.update", {"page": "page", "id": bid, "props": {"markdown": "Changed"}})[0], 200)
+        self.assertEqual(self.model()["pages"][0]["blocks"][-1]["props"]["markdown"], "Changed")
+
+        # move it up, then delete it
+        self.assertEqual(self.req("POST", "/api/site/block.move", {"page": "page", "id": bid, "delta": -1})[0], 200)
+        self.assertEqual(self.req("POST", "/api/site/block.delete", {"page": "page", "id": bid})[0], 200)
+        self.assertEqual(len(self.model()["pages"][0]["blocks"]), 2)
+
+        # preview builds cleanly
+        s, raw = self.req("POST", "/api/site/preview", {})
+        self.assertEqual(s, 200)
+        summary = json.loads(raw)
+        self.assertTrue(summary["ok"], summary.get("errors"))
+
+        # the edit persists to area.json on the next dump (which send performs)
+        areamode.dump_area(self.hub.site.model, self.folder)
+        doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["pages"][0]["title"], "Workshop")
+        self.assertEqual(len(doc["pages"][0]["blocks"]), 2)
 
 
 if __name__ == "__main__":
