@@ -39,6 +39,9 @@ PREVIEW_CHARS = 4000
 AREA_FILES = {"/": "area.html", "/style.css": "style.css", "/area.js": "area.js"}
 AREA_GET = {"/api/site", "/api/area/limits", "/api/area/status"}
 AREA_POST = {"/api/site/preview", "/api/area/send"}
+# The only site edits a collaborator may make. Everything else SiteService.apply handles (import, settings, theme,
+# brand, mode switch, linked sites, restore, page add/delete/duplicate/move) stays 404 in the restricted window.
+AREA_SITE_ACTIONS = {"page.update", "block.add", "block.update", "block.delete", "block.move"}
 
 
 class Hub:
@@ -205,7 +208,11 @@ def make_handler(hub):
             if method == "GET":
                 return path in AREA_GET
             if method == "POST":
-                return path in AREA_POST or path.startswith("/api/site/")
+                if path in AREA_POST:
+                    return True
+                if path.startswith("/api/site/"):
+                    return path[len("/api/site/"):] in AREA_SITE_ACTIONS
+                return False
             return False
 
         def _area_json(self, fn):

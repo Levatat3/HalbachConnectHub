@@ -6,6 +6,7 @@ import shutil
 import sys
 import subprocess
 import webbrowser
+from pathlib import Path
 
 from . import __version__
 from .server import serve
@@ -57,7 +58,7 @@ def main(argv=None):
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
     a = ap.parse_args(args)
 
-    home = a.home or home_dir()
+    home = (str(Path(a.area).resolve() / ".halbach")) if a.area else (a.home or home_dir())
     lock = InstanceLock(home)
     if not lock.acquire():
         # Never start a second hub on the same data: two would overwrite each other's state.

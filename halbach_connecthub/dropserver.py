@@ -84,6 +84,15 @@ def handle(h, areas, method):
     return _receive(h, areas, area, ip)
 
 
+def _delete(path):
+    """Remove a file, never raising. The temp upload is removed before replying so the sender can never see a
+    quarantine that still holds its bytes."""
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def _receive(h, areas, area, ip):
     aid = area["id"]
     if area["paused"]:
@@ -136,20 +145,20 @@ def _receive(h, areas, area, ip):
                     out.write(chunk)
         except (socket.timeout, TimeoutError):
             areas.audit(aid, areas.ip_hash(ip), "upload-timeout", got, "")
+            _delete(tmp)
             _reply(h, 408)
             return True
         except OSError:
+            _delete(tmp)
             _reply(h, 503)
             return True
         if got != length:
             areas.audit(aid, areas.ip_hash(ip), "upload-incomplete", got, "")
+            _delete(tmp)
             _reply(h, 400)
             return True
         meta = areas.ingest(aid, tmp, areas.ip_hash(ip))
-        try:
-            os.remove(tmp)                                           # gone before the sender hears back, not after
-        except OSError:
-            pass
+        _delete(tmp)                                                # before replying: the reply carries the verdict, not the bytes
         if meta["state"] == "invalid":
             _reply(h, 422, {"id": meta["id"], "state": "invalid", "error": "The bundle was refused.", "reasons": meta["reasons"]})
         else:
@@ -159,11 +168,9 @@ def _receive(h, areas, area, ip):
         return True
     except Exception:                                               # never leak internals to the sender
         areas.audit(aid, areas.ip_hash(ip), "error", 0, "")
+        _delete(tmp)
         _reply(h, 503)
         return True
     finally:
         areas.upload_slots.release()
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+        _delete(tmp)

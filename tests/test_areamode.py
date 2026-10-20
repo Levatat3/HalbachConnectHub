@@ -48,6 +48,12 @@ class TestAreaMode(Base):
             ("POST", "/api/modules"), ("POST", "/api/tunnel/start"), ("POST", "/api/settings"),
             ("POST", "/api/publish"), ("POST", "/api/areas/create"), ("POST", "/api/quit"),
             ("POST", "/api/funkthemes/save"), ("POST", "/api/windowtheme"), ("POST", "/api/pick"),
+            # site actions the collaborator must not reach
+            ("POST", "/api/site/template.load"), ("POST", "/api/site/settings"), ("POST", "/api/site/theme"),
+            ("POST", "/api/site/brand"), ("POST", "/api/site/import.classic"), ("POST", "/api/site/import.package"),
+            ("POST", "/api/site/restore"), ("POST", "/api/site/redirects"), ("POST", "/api/site/nav_links"),
+            ("POST", "/api/site/linked.add"), ("POST", "/api/site/page.add"), ("POST", "/api/site/page.delete"),
+            ("POST", "/api/site/page.move"), ("POST", "/api/site/page.duplicate"),
         ):
             with self.subTest(method=method, path=path):
                 self.assertEqual(self.req(method, path)[0], 404)
@@ -60,8 +66,8 @@ class TestAreaMode(Base):
         self.assertEqual(self.req("GET", "/api/site")[0], 200)
 
     def test_area_post_routes_are_not_blocked(self):
-        # A page edit reaches the model; it must not be a 404 from the restriction.
-        s, raw = self.req("POST", "/api/site/page.add", {"label": "x", "slug": "x"})
+        # A block edit reaches the model; it must not be a 404 from the restriction.
+        s, raw = self.req("POST", "/api/site/block.add", {"page": "page", "type": "text", "props": {"markdown": "hi"}})
         self.assertNotEqual(s, 404, raw)
         self.assertNotEqual(self.req("POST", "/api/site/preview")[0], 404)      # the preview route exists
 
@@ -100,6 +106,24 @@ class TestAreaModel(unittest.TestCase):
             doc = json.loads((folder / "area.json").read_text(encoding="utf-8"))
             self.assertEqual(doc["format"], 1)
             self.assertEqual(doc["pages"][0]["blocks"][0]["type"], "hero")
+
+    def test_every_page_and_block_round_trips(self):
+        with tempfile.TemporaryDirectory() as t:
+            root, folder = Path(t), Path(t) / "page"
+            areaclient.init_folder(folder)
+            # a second page, added the way the owner's builder would see it
+            doc = json.loads((folder / "area.json").read_text(encoding="utf-8"))
+            doc["pages"].append({"name": "about", "title": "About", "blocks": [{"type": "text", "props": {"markdown": "hi"}}]})
+            (folder / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+            m = SiteModel(root / "hub", Registry())
+            areamode.load_area(folder, m)
+            self.assertEqual(len(m.data["pages"]), 2)
+            self.assertEqual(m.data["pages"][1]["slug"], "about")
+            areamode.dump_area(m, folder)
+            doc2 = json.loads((folder / "area.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(doc2["pages"]), 2)
+            self.assertEqual(doc2["pages"][1]["name"], "about")
+            self.assertEqual(doc2["pages"][1]["blocks"][0]["type"], "text")
 
 
 class TestAreaFolderLoading(unittest.TestCase):

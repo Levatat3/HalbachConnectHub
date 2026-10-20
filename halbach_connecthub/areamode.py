@@ -1,7 +1,8 @@
-"""Area mode (the collaborator's restricted window): one page kept as a folder of area.json + files/.
+"""Area mode (the collaborator's restricted window): pages kept as a folder of area.json + files/.
 
-The collaborator edits a single-page tree. This module turns that folder into the same SiteModel the window already
-edits, and back again, so the window and `halbach area send` share one on-disk format. Stdlib only.
+The collaborator edits a page tree. This module turns that folder into the same SiteModel the window already
+edits, and back again, so the window and `halbach area send` share one on-disk format. Every page and every
+block round-trips: nothing is dropped on load or on dump. Stdlib only.
 """
 
 import json
@@ -25,16 +26,9 @@ def _read_doc(folder):
 
 
 def load_area(folder, model, theme="neutral-dark"):
-    """Put the single-page area into a SiteModel (in memory only; nothing on disk is touched)."""
+    """Put every page of the area into a SiteModel (in memory only; nothing on disk is touched)."""
     doc = _read_doc(folder)
     title = (doc.get("title") or "My area").strip() or "My area"
-    page = doc["pages"][0] if doc["pages"] else {}
-    label = (page.get("title") or title).strip() or title
-    blocks = []
-    for i, b in enumerate(page.get("blocks") or []):
-        if not isinstance(b, dict) or not b.get("type"):
-            continue
-        blocks.append({"id": "b%d" % (i + 1), "type": b["type"], "props": dict(b.get("props") or {}), "enabled": True})
     data = default_model(theme)
     data["brand"]["name"] = title
     data["brand"]["mark"] = title[:1]
@@ -42,22 +36,46 @@ def load_area(folder, model, theme="neutral-dark"):
     data["settings"]["analytics"] = "none"
     data["settings"]["indexable"] = False
     data["settings"]["nav_style"] = "none"
-    data["pages"] = [{"id": "home", "slug": "", "label": label, "title": label, "description": doc.get("description", ""),
+    pages = []
+    for idx, pg in enumerate(doc.get("pages") or []):
+        if not isinstance(pg, dict):
+            continue
+        name = (pg.get("name") or "").strip()
+        label = (pg.get("title") or (title if not name else name)).strip() or title
+        blocks = []
+        for i, b in enumerate(pg.get("blocks") or []):
+            if not isinstance(b, dict) or not b.get("type"):
+                continue
+            blocks.append({"id": "b%d" % (i + 1), "type": b["type"], "props": dict(b.get("props") or {}), "enabled": True})
+        pages.append({"id": "page" if idx == 0 else "page-%s" % (name or idx), "slug": name, "label": label, "title": label,
+                      "description": pg.get("description", "") or (doc.get("description", "") if idx == 0 else ""),
                       "nav": False, "listed": False, "enabled": True, "draft": False, "og_image": "", "theme": None,
-                      "area": None, "credit": True, "blocks": blocks}]
+                      "area": None, "credit": True, "blocks": blocks})
+    if not pages:
+        pages = [{"id": "page", "slug": "", "label": title, "title": title, "description": doc.get("description", ""),
+                  "nav": False, "listed": False, "enabled": True, "draft": False, "og_image": "", "theme": None,
+                  "area": None, "credit": True, "blocks": []}]
+    data["pages"] = pages
     model.data = data
     return doc
 
 
 def dump_area(model, folder):
-    """Write the single page back to area.json (at most one page; files/ is left alone)."""
+    """Write every page back to area.json (files/ is left alone). Nothing is silently dropped."""
     folder = Path(folder)
     pages = model.data.get("pages") or []
-    page = pages[0] if pages else {"label": "My area", "title": "My area", "blocks": []}
-    blocks = [{"type": b["type"], "props": b.get("props") or {}} for b in page.get("blocks") or [] if b.get("enabled", True)]
-    title = (page.get("label") or page.get("title") or "My area").strip() or "My area"
-    doc = {"format": 1, "title": title, "description": page.get("description", ""),
-           "pages": [{"name": "", "title": title, "blocks": blocks}]}
+    out_pages = []
+    for p in pages:
+        name = (p.get("slug") or "").strip()
+        label = (p.get("label") or p.get("title") or "My area").strip() or "My area"
+        # The area format has no per-block on/off switch, so every block is written; the owner's rules still apply.
+        blocks = [{"type": b["type"], "props": b.get("props") or {}} for b in p.get("blocks") or [] if isinstance(b, dict) and b.get("type")]
+        out_pages.append({"name": name, "title": label, "blocks": blocks})
+    if not out_pages:
+        out_pages = [{"name": "", "title": "My area", "blocks": []}]
+    title = (model.data.get("brand", {}).get("name") or "My area").strip() or "My area"
+    desc = pages[0].get("description", "") if pages else ""
+    doc = {"format": 1, "title": title, "description": desc, "pages": out_pages}
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "files").mkdir(parents=True, exist_ok=True)
     (folder / "area.json").write_text(json.dumps(doc, indent=2), encoding="utf-8")
