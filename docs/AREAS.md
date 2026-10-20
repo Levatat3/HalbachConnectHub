@@ -163,7 +163,10 @@ check the current user limit on Cloudflare's plans if you add many people.
 
 ## Not built yet
 
-- **Area mode window** (a cut-down Halbach with a page editor and a Send button for the collaborator). Today the collaborator edits `area.json` and uses the command line.
-- Single-file uploads (`/drop/<area>/file`), notifications by chat, and stripping camera data from pictures.
-- A browser upload form for senders; the area's `GET /status` is only used by the command-line client.
-- **Risks to weigh:** a stolen passphrase can send *valid* content, but it still waits for your review (or, in a Trusted area, goes live at your next Publish, limited to the area's own address and blocks). On an **Auto** area it is published by itself, debounced to one automatic publish every five minutes — with the standing banner, the freeze button and the automatic rollback as the ways back. Revoke or replace the passphrase in the window at any time.
+- Single-file uploads (`/drop/<area>/file`) and a browser upload form for senders; today the collaborator sends a whole zip (from the window or `halbach area send`).
+- Notifications by chat.
+
+Camera data is stripped from JPEG and PNG pictures on the way in (see the area rules below), and the collaborator can edit, preview and send from a window (`halbach --area <folder>`).
+
+## Risks to weigh
+A stolen passphrase can send *valid* content, but it still waits for your review (or, in a Trusted area, goes live at your next Publish, limited to the area's own address and blocks). On an **Auto** area it is published by itself, debounced to one automatic publish every five minutes — with the standing banner, the freeze button and the automatic rollback as the ways back. Revoke or replace the passphrase in the window at any time.

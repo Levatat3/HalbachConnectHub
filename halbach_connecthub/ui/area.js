@@ -77,8 +77,8 @@
     var p = page();
     var allow = allowed();
     var err = h("div", { class: "err" });
-    var title = h("input", { type: "text", value: p.title });
-    var desc = h("textarea", { rows: 2, value: p.description }); desc.value = p.description;
+    var title = h("input", { type: "text", value: p.title, "aria-label": "Page title" });
+    var desc = h("textarea", { rows: 2, value: p.description, "aria-label": "Page description" }); desc.value = p.description;
 
     r.appendChild(h("div", { class: "set", style: "max-width:860px" },
       h("div", { class: "r" }, h("div", null, h("b", { text: "Title" }), h("small", { text: "The heading of your page on the site." })), h("span", { style: "flex:1" }), h("div", { style: "flex:1;max-width:320px;min-width:0" }, title)),
@@ -97,10 +97,10 @@
       list.appendChild(h("div", { class: "r pagerow" + (blk.enabled === false ? " off" : "") },
         h("div", { style: "flex:1;min-width:0;cursor:pointer", on: { click: function () { curBlock = curBlock === blk.id ? null : blk.id; render(); } } },
           h("b", { text: spec.label || blk.type }), h("small", { text: summarize(blk) })),
-        btn("▲", "ghost", function () { act("block.move", { page: p.id, id: blk.id, delta: -1 }); }, i === 0 ? { disabled: "" } : null),
-        btn("▼", "ghost", function () { act("block.move", { page: p.id, id: blk.id, delta: 1 }); }, i === p.blocks.length - 1 ? { disabled: "" } : null),
+        btn("▲", "ghost", function () { act("block.move", { page: p.id, id: blk.id, delta: -1 }); }, Object.assign({ "aria-label": "Move block up" }, i === 0 ? { disabled: "" } : null)),
+        btn("▼", "ghost", function () { act("block.move", { page: p.id, id: blk.id, delta: 1 }); }, Object.assign({ "aria-label": "Move block down" }, i === p.blocks.length - 1 ? { disabled: "" } : null)),
         btn("Edit", "", function () { curBlock = curBlock === blk.id ? null : blk.id; render(); }),
-        btn("✕", "ghost", function () { if (confirm("Remove this block?")) act("block.delete", { page: p.id, id: blk.id }, "Removed."); })));
+        btn("✕", "ghost", function () { if (confirm("Remove this block?")) act("block.delete", { page: p.id, id: blk.id }, "Removed."); }, { "aria-label": "Remove block" })));
       if (curBlock === blk.id) list.appendChild(h("div", { class: "blockform" }, blockForm(p, blk, spec)));
     });
     if (curBlock && curBlock.indexOf("new:") === 0) {
@@ -200,11 +200,12 @@
   var dlg = null;
   function showDialog(title, body) {
     if (dlg) dlg.remove();
-    var box = h("div", { class: "scrim open" }, h("div", { class: "dlg" }, h("h3", { text: title }), body, h("div", { class: "row", style: "margin-top:14px" }, h("span", { style: "flex:1" }), btn("Close", "ghost", closePicker))));
+    var box = h("div", { class: "scrim open", role: "dialog", "aria-modal": "true", "aria-label": title }, h("div", { class: "dlg" }, h("h3", { text: title }), body, h("div", { class: "row", style: "margin-top:14px" }, h("span", { style: "flex:1" }), btn("Close", "ghost", closePicker))));
     document.body.appendChild(box);
     dlg = box;
   }
   function closePicker() { if (dlg) { dlg.remove(); dlg = null; } }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closePicker(); });
 
   // ---------------------------------------------------------------- preview, send, status
   function renderStatus(r) {

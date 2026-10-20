@@ -25,6 +25,9 @@ derived from this repository's commit history, not written after the fact.
   CLI.
 - An **Areas** screen in the window: create, review with a rendered preview,
   approve, reject, versions, settings, activity.
+- A collaborator window (`halbach --area <folder>`) with a page editor, preview
+  and Send, isolated from the owner's routes and state, plus an `auto` trust level
+  (off by default) that publishes an approved area itself.
 - An optional real-site import check for tests, enabled by the
   `HALBACH_TEST_CLASSIC_SITE` environment variable.
 

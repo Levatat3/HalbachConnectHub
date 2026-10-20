@@ -121,7 +121,7 @@ See [AREAS.md](AREAS.md) for areas (a page someone else can send content to, rev
 
 ## What is not here yet
 
-Planned, not built: user-installed block and theme plugins, the collaborator's restricted *area mode* window, collections, search, and the release templates. The design for them is in [docs/design](design/); the files that exist for them (the Drop box block, plugin manifests for user plugins) are placeholders.
+Planned, not built: user-installed block and theme plugins, collections, search, and the release templates. The design for them is in [docs/design](design/); the files that exist for them (the Drop box block, plugin manifests for user plugins) are placeholders.
 
 ## Known limits
 
