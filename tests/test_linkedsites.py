@@ -91,12 +91,14 @@ class TestHelpers(unittest.TestCase):
             self.assertTrue(gone["notes"])
 
     def test_probe_refuses_ipv4_mapped_ipv6_private_addresses(self):
-        mapped_resolver = lambda host: [(10, 1, 6, "", ("::ffff:127.0.0.1", 0, 0, 0))]
-        op = FakeOpener(FakeResponse())
-        r = ls.probe(PLAIN, opener=op, resolver=mapped_resolver)
-        self.assertFalse(r["reachable"])
-        self.assertEqual(op.calls, [])
-        self.assertTrue(any("private network" in n for n in r["notes"]))
+        for mapped in ("::ffff:127.0.0.1", "::ffff:10.0.0.1", "::ffff:192.168.1.1", "::ffff:169.254.1.1"):
+            with self.subTest(mapped=mapped):
+                mapped_resolver = lambda host, m=mapped: [(10, 1, 6, "", (m, 0, 0, 0))]
+                op = FakeOpener(FakeResponse())
+                r = ls.probe(PLAIN, opener=op, resolver=mapped_resolver)
+                self.assertFalse(r["reachable"])
+                self.assertEqual(op.calls, [])
+                self.assertTrue(any("private network" in n for n in r["notes"]))
 
     def test_probe_resolves_once_and_refuses_private_results(self):
         private_resolver = lambda host: [(2, 1, 6, "", ("10.0.0.5", 0))]

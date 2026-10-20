@@ -81,8 +81,8 @@
     var desc = h("textarea", { rows: 2, value: p.description }); desc.value = p.description;
 
     r.appendChild(h("div", { class: "set", style: "max-width:860px" },
-      h("div", { class: "r" }, h("div", null, h("b", { text: "Title" }), h("small", { text: "The heading of your page on the site." })), h("span", { style: "flex:1" }), h("div", { style: "width:320px" }, title)),
-      h("div", { class: "r" }, h("div", null, h("b", { text: "Description" }), h("small", { text: "One short line (optional)." })), h("span", { style: "flex:1" }), h("div", { style: "width:320px" }, desc)),
+      h("div", { class: "r" }, h("div", null, h("b", { text: "Title" }), h("small", { text: "The heading of your page on the site." })), h("span", { style: "flex:1" }), h("div", { style: "flex:1;max-width:320px;min-width:0" }, title)),
+      h("div", { class: "r" }, h("div", null, h("b", { text: "Description" }), h("small", { text: "One short line (optional)." })), h("span", { style: "flex:1" }), h("div", { style: "flex:1;max-width:320px;min-width:0" }, desc)),
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save title", "primary", function () {
         act("page.update", { id: p.id, title: title.value, description: desc.value, label: title.value }, "Saved.").catch(function (e) { showErr(err, e); });
       }))));
