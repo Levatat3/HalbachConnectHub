@@ -29,12 +29,14 @@ Any Halbach install works; no site, keys or account are needed.
 
 ```
 halbach area init my-page                      a folder with area.json and files/
-(edit area.json, put pictures in my-page/files)
+halbach --area my-page                          edit and preview it in a window, then send it
 halbach area connect --url https://live.example.com --area funkworkshop
 halbach area send my-page --wait 60            zip, check, upload, wait up to 60 s for the decision
 halbach area status                            what happened to earlier sends, with the owner's notes
 halbach area validate my-page                   check a folder against the server's limits, no network needed
 ```
+
+`halbach --area <folder>` opens the collaborator's window: edit your page, preview it, and send it, and watch what the owner decides (received, in review, approved or rejected with a note). The window can only do those things — it has no access to the owner's modules, publish, tunnel or settings.
 
 `connect` asks for the passphrase without echoing it (or reads `HALBACH_AREA_KEY`) and keeps it in your Halbach state folder, never in the page folder and never in a URL. `send` checks your folder against the area's limits first, so most mistakes show up before anything is uploaded.
 
