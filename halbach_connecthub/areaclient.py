@@ -39,7 +39,7 @@ TEMPLATE = {
     "description": "A short line about this page.",
     "pages": [{"name": "", "title": "My area", "blocks": [
         {"type": "hero", "props": {"heading": "Welcome", "tagline": "Edit area.json to change this page."}},
-        {"type": "text", "props": {"markdown": "Write **Markdown** here. Put pictures in the files folder and show them with ![a picture](files/example.png)."}},
+        {"type": "text", "props": {"markdown": "Write **Markdown** here. Put pictures in the files folder and show them like this: `![a picture](files/example.png)`."}},
     ]}],
 }
 

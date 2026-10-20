@@ -65,6 +65,11 @@ class TestAreaMode(Base):
         self.assertEqual(self.req("GET", "/area.js")[0], 200)
         self.assertEqual(self.req("GET", "/api/site")[0], 200)
 
+    def test_unconnected_area_client_returns_a_clean_400(self):
+        # No connection file -> hub.area_client() raises; it must become a plain 400, never a dropped connection.
+        self.assertEqual(self.req("GET", "/api/area/limits")[0], 400)
+        self.assertEqual(self.req("GET", "/api/area/status")[0], 400)
+
     def test_area_post_routes_are_not_blocked(self):
         # A block edit reaches the model; it must not be a 404 from the restriction.
         s, raw = self.req("POST", "/api/site/block.add", {"page": "page", "type": "text", "props": {"markdown": "hi"}})

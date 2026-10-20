@@ -200,7 +200,7 @@
   var dlg = null;
   function showDialog(title, body) {
     if (dlg) dlg.remove();
-    var box = h("div", { class: "scrim" }, h("div", { class: "dlg" }, h("h3", { text: title }), body, h("div", { class: "row", style: "margin-top:14px" }, h("span", { style: "flex:1" }), btn("Close", "ghost", closePicker))));
+    var box = h("div", { class: "scrim open" }, h("div", { class: "dlg" }, h("h3", { text: title }), body, h("div", { class: "row", style: "margin-top:14px" }, h("span", { style: "flex:1" }), btn("Close", "ghost", closePicker))));
     document.body.appendChild(box);
     dlg = box;
   }

@@ -266,9 +266,9 @@ def make_handler(hub):
             if path == "/api/site":
                 return self._json(hub.site.view())
             if path == "/api/area/limits":
-                return self._area_json(hub.area_client().limits)
+                return self._area_json(lambda: hub.area_client().limits())
             if path == "/api/area/status":
-                return self._area_json(hub.area_client().status)
+                return self._area_json(lambda: hub.area_client().status())
             if path == "/api/site/export":
                 data = json.dumps(hub.site.export_package(), indent=1).encode("utf-8")
                 self.send_response(200)
