@@ -294,8 +294,9 @@ def check_content(path, rel, ext, limits, warnings):
             warnings.append("'%s' camera data could not be verified or removed; treat the file as untrusted." % _show(rel))
         else:
             try:
-                d = path.read_bytes() if hasattr(path, "read_bytes") else open(path, "rb").read()
-            except Exception:
+                with open(path, "rb") as fh:
+                    d = fh.read()
+            except OSError:
                 d = b""
             if b"Exif\x00\x00" in d or b"http://ns.adobe.com/xap/" in d:
                 warnings.append("'%s' may still contain camera data." % _show(rel))
@@ -306,8 +307,9 @@ def check_content(path, rel, ext, limits, warnings):
             warnings.append("'%s' camera data could not be verified or removed; treat the file as untrusted." % _show(rel))
         else:
             try:
-                d = path.read_bytes() if hasattr(path, "read_bytes") else open(path, "rb").read()
-            except Exception:
+                with open(path, "rb") as fh:
+                    d = fh.read()
+            except OSError:
                 d = b""
             if b"eXIf" in d:
                 warnings.append("'%s' may still contain camera data." % _show(rel))

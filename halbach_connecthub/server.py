@@ -36,7 +36,7 @@ PREVIEW_CHARS = 4000
 
 # In the collaborator's area window only these routes exist. Everything else answers 404 exactly like it would for a
 # stranger, so a restricted window can never reach the owner's modules, publish, tunnel, settings or areas.
-AREA_UI_FILES = {"/": "index.html", "/style.css": "style.css", "/app.js": "app.js", "/site.js": "site.js"}
+AREA_FILES = {"/": "area.html", "/style.css": "style.css", "/area.js": "area.js"}
 AREA_GET = {"/api/site", "/api/area/limits", "/api/area/status"}
 AREA_POST = {"/api/site/preview", "/api/area/send"}
 
@@ -200,7 +200,7 @@ def make_handler(hub):
             """In area mode only the collaborator's own routes exist; every owner route 404s."""
             if not hub.area:
                 return True
-            if path in AREA_UI_FILES or path == "/funktheme.js" or path.startswith("/preview"):
+            if path in AREA_FILES or path == "/funktheme.js" or path.startswith("/preview"):
                 return True
             if method == "GET":
                 return path in AREA_GET
@@ -226,10 +226,11 @@ def make_handler(hub):
                 if not self._guard():
                     return
                 return self._send(200, FUNK_ENGINE.read_bytes(), "text/javascript; charset=utf-8")
-            if path in UI_FILES:
+            files = AREA_FILES if hub.area else UI_FILES
+            if path in files:
                 if not self._guard():
                     return
-                f = UI_DIR / UI_FILES[path]
+                f = UI_DIR / files[path]
                 data = f.read_bytes()
                 if path == "/":
                     data = data.replace(b"__TOKEN__", hub.token.encode()).replace(b"__VERSION__", __version__.encode())

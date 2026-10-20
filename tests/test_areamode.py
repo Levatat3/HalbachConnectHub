@@ -44,6 +44,7 @@ class TestAreaMode(Base):
             ("GET", "/api/publish/status"), ("GET", "/api/publish/plan"),
             ("GET", "/api/areas"), ("GET", "/api/funkthemes"), ("GET", "/api/windowtheme"),
             ("GET", "/api/site/export"),
+            ("GET", "/app.js"), ("GET", "/areas.js"),
             ("POST", "/api/modules"), ("POST", "/api/tunnel/start"), ("POST", "/api/settings"),
             ("POST", "/api/publish"), ("POST", "/api/areas/create"), ("POST", "/api/quit"),
             ("POST", "/api/funkthemes/save"), ("POST", "/api/windowtheme"), ("POST", "/api/pick"),
@@ -52,9 +53,10 @@ class TestAreaMode(Base):
                 self.assertEqual(self.req(method, path)[0], 404)
 
     def test_area_routes_are_served(self):
-        self.assertEqual(self.req("GET", "/")[0], 200)
-        self.assertEqual(self.req("GET", "/site.js")[0], 200)
-        self.assertEqual(self.req("GET", "/app.js")[0], 200)
+        s, raw = self.req("GET", "/")
+        self.assertEqual(s, 200)
+        self.assertIn(b"Your area", raw)                       # the restricted window, not the owner's
+        self.assertEqual(self.req("GET", "/area.js")[0], 200)
         self.assertEqual(self.req("GET", "/api/site")[0], 200)
 
     def test_area_post_routes_are_not_blocked(self):

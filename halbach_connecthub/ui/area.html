@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="halbach-token" content="__TOKEN__">
+<title>Halbach — your area</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <h1 id="title">Your area</h1>
+    <span class="sp"></span>
+    <span class="pill" id="areaPill"><i class="dot" id="dotArea"></i><b id="pillArea">not sent</b></span>
+    <button class="btn" id="areaPreview" title="Build it and open a preview">Preview</button>
+    <button class="btn primary" id="areaSend" title="Send it to the site for review">Send to the site</button>
+  </header>
+  <main class="main" id="main">
+    <section class="view on" id="v-area">
+      <div id="areaRoot"><p class="empty">Loading…</p></div>
+    </section>
+  </main>
+</div>
+<script src="/area.js"></script>
+</body>
+</html>
