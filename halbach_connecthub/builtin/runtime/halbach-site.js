@@ -74,10 +74,10 @@
         var img = tok.charAt(0) === "!", mm = /^!?\[([^\]]*)\]\(([^)\s]+)/.exec(tok), u = safeUrl(mm[2], dir);
         if (!u) parent.appendChild(document.createTextNode(mm[1]));
         else if (img) {
-          if (/^https:/i.test(u) || u.indexOf(dir) === 0) { var im = el("img"); im.src = u; im.alt = mm[1]; im.loading = "lazy"; parent.appendChild(im); }
+          if (/^https:/i.test(u) || u.indexOf(dir) === 0) { var im = el("img"); im.src = u.charAt(0) === "/" ? url(u) : u; im.alt = mm[1]; im.loading = "lazy"; parent.appendChild(im); }
           else parent.appendChild(document.createTextNode(mm[1]));
         } else {
-          var a = el("a", null, mm[1] || u); a.href = u;
+          var a = el("a", null, mm[1] || u); a.href = u.charAt(0) === "/" ? url(u) : u;
           if (/^https?:/i.test(u)) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
           parent.appendChild(a);
         }

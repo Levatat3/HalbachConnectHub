@@ -1,20 +1,20 @@
 {
- "404.html": "6c8aa349ac5e7cdfc85e1a9e55bfbc3d246f2defc7aa8f538c77f4c337e30c71",
+ "404.html": "9d4e15c960bdface4912638beb7387e6be9989fe3570756402b11534386a8aa6",
  "_halbach/blocks/github-projects.55fb1c0633.js": "55fb1c0633f93db5cc6c69d0b3b99218a61013c1a3e03a9de029f9cca5bf191d",
  "_halbach/blocks/hero.dce92d240d.js": "dce92d240d1cb7a61af1b13606b5f3e4e93cd2f4af691fad36e8ed5a2e85b43c",
  "_halbach/blocks/links.12ec8b6c43.js": "12ec8b6c43d6975e27582b6bb39c69d85ca5d3be99a492731fddd526d2421afd",
  "_halbach/blocks/text.7de2f558dc.js": "7de2f558dc16316e5ee3c6ddb0b5121e85678176d60b8a9752ab9e36ff5ecd60",
  "_halbach/blocks/twitch.dbc632f801.js": "dbc632f80193b322b60a9a5598fe9d20538836e55bfb0017cf652fb2c1038aa9",
  "_halbach/blocks/youtube.24c53ed8fe.js": "24c53ed8fe9d8e5848a21f6dfe39b4aae4fd998bef302851eff05b42b69ac473",
- "_halbach/runtime.ee347f4868.js": "ee347f486881b6c8824860586a301a5141eb4663ca3e4f532e0162adaa6ae044",
+ "_halbach/runtime.c6a091e221.js": "c6a091e2211d60190bfb9c02808f8df1dbc79e21596fe6cc0fc7cf2bc0786df8",
  "_halbach/theme.abf00497e7.css": "abf00497e77d96911e1e02a66214c72f7874f79b4e73db7e289e9f940e3e2b37",
  "_headers": "819bcc15f2454fe832841beaae8f4d8d69da9c7dda12c96b361c91715d7bcb63",
- "about/index.html": "341a5650364ee3e9cb3c6daf0e5e3b3ef034ebd57bbf7efc20e3a74e5684d062",
+ "about/index.html": "8ba383981240151e0d18b257d45c87904320c30e0be0a2fdb7153bee43cd2dfc",
  "favicon.svg": "c1ed9b5a252b940e3ddcbfd84d88c53a3ab2c6a75c4e62cf728f2905f6d8f1d4",
- "index.html": "dd3c4ae3c5fb887c63df8adcade81e8bf1269bf78c66396e6d550ebcd6728bc7",
- "live/index.html": "5764ffc35996fdfbd85954cc57ef27015fa5533654518c9a42d4be242135097b",
+ "index.html": "76b0d37f7ed34c9f89fcd6e2061a6697c7086dc202c4f6e4dcecec35a4bb2664",
+ "live/index.html": "f49e1f45bbe891812fe058188388a46a6d47ef7d84d7b5106229d6b9c396834e",
  "manifest.json": "1c4a8cdfac78ac10b5042f7ff172edf390b0bbf28becac8fe79688ffbe2bcaca",
- "projects/index.html": "c4dc4cd925a6cd18454b81edcde07768adf2cff356f5464ac6e6510c622040fd",
+ "projects/index.html": "f162e7214d19aa97350396a3d322074afd1b20480bbea80dfe27e796176bb7d2",
  "robots.txt": "16ceb5ee3e0dc13aa9adf31a3ebbe45a1d965b8c2b9f72eaf84e5911e140ed95",
- "videos/index.html": "bf4f3a6b14ffc546482057380053340b459c22f7addd85ae3cb10d4146081651"
+ "videos/index.html": "3b82cf3dfa39ca9fddebef201f3f4d3b39698fcbf198812ad13e11638cbf37f0"
 }

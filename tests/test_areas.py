@@ -673,6 +673,15 @@ class TestClient(DropBase):
         again_code, again = self.run_cli("send", str(self.folder))
         self.assertIn("already received", again)
 
+    def test_cli_accepts_the_connection_options_after_the_command_as_the_docs_write_them(self):
+        done = mock.Mock(returncode=0, stderr="")
+        with mock.patch.object(areaclient.subprocess, "run", return_value=done):
+            code, out = self.run_cli("connect", "--url", self.url, "--area", "workshop", env={"HALBACH_AREA_KEY": self.key})
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.root / "client-home" / areaclient.CONNECTION_FILE).is_file())
+        code, out = self.run_cli("limits", "--area", "workshop")           # a value given after the command is used, and the rest comes from the connection
+        self.assertEqual(code, 0, out)
+
     def test_cli_shows_the_reasons_when_a_bundle_is_refused(self):
         self.connect()
         doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
