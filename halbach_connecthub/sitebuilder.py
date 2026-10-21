@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from . import publisher
-from .siteschema import RESERVED_SLUGS, embed_url_host
+from .siteschema import RESERVED_SLUGS, FieldError, clean_area_design, embed_url_host
 from .store import MAX_FILES, MAX_FILE_BYTES, collect_files
 
 HEADER_RULE_LIMIT = 100
@@ -168,7 +168,23 @@ def build_headers(csp, csp_mode, area_rules=()):
 
 
 # --------------------------------------------------------------------------- page HTML
-def _nav_html(model, pages, current_id, url_base):
+def _sites_menu_html(sites):
+    """One dropdown ("Sites") that lists every area's sub-site. Plain <details>: no script, keyboard and screen-reader friendly."""
+    items = "".join('<a href="%s">%s</a>' % (html.escape(path, quote=True), html.escape(name)) for name, path in sites)
+    return '<details class="hs-sites"><summary>Sites</summary><div class="hs-sites-menu">%s</div></details>' % items
+
+
+def _area_nav_html(area_pages, current_id, url_base, back_name):
+    """A sub-site's own menu: its own pages, then a way back to the main site. Never the main site's tabs."""
+    out = []
+    for p in area_pages:
+        cur = ' aria-current="page"' if p["id"] == current_id else ""
+        out.append('<a data-page="%s" href="%s"%s>%s</a>' % (html.escape(p["id"]), html.escape(url_base + page_path(p)), cur, html.escape(p["label"])))
+    out.append('<a class="hs-back" href="%s/">&larr; %s</a>' % (html.escape(url_base), html.escape(back_name)))
+    return "".join(out)
+
+
+def _nav_html(model, pages, current_id, url_base, sites=()):
     out = []
     for p in pages:
         if not p["nav"]:
@@ -179,6 +195,8 @@ def _nav_html(model, pages, current_id, url_base):
     for link in model.get("nav_links", []):
         ext = ' target="_blank" rel="noopener noreferrer"' if re.match(r"^https?:", link["url"]) else ""
         out.append('<a href="%s"%s>%s</a>' % (html.escape(link["url"]), ext, html.escape(link["label"])))
+    if sites:
+        out.append(_sites_menu_html(sites))
     return "".join(out)
 
 
@@ -202,8 +220,12 @@ def _shell(model, title, desc, head_extra, body_main, nav, page_json, runtime_ur
         heads.append('<meta property="og:description" content="%s">' % html.escape(desc, quote=True))
     heads += icons
     heads += ['<link rel="stylesheet" href="%s">' % html.escape(css_url, quote=True)] + head_extra
-    brand_link = '<a class="hs-brand" href="%s"><span class="hs-mark">%s</span><span class="hs-name">%s</span></a>' % (
-        html.escape(url_base + "/"), html.escape(b["mark"]), html.escape(b["name"]))
+    if b.get("logo"):
+        mark_html = '<img class="hs-logo" src="%s" alt="">' % html.escape(b["logo"], quote=True)
+    else:
+        mark_html = '<span class="hs-mark">%s</span>' % html.escape(b["mark"])
+    brand_link = '<a class="hs-brand" href="%s">%s<span class="hs-name">%s</span></a>' % (
+        html.escape(b.get("home") or (url_base + "/")), mark_html, html.escape(b["name"]))
     return ('<!doctype html>\n<html lang="%s">\n<head>\n%s\n</head>\n<body class="hs-body" data-nav="%s">\n'
             '<a class="hs-skip" href="#hs-main">Skip to content</a>\n<div class="hs-shell">\n'
             '<header class="hs-header">%s<nav class="hs-nav" aria-label="Main">%s</nav></header>\n'
@@ -247,6 +269,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     pages = [p for p in data["pages"] if p["enabled"] and (include_drafts or not p["draft"])]
     # ---- areas: approved content from collaborators, confined to each area's own address
     area_pages, area_types, area_frames = [], {}, {}
+    area_designs, area_shell, area_page_list, sites_list = {}, {}, {}, []
     model_slugs = {p["slug"] for p in data["pages"]}
     for ar in (areas or []):
         slug = ar["slug"]
@@ -259,6 +282,25 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             res.errors.append({"path": "areas/" + ar["id"], "message": "The approved content of area '%s' cannot be read." % ar["name"]})
             continue
         allowed = set(ar.get("blocks") or [])
+        design = {}
+        if doc.get("design"):                                   # checked again here: the owner may have changed the allowed themes since
+            ok_themes = [t for t in (ar.get("themes") or []) if registry.theme(t)]
+            try:
+                design = clean_area_design(doc["design"], ok_themes) if ok_themes else {}
+            except FieldError:
+                design = {}
+            if not design:
+                res.warnings.append({"path": "areas/" + ar["id"], "message": "The custom design of area '%s' was left out because the area is no longer allowed to use it." % ar["name"]})
+        area_designs[ar["id"]] = design
+        dbrand = design.get("brand") or {}
+        bname = dbrand.get("name") or ar["name"]
+        area_shell[ar["id"]] = {
+            "brand": {"name": bname, "mark": dbrand.get("mark") or (bname[:1] or "?").upper(), "footer": dbrand.get("footer") or "", "handle": "",
+                      "tagline": dbrand.get("tagline") or "", "home": url_base + "/" + slug + "/",
+                      "logo": (url_base + "/" + slug + "/" + dbrand["logo"]) if dbrand.get("logo") else None},
+            "settings": dict(data["settings"], nav_style=(design.get("layout") or {}).get("nav") or data["settings"]["nav_style"]),
+            "slug": slug}
+        area_page_list[ar["id"]] = []
         for i, pg in enumerate(doc.get("pages", [])):
             blocks = []
             for b in pg.get("blocks", []):
@@ -280,9 +322,12 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                 area_types.setdefault(ar["id"], set()).add(b["type"])
             name = pg.get("name") or ""
             area_pages.append({"id": "area-%s-%s" % (ar["id"], name or "home"), "slug": slug + ("/" + name if name else ""),
-                               "label": ar["name"] if i == 0 else (pg.get("title") or name), "title": pg.get("title") or doc.get("title") or ar["name"],
-                               "description": doc.get("description", ""), "nav": bool(ar.get("nav")) and i == 0, "listed": True, "enabled": True,
+                               "label": bname if i == 0 else (pg.get("title") or name), "title": pg.get("title") or doc.get("title") or ar["name"],
+                               "description": doc.get("description", ""), "nav": False, "listed": True, "enabled": True,    # the area has its own menu; the main menu only gets the Sites dropdown
                                "draft": False, "theme": None, "credit": True, "area": ar["id"], "blocks": blocks})
+            area_page_list[ar["id"]].append(area_pages[-1])
+        if ar.get("nav") and area_page_list[ar["id"]]:
+            sites_list.append((bname, "/" + slug + "/"))
     if res.errors:
         return res
     pages = pages + area_pages
@@ -347,16 +392,19 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         return res
 
     themes = {}
-    for tid in theme_ids:
+    theme_specs = [(tid, tid, (data["theme"].get("vars") or {}) if tid == site_theme else {}) for tid in theme_ids]
+    for aid, d in area_designs.items():                         # an area with its own look gets its own stylesheet
+        if d.get("theme") or d.get("vars"):
+            theme_specs.append(("area:" + aid, d.get("theme") or site_theme, d.get("vars") or {}))
+    for key, tid, over_vars in theme_specs:
         plug = registry.theme(tid)
         css_parts = [rt["css"].read_text(encoding="utf-8")] + block_css
         for f in _plugin_css(plug):
             css_parts.append((plug.dir / f).read_text(encoding="utf-8"))
         vars_ = dict(plug.manifest.get("vars") or {})
-        if tid == site_theme:
-            vars_.update(data["theme"].get("vars") or {})
+        vars_.update(over_vars)
         decl = "".join("%s:%s;" % (k, v) for k, v in sorted(vars_.items()))
-        mode = data["theme"].get("mode", "auto") if tid == site_theme else "auto"
+        mode = data["theme"].get("mode", "auto") if key == site_theme else "auto"
         scheme = {"light": "color-scheme:light;", "dark": "color-scheme:dark;"}.get(mode, "")
         css_parts.append(":root{%s%s}" % (decl, scheme))
         css = "\n".join(css_parts).encode("utf-8")
@@ -368,8 +416,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             code = b"\n;\n".join((plug.dir / f).read_bytes() for f in scripts)      # a theme may ship an engine plus its glue
             script_name = "_halbach/theme-%s.%s.js" % (tid, _hash(code))
             total_bytes += _write(stage / script_name, code)
-        themes[tid] = {"css": css_name, "script": script_name, "effects": list(plug.manifest.get("effects") or []),
-                       "vars": vars_}
+        themes[key] = {"css": css_name, "script": script_name, "effects": list(plug.manifest.get("effects") or []),
+                       "vars": vars_, "tid": tid}
 
     # ---- extra files (the owner's own folder: images, games, standalone pages)
     slugs = {p["slug"] for p in data["pages"] if p["slug"]} | {ar["slug"] for ar in (areas or [])}
@@ -461,7 +509,14 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             hash_map[p["id"]] = page_path(p)
     base_url = settings["base_url"]
     for p in pages:
-        theme = themes[p.get("theme") if p.get("theme") in themes else site_theme]
+        ad = area_designs.get(p.get("area")) if p.get("area") else None
+        akey = ("area:%s" % p["area"]) if p.get("area") else None
+        if akey in themes:
+            theme, theme_id = themes[akey], (ad.get("theme") or site_theme)
+        else:
+            theme = themes[p.get("theme") if p.get("theme") in themes else site_theme]
+            theme_id = p.get("theme") or site_theme
+        shell_model = area_shell.get(p.get("area")) if p.get("area") else None
         blocks = []
         for b in p["blocks"]:
             if not b.get("enabled", True):
@@ -492,18 +547,28 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             "assets": {"blocks": {t: url_base + "/" + block_assets[t] for t in block_assets},
                        "views": {v: url_base + "/" + view_assets[v] for v in view_assets},
                        "theme_script": (url_base + "/" + theme["script"]) if theme["script"] else None},
-            "theme": {"id": p.get("theme") or site_theme, "effects": theme["effects"], "vars": theme["vars"],
-                      "funk": data["theme"].get("funk") if (p.get("theme") or site_theme) == "funk" else None},
+            "theme": {"id": theme_id, "effects": theme["effects"], "vars": theme["vars"],
+                      "funk": ((ad or {}).get("funk") or data["theme"].get("funk")) if theme_id == "funk" else None},
         }
         title = p["title"] if p["slug"] == "" and not p["title"] else p["title"]
-        full_title = brand["name"] if p["slug"] == "" else "%s | %s" % (title or p["label"], brand["name"])
+        if shell_model:
+            sb_name = shell_model["brand"]["name"]
+            full_title = sb_name if p["slug"] == shell_model["slug"] else "%s | %s" % (title or p["label"], sb_name)
+        else:
+            full_title = brand["name"] if p["slug"] == "" else "%s | %s" % (title or p["label"], brand["name"])
         noindex = (not settings["indexable"]) or (not p["listed"]) or p["draft"]
         canonical = (base_url + path) if base_url else None
         main_fallback = '<noscript><p class="hs-empty">This page needs JavaScript to show its content.</p></noscript>'
-        text = _shell(data, full_title, p["description"] or brand.get("tagline", ""), [], main_fallback,
-                      _nav_html(data, pages, p["id"], url_base), json_for_script(page_json),
+        if shell_model:
+            nav_html = _area_nav_html(area_page_list[p["area"]], p["id"], url_base, brand["name"])
+            page_desc = p["description"] or shell_model["brand"].get("tagline", "")
+        else:
+            nav_html = _nav_html(data, pages, p["id"], url_base, sites_list)
+            page_desc = p["description"] or brand.get("tagline", "")
+        text = _shell(shell_model or data, full_title, page_desc, [], main_fallback,
+                      nav_html, json_for_script(page_json),
                       url_base + "/" + runtime_name, url_base + "/" + theme["css"], url_base, noindex, canonical, icons,
-                      credit=bool(p.get("credit", True)) and (p.get("theme") or site_theme) == "funk")
+                      credit=bool(p.get("credit", True)) and theme_id == "funk")
         out = stage / ("index.html" if p["slug"] == "" else p["slug"] + "/index.html")
         total_bytes += _write(out, text)
         res.pages.append({"id": p["id"], "path": path, "file": out.relative_to(stage).as_posix(), "indexable": not noindex})
@@ -511,7 +576,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     # ---- 404
     nf = _shell(data, "Not found | " + brand["name"], "", [],
                 '<h1 class="hs-title">Not found</h1><p class="hs-lede">That page is not here. <a href="%s/">Go to the home page</a>.</p>' % html.escape(url_base),
-                _nav_html(data, pages, None, url_base), "", url_base + "/" + runtime_name, url_base + "/" + themes[site_theme]["css"],
+                _nav_html(data, pages, None, url_base, sites_list), "", url_base + "/" + runtime_name, url_base + "/" + themes[site_theme]["css"],
                 url_base, True, None, icons, credit=(site_theme == "funk"))
     total_bytes += _write(stage / "404.html", nf)
 
@@ -536,7 +601,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     area_rules = []
     for ar in (areas or []):
         if ar["id"] in area_types:
-            area_rules.append((ar["slug"], assemble_csp(registry, sorted(area_types[ar["id"]]), [], [site_theme], live_base, settings["analytics"],
+            area_rules.append((ar["slug"], assemble_csp(registry, sorted(area_types[ar["id"]]), [], [area_designs.get(ar["id"], {}).get("theme") or site_theme], live_base, settings["analytics"],
                                                                   sorted(area_frames.get(ar["id"], ())))))
     headers = build_headers(csp, settings["csp"], area_rules)
     rules = sum(1 for ln in headers.splitlines() if ln and not ln.startswith(" "))

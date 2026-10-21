@@ -21,6 +21,18 @@ a { color: var(--accent); }
 .hs-nav a { padding: 6px 12px; color: var(--muted); text-decoration: none; border: 1px solid transparent; border-radius: calc(var(--radius) / 2); font-size: 14px; letter-spacing: .06em; }
 .hs-nav a:hover { color: var(--text); border-color: var(--line); }
 .hs-nav a[aria-current="page"] { color: var(--bg); background: var(--accent); }
+.hs-logo { height: 44px; width: auto; max-width: 160px; object-fit: contain; border-radius: calc(var(--radius) / 2); }
+.hs-nav .hs-back { margin-left: auto; font-size: 13px; }
+/* "Sites": one dropdown for every sub-site. A plain <details>, so it works without scripts and from the keyboard. */
+.hs-sites { position: relative; }
+.hs-sites > summary { list-style: none; cursor: pointer; padding: 6px 12px; color: var(--muted); border: 1px solid transparent; border-radius: calc(var(--radius) / 2); font-size: 14px; letter-spacing: .06em; user-select: none; }
+.hs-sites > summary::-webkit-details-marker { display: none; }
+.hs-sites > summary::after { content: " \25BE"; }
+.hs-sites > summary:hover, .hs-sites[open] > summary { color: var(--text); border-color: var(--line); }
+.hs-sites > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hs-sites-menu { position: absolute; z-index: 20; top: calc(100% + 4px); right: 0; min-width: 200px; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.hs-sites-menu a { white-space: nowrap; }
+body[data-nav="side"] .hs-sites-menu { position: static; box-shadow: none; border: 0; padding: 0 0 0 12px; }
 body[data-nav="none"] .hs-nav { display: none; }
 body[data-nav="side"] .hs-shell { display: grid; grid-template-columns: 220px 1fr; column-gap: 32px; max-width: calc(var(--maxw) + 260px); }
 body[data-nav="side"] .hs-header { grid-column: 1 / -1; }

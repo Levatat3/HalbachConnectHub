@@ -370,6 +370,58 @@ class TestEmbedHosts(Base):
             sc.clean_embed_hosts(["h%d.example.com" % i for i in range(sc.MAX_EMBED_HOSTS + 1)])
 
 
+class TestAreaDesign(Base):
+    """An area's own look (brand, theme, colours, layout) is accepted only when the owner allowed themes, and only as plain validated values."""
+    GOOD = {"brand": {"name": "Funka's Workshop", "mark": "FW", "tagline": "Tools", "footer": "by Funka", "logo": "files/logo.png"},
+            "theme": "neutral-light", "vars": {"--accent": "#ff8800", "--radius": "8px"}, "layout": {"nav": "side"}}
+
+    def area(self, themes=("neutral-light", "neutral-dark")):
+        return dict(AREA, themes=list(themes))
+
+    def entries(self, design):
+        return [("area.json", zk.area_json(design=design)), ("files/logo.png", zk.png())]
+
+    def test_an_allowed_design_is_kept_in_canonical_form(self):
+        res = self.run_bundle(self.entries(self.GOOD), area=self.area())
+        saved = json.loads((self.work / "tree" / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["design"], self.GOOD)
+        self.assertFalse(any("design" in w for w in res["warnings"]))
+
+    def test_without_allowed_themes_the_design_is_ignored_with_a_plain_note(self):
+        res = self.run_bundle(self.entries(self.GOOD), area=self.area(themes=()))
+        saved = json.loads((self.work / "tree" / "area.json").read_text(encoding="utf-8"))
+        self.assertNotIn("design", saved)
+        self.assertTrue(any("not enabled custom designs" in w for w in res["warnings"]), res["warnings"])
+
+    def test_a_theme_must_be_one_the_owner_listed(self):
+        self.refused(self.entries(dict(self.GOOD, theme="retro-terminal")), expect="not available", area=self.area())
+        self.refused(self.entries(dict(self.GOOD, theme="no-such-theme")), expect="not available", area=self.area())
+
+    def test_hostile_values_are_all_refused(self):
+        bs = chr(92)
+        cases = [
+            {"vars": {"--accent": "url(https://evil.example/x.png)"}}, {"vars": {"--accent": "red; background:url(x)"}},
+            {"vars": {"--accent": "expression(alert(1))"}}, {"vars": {"--accent": "@import 'x'"}}, {"vars": {"--accent": "</style><script>"}},
+            {"vars": {"background": "red"}}, {"vars": {"--" + "a" * 60: "red"}}, {"vars": {"--accent": "red" + bs + "75rl(x)"}},
+            {"brand": {"logo": "files/../x.png"}}, {"brand": {"logo": "/x.png"}}, {"brand": {"logo": "https://evil.example/x.png"}},
+            {"brand": {"logo": "files/logo.svg"}}, {"brand": {"logo": "files/logo.html"}}, {"brand": {"html": "<b>"}},
+            {"layout": {"nav": "bottom"}}, {"layout": {"css": "x"}}, {"script": "alert(1)"}, {"css": "body{}"}, {"html": "<b>x</b>"},
+            {"funk": {"style": "solid"}},
+        ]
+        for extra in cases:
+            with self.subTest(design=extra):
+                self.refused(self.entries(extra), area=self.area())
+
+    def test_the_logo_must_be_in_the_bundle(self):
+        self.refused([("area.json", zk.area_json(design={"brand": {"logo": "files/missing.png"}, "theme": "neutral-light"}))],
+                     expect="not in the bundle", area=self.area())
+
+    def test_markup_in_text_fields_stays_plain_text(self):
+        res = self.run_bundle(self.entries({"brand": {"name": "<b>Fun</b> & co", "footer": "<script>alert(1)</script>"}}), area=self.area())
+        saved = json.loads((self.work / "tree" / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["design"]["brand"]["name"], "<b>Fun</b> & co")       # stored as text; the builder escapes it on output
+
+
 class TestNoSideEffectsOnSuccessOrFailure(Base):
     def test_extraction_never_writes_outside_the_destination(self):
         self.run_bundle([GOOD_DOC, ("files/deep/er/a.png", zk.png())])

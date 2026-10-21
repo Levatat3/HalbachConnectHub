@@ -1,17 +1,17 @@
 {
- "404.html": "b7f0515bb7bc1dce0f744f3aab0c92cfafdcfc1c93ca3e704abd776859d471ed",
+ "404.html": "f35c4fef35d5f7015bfa0c0bc48fb779fa8529179c498d052af5887a9948c165",
  "_halbach/blocks/cards.fe8a40d7e0.js": "fe8a40d7e0e2a4687aa8cb19ded41c4875d3d0a2e45655adffbfe42c55643826",
  "_halbach/blocks/github-projects.55fb1c0633.js": "55fb1c0633f93db5cc6c69d0b3b99218a61013c1a3e03a9de029f9cca5bf191d",
  "_halbach/blocks/hero.dce92d240d.js": "dce92d240d1cb7a61af1b13606b5f3e4e93cd2f4af691fad36e8ed5a2e85b43c",
  "_halbach/blocks/links.12ec8b6c43.js": "12ec8b6c43d6975e27582b6bb39c69d85ca5d3be99a492731fddd526d2421afd",
  "_halbach/blocks/text.7de2f558dc.js": "7de2f558dc16316e5ee3c6ddb0b5121e85678176d60b8a9752ab9e36ff5ecd60",
  "_halbach/runtime.c6a091e221.js": "c6a091e2211d60190bfb9c02808f8df1dbc79e21596fe6cc0fc7cf2bc0786df8",
- "_halbach/theme.abf00497e7.css": "abf00497e77d96911e1e02a66214c72f7874f79b4e73db7e289e9f940e3e2b37",
+ "_halbach/theme.ccf11044be.css": "ccf11044beda2e50e0e34db853a2a4dafc635b4920be945a84f55e65a394379b",
  "_headers": "c2523ad47193d70f37799dc93521ae7c35dc3defb274318684eec5349536e5af",
- "about/index.html": "4c12ce7946b7e24dd8b06e9055957a3125e971386ed476cdbd3a8509235bb3f6",
+ "about/index.html": "6c9602ef55027c782dcf51ab42e6de17d8f9a5ab6087924c74d29d1e50e5afe3",
  "favicon.svg": "c1ed9b5a252b940e3ddcbfd84d88c53a3ab2c6a75c4e62cf728f2905f6d8f1d4",
- "index.html": "88d5f0465dd6d5a35b049ef9a20fbd3d4fa612437592adfc1158b4efea90f397",
+ "index.html": "1a70c977786116443119c13d1155ed152501a801c92537377482df91d98729e0",
  "manifest.json": "1c4a8cdfac78ac10b5042f7ff172edf390b0bbf28becac8fe79688ffbe2bcaca",
- "projects/index.html": "5199e381c62bbb87a3484488af5f62cb3398a9e16ac93a77872cc3ab90de293b",
+ "projects/index.html": "95dffd7535d4d1952aa2d4b606ba4b5417e86d899f92cf5ad760e06cf0bc09e1",
  "robots.txt": "16ceb5ee3e0dc13aa9adf31a3ebbe45a1d965b8c2b9f72eaf84e5911e140ed95"
 }

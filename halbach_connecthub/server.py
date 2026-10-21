@@ -361,7 +361,7 @@ def make_handler(hub):
                     aid, act = m_area.groups()
                     ar = hub.areas
                     if act == "update":
-                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks", "embed_hosts") if k in b})})
+                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks", "embed_hosts", "themes") if k in b})})
                     if act == "regenerate":
                         key = ar.regenerate_key(aid)
                         return self._json({"key": key})

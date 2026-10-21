@@ -46,7 +46,7 @@ DANGEROUS_PARTS = {"html", "htm", "xhtml", "js", "mjs", "svg", "xml", "swf", "ex
 RESERVED_NAMES = {"con", "prn", "aux", "nul"} | {"com%d" % i for i in range(1, 10)} | {"lpt%d" % i for i in range(1, 10)}
 SEGMENT_RE = re.compile(r"^[A-Za-z0-9_()+,@~\-][A-Za-z0-9 _.()+,@~\-]*$")
 BAD_UNICODE = re.compile("[​-‏‪-‮⁦-⁩﻿\u0000-\u001f\u007f]")
-TOP_KEYS = {"format", "title", "description", "pages", "blocks"}
+TOP_KEYS = {"format", "title", "description", "pages", "blocks", "design"}
 FILE_REF = re.compile(r"files/[A-Za-z0-9_()+,@~/. \-]+")
 
 
@@ -541,9 +541,25 @@ def parse_area_doc(raw, area, registry, files, warnings):
         except sc.FieldError as e:
             raise BundleError(str(e))
         pages.append({"name": pname, "title": ptitle, "blocks": blocks})
+    design = {}
+    if doc.get("design") not in (None, {}):
+        themes = [t for t in (area.get("themes") or []) if registry.theme(t)]
+        if not themes:
+            warnings.append("The 'design' section was ignored: the owner has not enabled custom designs for this area.")
+        else:
+            try:
+                design = sc.clean_area_design(doc["design"], themes)
+            except sc.FieldError as e:
+                errors.append("design: %s" % e)
+            logo = (design.get("brand") or {}).get("logo")
+            if logo and logo not in files:
+                errors.append("design: the logo %s is not in the bundle" % _show(logo))
     if errors:
         raise BundleError(errors[:8])
-    return {"format": FORMAT, "title": title, "description": desc, "pages": pages}
+    out = {"format": FORMAT, "title": title, "description": desc, "pages": pages}
+    if design:
+        out["design"] = design
+    return out
 
 
 # --------------------------------------------------------------------------- the whole thing

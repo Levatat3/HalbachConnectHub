@@ -159,7 +159,7 @@ class AreaService:
     def view(self, a):
         subs = self.submissions(a["id"], limit=200)
         return {"id": a["id"], "name": a["name"], "slug": a["slug"], "enabled": a["enabled"], "paused": a["paused"], "trust": a["trust"],
-                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "created": a["created"], "auto": a.get("auto"),
+                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "themes": a.get("themes") or [], "created": a["created"], "auto": a.get("auto"),
                 "key": {"hint": (a.get("key") or {}).get("hint"), "created": (a.get("key") or {}).get("created"),
                         "last_used": (a.get("key") or {}).get("last_used"), "active": bool(a.get("key"))},
                 "current": a.get("current"), "versions": self.versions(a["id"]),
@@ -192,13 +192,32 @@ class AreaService:
             chosen = [b for b in (blocks or DEFAULT_BLOCKS) if b in ALLOWABLE_BLOCKS]
             key = new_passphrase()
             area = {"id": slug, "name": name, "slug": slug, "enabled": True, "paused": False, "trust": trust, "nav": bool(nav),
-                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "created": int(self.clock()), "current": None,
+                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "themes": [], "created": int(self.clock()), "current": None,
                     "key": {"hash": hash_key(key), "created": int(self.clock()), "last_used": None, "hint": key[-5:].replace("-", "")[-4:]}}
             self.areas.append(area)
             self._save()
             self.dir(slug).mkdir(parents=True, exist_ok=True)
             self.audit(slug, "owner", "created", 0, "")
             return self.view(area), key
+
+    def _clean_theme_ids(self, value):
+        """The themes the owner lets an area use. Each must exist; at most 12."""
+        if isinstance(value, str):
+            value = value.replace(",", " ").split()
+        if not isinstance(value, list):
+            raise ValidationError("Themes must be a list of theme ids")
+        out = []
+        for t in value:
+            t = str(t).strip()
+            if not t:
+                continue
+            if not self.registry.theme(t):
+                raise ValidationError("There is no theme '%s'" % t[:40])
+            if t not in out:
+                out.append(t)
+        if len(out) > 12:
+            raise ValidationError("At most 12 themes per area")
+        return out
 
     def update(self, aid, **kw):
         with self.lock:
@@ -209,6 +228,9 @@ class AreaService:
                     hosts = sc.clean_embed_hosts(kw["embed_hosts"])
                 except sc.FieldError as e:
                     raise ValidationError(str(e))
+            themes = None
+            if kw.get("themes") is not None:                    # the themes an area may use for its own look; empty = no custom design
+                themes = self._clean_theme_ids(kw["themes"])
             if "name" in kw:
                 a["name"] = sc.clean_line(kw["name"], 40) or a["name"]
             for k in ("enabled", "paused", "nav"):
@@ -224,6 +246,8 @@ class AreaService:
                 a["blocks"] = [b for b in kw["blocks"] if b in ALLOWABLE_BLOCKS]
             if hosts is not None:
                 a["embed_hosts"] = hosts
+            if themes is not None:
+                a["themes"] = themes
             if a.get("auto") and not (a["trust"] == "auto" and a["enabled"] and not a["paused"]):
                 a.pop("auto", None)                     # switched away from auto (or paused/off): nothing publishes by itself
                 self.audit(aid, "owner", "auto-publish cancelled", 0, "the area is no longer on auto")
@@ -511,7 +535,7 @@ class AreaService:
                         tree = cand
                 if tree:
                     out.append({"id": a["id"], "slug": a["slug"], "name": a["name"], "nav": a["nav"], "tree": tree,
-                                "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or [])})
+                                "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or [])})
         return out
 
     # ---------------------------------------------------------------- the sender's view
@@ -521,7 +545,7 @@ class AreaService:
                 for s in self.submissions(aid, limit=20)]
 
     def sender_limits(self, a):
-        return {"limits": a["limits"], "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []),
+        return {"limits": a["limits"], "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
                 "paused": a["paused"], "trust": a["trust"], "slug": a["slug"], "format": 1}
 
     # ---------------------------------------------------------------- audit

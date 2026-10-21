@@ -399,3 +399,75 @@ def clean_funktheme(value):
     out["fxAmount"] = _funk_num(value.get("fxAmount"), 0, 1, "Effect amount", 0.7)
     out["fxColor"] = _funk_hex(value["fxColor"], "The effect colour") if value.get("fxColor") else None
     return out
+
+
+# --------------------------------------------------------------------------- an area's own design (sub-site branding)
+AREA_NAVS = ("top", "side", "none")
+_LOGO_RE = re.compile(r"^files/[A-Za-z0-9][A-Za-z0-9 ._()+,@~-]{0,100}\.(?:png|jpg|jpeg|gif|webp)$")
+MAX_AREA_VARS = 40
+
+
+def clean_area_design(value, allowed_themes):
+    """An area's own branding, validated. Returns the canonical dict ({} when empty); raises FieldError with a plain reason.
+
+    {"brand": {name, mark, tagline, footer, logo}, "theme": id, "vars": {"--accent": "#fa0"}, "layout": {"nav": "top|side|none"},
+     "funk": {...}}. allowed_themes is the list of theme ids the owner lets this area use. Only plain text, validated
+    colours/sizes, a theme from that list, a layout preset and a picture from the area's own files: no markup, no scripts.
+    """
+    if value in (None, {}):
+        return {}
+    if not isinstance(value, dict):
+        raise FieldError("design must be an object")
+    for k in value:
+        if k not in ("brand", "theme", "vars", "layout", "funk"):
+            raise FieldError("design has a setting that does not exist (%s)" % str(k)[:30])
+    out = {}
+    b = value.get("brand")
+    if b not in (None, {}):
+        if not isinstance(b, dict):
+            raise FieldError("design.brand must be an object")
+        brand = {}
+        for key, n in (("name", 40), ("mark", 4), ("tagline", 160), ("footer", 200)):
+            if b.get(key) not in (None, ""):
+                brand[key] = clean_line(b[key], n)
+        if b.get("logo") not in (None, ""):
+            if not isinstance(b["logo"], str) or not _LOGO_RE.match(b["logo"]):
+                raise FieldError("design.brand.logo must be a picture in the files folder, such as files/logo.png")
+            brand["logo"] = b["logo"]
+        for key in b:
+            if key not in ("name", "mark", "tagline", "footer", "logo"):
+                raise FieldError("design.brand has a setting that does not exist (%s)" % str(key)[:30])
+        if brand:
+            out["brand"] = brand
+    theme = value.get("theme")
+    if theme not in (None, ""):
+        if not isinstance(theme, str) or theme not in allowed_themes:
+            raise FieldError("the theme '%s' is not available to this area (allowed: %s)" % (str(theme)[:30], ", ".join(allowed_themes) or "none"))
+        out["theme"] = theme
+    vars_ = value.get("vars")
+    if vars_ not in (None, {}):
+        if not isinstance(vars_, dict):
+            raise FieldError("design.vars must be a set of name and value pairs")
+        clean = {}
+        for k, v in vars_.items():
+            if v in (None, ""):
+                continue
+            n, val = clean_css_var(k, v)
+            clean[n] = val
+        if len(clean) > MAX_AREA_VARS:
+            raise FieldError("At most %d design variables" % MAX_AREA_VARS)
+        if clean:
+            out["vars"] = clean
+    layout = value.get("layout")
+    if layout not in (None, {}):
+        if not isinstance(layout, dict) or set(layout) - {"nav"}:
+            raise FieldError("design.layout only has a 'nav' setting")
+        if layout.get("nav") not in AREA_NAVS:
+            raise FieldError("design.layout.nav must be one of: %s" % ", ".join(AREA_NAVS))
+        out["layout"] = {"nav": layout["nav"]}
+    funk = value.get("funk")
+    if funk not in (None, {}):
+        if out.get("theme") != "funk":
+            raise FieldError("design.funk needs design.theme to be 'funk'")
+        out["funk"] = clean_funktheme(funk)
+    return out

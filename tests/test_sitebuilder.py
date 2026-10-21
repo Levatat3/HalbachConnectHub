@@ -330,5 +330,99 @@ class TestAreaEmbeds(Base):
                 self.assertNotIn("sameorigin", (self.stage / "workshop" / "index.html").read_text(encoding="utf-8"))
 
 
+class TestSubSites(Base):
+    """An area is a sub-site: its own menu, brand and look; the main menu only gets one "Sites" dropdown."""
+
+    def build_area(self, design=None, themes=None, nav=True, pages=None, name="Funkas Workshop", slug="funkas-workshop"):
+        self.model.load_template("blank")
+        tree = self.root / "tree"
+        tree.mkdir(exist_ok=True)
+        (tree / "files").mkdir(exist_ok=True)
+        (tree / "files" / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        doc = {"format": 1, "title": "Workshop", "description": "", "pages": pages or [
+            {"name": "", "title": "Home", "blocks": [{"id": "b1", "type": "text", "props": {"markdown": "hello"}}]},
+            {"name": "tools", "title": "Tools", "blocks": [{"id": "b1", "type": "text", "props": {"markdown": "tools"}}]}]}
+        if design is not None:
+            doc["design"] = design
+        (tree / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+        areas = [{"id": slug, "slug": slug, "name": name, "nav": nav, "tree": str(tree), "blocks": ["text"], "embed_hosts": [],
+                  "themes": themes if themes is not None else []}]
+        return sb.build_site(self.model, self.reg, self.store, self.stage, areas=areas)
+
+    def read(self, rel):
+        return (self.stage / rel).read_text(encoding="utf-8")
+
+    def nav_of(self, html_text):
+        m = re.search(r'<nav class="hs-nav"[^>]*>(.*?)</nav>', html_text, re.S)
+        return m.group(1)
+
+    def test_the_main_menu_gets_one_sites_dropdown_and_none_of_the_areas_tabs(self):
+        res = self.build_area()
+        self.assertTrue(res.ok, res.errors)
+        home = self.nav_of(self.read("index.html"))
+        self.assertIn('<details class="hs-sites"><summary>Sites</summary>', home)
+        self.assertIn('href="/funkas-workshop/">Funkas Workshop</a>', home)
+        self.assertNotIn("/funkas-workshop/tools/", home)
+        self.assertEqual(home.count('class="hs-sites"'), 1)
+        self.assertIn("hs-sites", self.nav_of(self.read("404.html")))
+
+    def test_an_area_hidden_from_the_menu_gets_no_dropdown(self):
+        res = self.build_area(nav=False)
+        self.assertTrue(res.ok, res.errors)
+        self.assertNotIn("hs-sites", self.read("index.html"))
+
+    def test_the_area_has_its_own_menu_and_not_the_main_sites(self):
+        self.model.load_template("personal")
+        res = self.build_area()
+        self.assertTrue(res.ok, res.errors)
+        nav = self.nav_of(self.read("funkas-workshop/index.html"))
+        self.assertIn(">Funkas Workshop</a>", nav)          # its first page, named after the area
+        self.assertIn('href="/funkas-workshop/tools/"', nav)
+        self.assertIn("hs-back", nav)                       # the way back to the main site
+        for other in ("/about/", "/projects/"):
+            self.assertNotIn('href="%s"' % other, nav)
+        self.assertNotIn("hs-sites", nav)
+        tools = self.nav_of(self.read("funkas-workshop/tools/index.html"))
+        self.assertIn('aria-current="page"', tools)
+
+    def test_its_own_brand_theme_colours_and_layout_when_the_owner_allowed_themes(self):
+        design = {"brand": {"name": "Funka's Workshop", "mark": "FW", "tagline": "Tools and mods", "footer": "made by Funka", "logo": "files/logo.png"},
+                  "theme": "neutral-light", "vars": {"--accent": "#ff8800"}, "layout": {"nav": "side"}}
+        res = self.build_area(design=design, themes=["neutral-light", "neutral-dark"])
+        self.assertTrue(res.ok, res.errors)
+        page = self.read("funkas-workshop/index.html")
+        self.assertIn("<title>Funka&#x27;s Workshop</title>", page)
+        self.assertIn('<img class="hs-logo" src="/funkas-workshop/files/logo.png" alt="">', page)
+        self.assertIn('data-nav="side"', page)
+        self.assertIn("made by Funka", page)
+        self.assertIn('content="Tools and mods"', page)
+        css_href = re.search(r'<link rel="stylesheet" href="([^"]+)"', page).group(1)
+        area_css = self.read(css_href.lstrip("/"))
+        self.assertIn("--accent:#ff8800", area_css)
+        main_css = self.read(re.search(r'<link rel="stylesheet" href="([^"]+)"', self.read("index.html")).group(1).lstrip("/"))
+        self.assertNotIn("#ff8800", main_css, "an area's colours must never reach the main site's stylesheet")
+        self.assertNotEqual(css_href, re.search(r'<link rel="stylesheet" href="([^"]+)"', self.read("index.html")).group(1))
+        self.assertIn("Tools and mods", page)
+        self.assertNotIn("data-nav=\"side\"", self.read("index.html"))     # the main site keeps its own layout
+
+    def test_a_design_is_dropped_with_a_warning_when_the_owner_has_not_allowed_themes(self):
+        res = self.build_area(design={"theme": "neutral-light", "vars": {"--accent": "#ff8800"}}, themes=[])
+        self.assertTrue(res.ok, res.errors)
+        self.assertTrue(any("custom design" in w["message"] for w in res.warnings), res.warnings)
+        self.assertNotIn("#ff8800", "".join(f.read_text(encoding="utf-8", errors="ignore") for f in self.stage.rglob("*.css")))
+        self.assertIn("Funkas Workshop", self.read("funkas-workshop/index.html"))     # still a sub-site, just with the default look
+
+    def test_a_hostile_design_is_dropped_at_build_time_even_if_it_got_in(self):
+        for bad in ({"vars": {"--accent": "url(https://evil.example/x)"}, "theme": "neutral-light"},
+                    {"brand": {"logo": "files/../../x.png"}, "theme": "neutral-light"},
+                    {"theme": "not-a-theme"}, {"script": "alert(1)", "theme": "neutral-light"}):
+            with self.subTest(design=bad):
+                res = self.build_area(design=bad, themes=["neutral-light"])
+                self.assertTrue(res.ok, res.errors)
+                self.assertTrue(any("custom design" in w["message"] for w in res.warnings), res.warnings)
+                every = "".join(f.read_text(encoding="utf-8", errors="ignore") for f in self.stage.rglob("*") if f.is_file() and f.suffix in (".css", ".html"))
+                self.assertNotIn("evil.example", every)
+
+
 if __name__ == "__main__":
     unittest.main()
