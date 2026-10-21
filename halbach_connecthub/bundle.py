@@ -436,23 +436,42 @@ def _rewrite_refs(value, slug, files, errors, where):
     return value
 
 
-def _check_urls(value, slug, errors, where):
-    if isinstance(value, str):
-        v = value.strip()
-        if re.match(r"^[a-z][a-z0-9+.\-]*:", v, re.I) and not re.match(r"^(https://|mailto:)", v, re.I):
-            errors.append("%s has an address that is not https or mailto (%s)" % (where, _show(v[:30])))
-        elif v.startswith("//"):
-            errors.append("%s has a protocol-relative address" % where)
-        elif v.startswith("/") and not (v == "/%s" % slug or v.startswith("/%s/" % slug)):
-            errors.append("%s links outside the area (%s)" % (where, _show(v[:40])))
-        elif v.startswith("/") and ".." in v.split("/"):
-            errors.append("%s has a relative path that leaves the area" % where)
-    elif isinstance(value, list):
-        for v in value:
-            _check_urls(v, slug, errors, where)
-    elif isinstance(value, dict):
-        for v in value.values():
-            _check_urls(v, slug, errors, where)
+_MD_TARGET = re.compile(r"!?\[[^\]]*\]\(\s*([^)\s]+)")
+
+
+def _check_address(value, slug, errors, where):
+    """One address an area wrote: https or mailto, or a path inside the area. Anything else is refused with a reason."""
+    if not isinstance(value, str):
+        return
+    v = value.strip()
+    if re.match(r"^[a-z][a-z0-9+.\-]*:", v, re.I) and not re.match(r"^(https://|mailto:)", v, re.I):
+        errors.append("%s has an address that is not https or mailto (%s)" % (where, _show(v[:30])))
+    elif v.startswith("//"):
+        errors.append("%s has a protocol-relative address" % where)
+    elif v.startswith("/") and not (v == "/%s" % slug or v.startswith("/%s/" % slug)):
+        errors.append("%s links outside the area (%s)" % (where, _show(v[:40])))
+    elif v.startswith("/") and ".." in v.split("/"):
+        errors.append("%s has a relative path that leaves the area" % where)
+
+
+def _check_props_addresses(clean, fields, slug, errors, where):
+    """Apply the address rules ONLY to fields that are addresses (as the block's manifest declares them).
+
+    Ordinary text such as "Note: hello" or "/help is a command" is not an address and is left alone. Links inside
+    Markdown text are addresses too, so each `[label](target)` target is checked.
+    """
+    for f in fields:
+        v = clean.get(f.get("key"))
+        t = f.get("type")
+        if t in ("url", "image"):
+            _check_address(v, slug, errors, where)
+        elif t in ("links", "cards"):
+            for item in v or []:
+                if isinstance(item, dict):
+                    _check_address(item.get("url"), slug, errors, where)
+        elif t == "markdown" and isinstance(v, str):
+            for target in _MD_TARGET.findall(v):
+                _check_address(target, slug, errors, where)
 
 
 def _embed_problem(props, hosts):
@@ -530,7 +549,7 @@ def parse_area_doc(raw, area, registry, files, warnings):
             props = _rewrite_refs(props, area["slug"], files, errors, where)
             clean, errs = sc.validate_props(plug.manifest.get("fields", []), props, ctx)
             errors += ["%s: %s" % (where, e["message"]) for e in errs]
-            _check_urls(clean, area["slug"], errors, where)
+            _check_props_addresses(clean, plug.manifest.get("fields", []), area["slug"], errors, where)
             if btype == "embed":
                 problem = _embed_problem(clean, area.get("embed_hosts") or [])
                 if problem:

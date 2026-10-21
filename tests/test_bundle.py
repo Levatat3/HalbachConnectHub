@@ -281,6 +281,37 @@ class TestAreaDocument(Base):
             with self.subTest(url=bad):
                 self.refused(self.blocks({"type": "links", "props": {"items": [{"label": "x", "url": bad}]}}))
 
+    def test_ordinary_text_that_looks_like_a_scheme_or_a_path_is_not_an_address(self):
+        """Regression (reported from Funk's machine): "FunkStudio: play my songs" was refused as 'not https or mailto'."""
+        blocks = [
+            {"type": "hero", "props": {"heading": "FunkStudio: play my songs", "prompt": "status: online", "tagline": "Update: v2. /help is a command"}},
+            {"type": "divider", "props": {"label": "FunkStudio: play my songs"}},
+            {"type": "text", "props": {"markdown": "Note: this is fine.\n\nTip: use /help or C:/notes. Status: online."}},
+            {"type": "cards", "props": {"items": [{"title": "Tip: cards", "text": "Update: /soon"}]}},
+            {"type": "links", "props": {"items": [{"label": "Docs: read me", "url": "https://example.com"}]}},
+            {"type": "image", "props": {"url": "files/a.png", "alt": "Photo: me"}},
+        ]
+        res = self.run_bundle([("area.json", zk.area_json(blocks)), ("files/a.png", zk.png())])
+        self.assertEqual(len(res["doc"]["pages"][0]["blocks"]), 6)
+
+    def test_addresses_are_still_refused_in_every_address_field(self):
+        bad = ("javascript:alert(1)", "data:text/html,hi", "//evil.example/x", "/other/", "ftp://x.example")
+        for url in bad:
+            with self.subTest(field="links", url=url):
+                self.refused(self.blocks({"type": "links", "props": {"items": [{"label": "x", "url": url}]}}))
+            with self.subTest(field="cards", url=url):
+                self.refused(self.blocks({"type": "cards", "props": {"items": [{"title": "t", "url": url}]}}))
+            with self.subTest(field="image", url=url):
+                self.refused(self.blocks({"type": "image", "props": {"url": url, "alt": "x"}}))
+
+    def test_links_inside_markdown_text_are_checked_too(self):
+        for target in ("javascript:alert(1)", "data:text/html,hi", "//evil.example", "/other/", "vbscript:x", "JaVaScRiPt:alert(1)"):
+            with self.subTest(target=target):
+                self.refused(self.blocks({"type": "text", "props": {"markdown": "before [click me](%s) after" % target}}))
+                self.refused(self.blocks({"type": "text", "props": {"markdown": "![pic](%s)" % target}}))
+        ok = "[a](https://example.com) [b](/workshop/tools/) [c](mailto:a@b.co) [d](#top)"
+        self.run_bundle(self.blocks({"type": "text", "props": {"markdown": ok}}))
+
     def test_references_to_files_that_are_not_in_the_bundle(self):
         self.refused(self.blocks({"type": "image", "props": {"url": "files/missing.png"}}), expect="not in the bundle")
         self.refused(self.blocks({"type": "text", "props": {"markdown": "![x](files/missing.png)"}}), expect="not in the bundle")
