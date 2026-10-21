@@ -118,14 +118,16 @@ def build_zip(folder, out_path, limits=None):
     return size
 
 
-def validate_folder(folder, limits=None, registry=None):
+def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts=None):
     """Offline check: zip the folder and run the owner's exact validator over it, without contacting anyone.
 
     Returns {"pages", "blocks", "files", "warnings"}. Raises ClientError (the folder cannot even be zipped) or
     BundleError (the bundle would be refused; .reasons says why). Nothing is left behind in the temp folder.
     """
     limits = dict(DEFAULT_LIMITS, **(limits or {}))
-    area = {"slug": "area", "limits": limits}                 # the real slug only matters for URLs, not for the rules
+    area = {"slug": "area", "limits": limits, "embed_hosts": list(embed_hosts or [])}   # the real slug only matters for URLs, not for the rules
+    if blocks:
+        area["blocks"] = list(blocks)
     tmp = Path(tempfile.mkdtemp(prefix="halbach-validate-"))
     try:
         zip_path, dest = tmp / "bundle.zip", tmp / "tree"
@@ -294,14 +296,23 @@ def main(argv):
                     limits = json.loads(Path(a.limits).read_text(encoding="utf-8"))
                 except (OSError, ValueError) as e:
                     raise ClientError("Could not read the limits file (%s)." % e)
+            blocks = hosts = None
+            rules_from = "the default rules (not connected, so this area's own settings are not known)"
+            if not a.limits:
+                try:                                                  # connected: check against THIS area's rules (its blocks, embed hosts, limits)
+                    info = _resolve(a).limits()
+                    limits, blocks, hosts = info.get("limits"), info.get("blocks"), info.get("embed_hosts")
+                    rules_from = "this area's own rules"
+                except ClientError:
+                    pass
             try:
-                summary = validate_folder(a.folder, limits)
+                summary = validate_folder(a.folder, limits, blocks=blocks, embed_hosts=hosts)
             except BundleError as e:
                 print("This folder would be refused:")
                 for r in e.reasons:
                     print("  -", r)
                 return 1
-            print("Looks good: %d page(s), %d block(s), %d file(s)." % (summary["pages"], summary["blocks"], summary["files"]))
+            print("Looks good: %d page(s), %d block(s), %d file(s), checked against %s." % (summary["pages"], summary["blocks"], summary["files"], rules_from))
             for w in summary["warnings"]:
                 print("  note:", w)
             return 0

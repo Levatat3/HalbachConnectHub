@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 from . import publisher
-from .siteschema import RESERVED_SLUGS
+from .siteschema import RESERVED_SLUGS, embed_url_host
 from .store import MAX_FILES, MAX_FILE_BYTES, collect_files
 
 HEADER_RULE_LIMIT = 100
@@ -246,7 +246,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
 
     pages = [p for p in data["pages"] if p["enabled"] and (include_drafts or not p["draft"])]
     # ---- areas: approved content from collaborators, confined to each area's own address
-    area_pages, area_types = [], {}
+    area_pages, area_types, area_frames = [], {}, {}
     model_slugs = {p["slug"] for p in data["pages"]}
     for ar in (areas or []):
         slug = ar["slug"]
@@ -268,6 +268,14 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                 props = dict(b.get("props", {}))
                 if b["type"] == "text":
                     props["base"] = "/%s/" % slug
+                if b["type"] == "embed":
+                    # Checked again here, not only when the bundle came in: the owner may have removed the host since.
+                    host = embed_url_host(props.get("url"))
+                    if not host or props.get("module") or host not in (ar.get("embed_hosts") or []):
+                        res.warnings.append({"path": "areas/" + ar["id"], "message": "An embed in area '%s' was left out because the area is no longer allowed to embed that address." % ar["name"]})
+                        continue
+                    props = {"url": props["url"], "height": props.get("height") or 560, "sameorigin": True}   # sameorigin is set here only, never read from a bundle
+                    area_frames.setdefault(ar["id"], set()).add("https://" + host)
                 blocks.append({"id": b["id"], "type": b["type"], "props": props, "enabled": True})
                 area_types.setdefault(ar["id"], set()).add(b["type"])
             name = pg.get("name") or ""
@@ -429,6 +437,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     # ---- content-security-policy
     extra_frames, extra_connect = set(), set()
     for p in pages:
+        if p.get("area"):
+            continue                                        # an area's embeds widen only that area's own policy (below), never the whole site's
         for b in p["blocks"]:
             if b["type"] == "embed" and b.get("props", {}).get("url"):
                 o = _origin(b["props"]["url"])
@@ -526,7 +536,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     area_rules = []
     for ar in (areas or []):
         if ar["id"] in area_types:
-            area_rules.append((ar["slug"], assemble_csp(registry, sorted(area_types[ar["id"]]), [], [site_theme], live_base, settings["analytics"])))
+            area_rules.append((ar["slug"], assemble_csp(registry, sorted(area_types[ar["id"]]), [], [site_theme], live_base, settings["analytics"],
+                                                                  sorted(area_frames.get(ar["id"], ())))))
     headers = build_headers(csp, settings["csp"], area_rules)
     rules = sum(1 for ln in headers.splitlines() if ln and not ln.startswith(" "))
     if rules > HEADER_RULE_LIMIT or any(len(ln) > HEADER_LINE_LIMIT for ln in headers.splitlines()):

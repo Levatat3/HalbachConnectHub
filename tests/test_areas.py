@@ -103,9 +103,9 @@ class TestService(Base):
         self.assertEqual(view["trust"], "auto")
 
     def test_limits_and_blocks_are_clamped_to_what_is_safe(self):
-        view, _ = self.make_area(limits={"max_file_mb": 5, "extensions": ["png", "html", "exe", "pdf"]}, blocks=["text", "embed", "live-view", "hero"])
+        view, _ = self.make_area(limits={"max_file_mb": 5, "extensions": ["png", "html", "exe", "pdf"]}, blocks=["text", "embed", "live-view", "module-list", "hero"])
         self.assertEqual(view["limits"]["extensions"], ["png", "pdf"])
-        self.assertEqual(view["blocks"], ["text", "hero"])
+        self.assertEqual(view["blocks"], ["text", "embed", "hero"])           # embed is a real area block (it still needs the owner's host list); the others are not
         with self.assertRaises(st.ValidationError):
             self.svc.update("workshop", limits={"max_file_mb": 9999})
         with self.assertRaises(st.ValidationError):
@@ -682,6 +682,22 @@ class TestClient(DropBase):
         code, out = self.run_cli("limits", "--area", "workshop")           # a value given after the command is used, and the rest comes from the connection
         self.assertEqual(code, 0, out)
 
+    def test_validate_uses_the_connected_areas_own_rules_including_embed_hosts(self):
+        doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
+        doc["pages"][0]["blocks"].append({"type": "embed", "props": {"url": "https://player.example.com/app"}})
+        (self.folder / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+        code, out = self.run_cli("validate", str(self.folder))                      # not connected: the default rules refuse an embed
+        self.assertEqual(code, 1, out)
+        self.svc.update("workshop", blocks=["text", "hero", "embed"], embed_hosts="player.example.com")
+        self.connect()
+        code, out = self.run_cli("validate", str(self.folder))
+        self.assertEqual(code, 0, out)
+        self.assertIn("this area's own rules", out)
+        self.svc.update("workshop", embed_hosts=[])                                 # the owner takes the host away again
+        code, out = self.run_cli("validate", str(self.folder))
+        self.assertEqual(code, 1, out)
+        self.assertIn("may not embed", out)
+
     def test_cli_shows_the_reasons_when_a_bundle_is_refused(self):
         self.connect()
         doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
@@ -731,7 +747,8 @@ class TestValidateOffline(unittest.TestCase):
     def test_a_valid_folder_passes_with_a_summary_and_without_a_connection_file(self):
         code, out = self.run_cli("validate", str(self.folder))
         self.assertEqual(code, 0, out)
-        self.assertIn("Looks good: 1 page(s), 2 block(s), 1 file(s).", out)
+        self.assertIn("Looks good: 1 page(s), 2 block(s), 1 file(s)", out)
+        self.assertIn("default rules", out)                                         # not connected: it says which rules it used
         self.assertFalse((self.root / "client-home" / areaclient.CONNECTION_FILE).exists())     # worked offline
         self.assertFalse((self.folder / ".halbach-bundle.zip").exists())                       # nothing left in the folder
         self.assertEqual(self.temp_leftovers(), [])                                            # nothing left in the temp folder

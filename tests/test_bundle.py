@@ -312,6 +312,64 @@ class TestAreaDocument(Base):
         self.assertFalse((self.work / "tree").exists())
 
 
+class TestEmbedHosts(Base):
+    """An area may embed another site only when its owner listed that exact host; the embed block is never on by default."""
+    BS = chr(92)
+    HOST = "player.example.com"
+
+    def area(self, hosts=None, block=True):
+        return dict(AREA, blocks=list(bundle.DEFAULT_BLOCKS) + (["embed"] if block else []), embed_hosts=[self.HOST] if hosts is None else hosts)
+
+    def doc(self, url, **props):
+        return [("area.json", zk.area_json([{"type": "embed", "props": dict({"url": url}, **props)}]))]
+
+    def test_it_is_off_unless_the_owner_ticked_the_block(self):
+        self.assertNotIn("embed", bundle.DEFAULT_BLOCKS)
+        self.refused(self.doc("https://%s/" % self.HOST), expect="does not allow", area=self.area(block=False))
+        self.refused(self.doc("https://%s/" % self.HOST), expect="does not allow")           # the plain test area has no embed
+
+    def test_the_block_alone_is_not_enough_without_a_host_list(self):
+        self.refused(self.doc("https://%s/" % self.HOST), expect="may not embed any site", area=self.area(hosts=[]))
+
+    def test_an_allowed_host_is_accepted_whatever_the_capitals_or_path(self):
+        for url in ("https://player.example.com/", "https://PLAYER.Example.COM/app?x=1#top", "HTTPS://player.example.com"):
+            with self.subTest(url=url):
+                self.run_bundle(self.doc(url), area=self.area())
+                self.assertTrue((self.work / "tree" / "area.json").is_file())
+                import shutil
+                shutil.rmtree(self.work / "tree")
+
+    def test_look_alike_and_trick_addresses_are_all_refused(self):
+        bs = self.BS
+        for bad in ("https://evil.example/", "https://player.example.com.evil.example/", "https://evilplayer.example.com/",
+                    "https://sub.player.example.com/", "http://player.example.com/", "https://player.example.com:8443/",
+                    "https://player.example.com:443/", "https://user@player.example.com/", "https://player.example.com@evil.example/",
+                    "https://player.example.com" + bs + "@evil.example/", "https://player.example.com%2eevil.example/",
+                    "https://player.example.com./", "https://player.example.com%00.evil.example/", "https://player.example.com\n@evil.example/",
+                    "https://player.example.com .evil.example/", "//player.example.com/", "javascript:alert(1)", "data:text/html,hi",
+                    "https://[::1]/", "https://127.0.0.1/", "https://xn--pla-yer.example.com/", "https://", "https:///player.example.com/",
+                    "https://player.example.com" + bs + "evil/", "/workshop/x", "files/x.html", ""):
+            with self.subTest(url=bad):
+                self.refused(self.doc(bad), area=self.area())
+
+    def test_an_embed_cannot_name_a_module_and_cannot_set_its_own_trust_flag(self):
+        self.refused(self.doc("https://%s/" % self.HOST, module="secret"), area=self.area())
+        self.run_bundle(self.doc("https://%s/" % self.HOST, sameorigin=True, sandbox="allow-top-navigation"), area=self.area())
+        saved = json.loads((self.work / "tree" / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(sorted(saved["pages"][0]["blocks"][0]["props"]), ["height", "module", "url"])     # only declared settings survive
+
+    def test_the_owner_list_rejects_wildcards_ports_addresses_and_private_names(self):
+        from halbach_connecthub import siteschema as sc
+        self.assertEqual(sc.clean_embed_hosts("Player.Example.com, https://other.example.org/x  player.example.com"), ["player.example.com", "other.example.org"])
+        for bad in ("*.example.com", "example", "localhost", "intranet.local", "10.0.0.1", "player.example.com:8443", "user@x.example.com",
+                    "http://x.example.com/", "bad host.example.com", "a" * 64 + ".example.com", "x.example.test"):
+            with self.subTest(host=bad):
+                with self.assertRaises(sc.FieldError):
+                    sc.clean_embed_hosts(bad)
+        with self.assertRaises(sc.FieldError):
+            sc.clean_embed_hosts(["h%d.example.com" % i for i in range(sc.MAX_EMBED_HOSTS + 1)])
+
+
 class TestNoSideEffectsOnSuccessOrFailure(Base):
     def test_extraction_never_writes_outside_the_destination(self):
         self.run_bundle([GOOD_DOC, ("files/deep/er/a.png", zk.png())])

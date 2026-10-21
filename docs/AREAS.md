@@ -11,7 +11,7 @@ The full design is in [design/AREAS.md](design/AREAS.md). This page says what is
 3. When they send something, **Areas** shows a badge. Open the area, then **Review**: you see how many pages, blocks and files, and what changed from what is live. **Preview it** builds the site with their content in your local preview. **Approve** or **Reject** (with a note they can read).
 4. **Publish** as usual. Approving does not put anything on the internet by itself — unless the area is on the **Auto** trust level (below), where approved content is published by itself, debounced to at most one automatic publish every five minutes.
 
-Everything else is in the area's tabs: **Versions** (every approval is a saved snapshot; roll back in one click), **Settings** (name, on/off, **paused** to stop new submissions instantly, which blocks they may use, size limits, show in menu), **Activity** (every attempt, with a hashed address, never the passphrase).
+Everything else is in the area's tabs: **Versions** (every approval is a saved snapshot; roll back in one click), **Settings** (name, on/off, **paused** to stop new submissions instantly, which blocks they may use, which sites they may embed, size limits, show in menu), **Activity** (every attempt, with a hashed address, never the passphrase).
 
 A **new passphrase** makes the old one stop working immediately. **Revoke** stops everyone.
 
@@ -68,7 +68,20 @@ If Windows refuses that step for any reason (`icacls` missing, access denied, no
 ```
 
 - The first page has the empty name `""` and lives at the area's address; further pages need a name (`"name": "tools"` → `/funkworkshop/tools/`).
-- Files are referred to as `files/<path>`. Allowed blocks by default: hero, text (Markdown), cards, links, image, divider, youtube, twitch. The owner can narrow this.
+- Files are referred to as `files/<path>`. Allowed blocks by default: hero, text (Markdown), cards, links, image, divider, youtube, twitch. The owner can narrow this, or add **embed** (see below).
+
+### Embedding another site (owner-gated)
+The `embed` block shows another site inside the page in a frame. It is **off by default** and needs two things from the owner, in the area's **Settings**: tick `embed` under *Blocks they may use*, and list the exact hosts under *Sites they may embed* (for example `funkstudio-share.example.workers.dev`).
+
+```json
+{ "type": "embed", "props": { "url": "https://player.example.com/app", "height": 560 } }
+```
+- The address must be a plain `https://host/...` whose host is on the owner's list. Wildcards, other sub-domains, `user@host`, ports, IP addresses and look-alike hosts are all refused; the owner's list takes no wildcards either.
+- An embed cannot show the owner's modules, and a bundle cannot set the frame's trust: only the builder does, and only for a listed host.
+- Only that area's own page gets the extra `frame-src`; the rest of the site's security policy is unchanged. The list is checked again at every build, so removing a host drops its embeds at the next Publish.
+- The frame runs in a sandbox (scripts, popups and forms allowed, no top-level navigation). Because a listed host is a different origin from the site, the frame also gets its own storage (`allow-same-origin`), which it needs for things like saved settings, without any access to the site's own storage.
+- `halbach area validate` checks against the connected area's own rules (including its embed hosts); without a connection it uses the default rules and says so.
+- **Trust note:** a listed host's content appears inside your page. It cannot run on your origin, but if that site were ever compromised it could show misleading content, so list only sites you trust.
 - Allowed files: `.md .txt .png .jpg .jpeg .gif .webp .pdf` (no HTML, scripts, SVG, programs or archives). Names may use letters, digits, spaces and `. _ - ( ) + , @ ~`.
 - Links must be `https://` or `mailto:` or inside the area. Raw HTML in Markdown is shown as text.
 

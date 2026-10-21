@@ -4,7 +4,9 @@ HalbachSite.registerBlock("embed", function (box, props, ctx) {
     var f = ctx.el("iframe", "hs-frame"); f.src = src; f.title = title; f.loading = "lazy";
     f.style.height = (props.height || 560) + "px";
     // The owner's own pages (a path on this site) run as normal; modules and outside addresses stay sandboxed.
-    if (!own) f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms");
+    // sameorigin is added by the builder only, for an address on an area's owner-approved host list. Such a frame is a
+    // different origin from this site, so allow-same-origin gives it its own storage without any access to this page.
+    if (!own) f.setAttribute("sandbox", "allow-scripts allow-popups allow-forms" + (props.sameorigin ? " allow-same-origin" : ""));
     var screen = ctx.el("div", "hs-screen"); screen.appendChild(f); box.appendChild(screen);
   }
   if (props.module) {

@@ -39,7 +39,7 @@ DEFAULT_LIMITS = {"max_file_mb": 50, "max_bundle_mb": 80, "max_total_mb": 500, "
                   "extensions": ["md", "txt", "png", "jpg", "jpeg", "gif", "webp", "pdf"]}
 DEFAULT_BLOCKS = ["hero", "text", "cards", "links", "image", "divider", "youtube", "twitch"]
 # Block types an owner may ever allow for an area: nothing that takes a module, an outside page, or runs code.
-ALLOWABLE_BLOCKS = {"hero", "text", "cards", "links", "image", "divider", "youtube", "twitch"}
+ALLOWABLE_BLOCKS = {"hero", "text", "cards", "links", "image", "divider", "youtube", "twitch", "embed"}   # embed is never on by default: it also needs the owner's host list
 KNOWN_EXT = {"md", "txt", "png", "jpg", "jpeg", "gif", "webp", "pdf"}          # the only types this version can validate
 DANGEROUS_PARTS = {"html", "htm", "xhtml", "js", "mjs", "svg", "xml", "swf", "exe", "dll", "bat", "cmd", "com", "ps1", "vbs", "vbe",
                    "lnk", "scr", "msi", "jar", "php", "py", "sh", "pif", "hta", "cpl", "reg", "wsf", "zip", "iso", "dmg", "app", "apk"}
@@ -455,6 +455,19 @@ def _check_urls(value, slug, errors, where):
             _check_urls(v, slug, errors, where)
 
 
+def _embed_problem(props, hosts):
+    """Why an area's embed block is refused, or None. An area may only embed a host its owner listed by name."""
+    if props.get("module"):
+        return "an embed cannot show one of the owner's modules"
+    host = sc.embed_url_host(props.get("url") or "")
+    if not host:
+        return "the embed address must be a plain https address (no port, no user@, no spaces)"
+    if host not in hosts:
+        return "the owner has not allowed embedding %s%s" % (
+            _show(host), (" (allowed: %s)" % ", ".join(hosts)) if hosts else " (this area may not embed any site)")
+    return None
+
+
 def parse_area_doc(raw, area, registry, files, warnings):
     """Validate area.json against the area's rules. Returns the canonical document (or raises BundleError)."""
     if len(raw) > MAX_AREA_JSON:
@@ -518,6 +531,10 @@ def parse_area_doc(raw, area, registry, files, warnings):
             clean, errs = sc.validate_props(plug.manifest.get("fields", []), props, ctx)
             errors += ["%s: %s" % (where, e["message"]) for e in errs]
             _check_urls(clean, area["slug"], errors, where)
+            if btype == "embed":
+                problem = _embed_problem(clean, area.get("embed_hosts") or [])
+                if problem:
+                    errors.append("%s: %s" % (where, problem))
             blocks.append({"id": "b%d" % (bi + 1), "type": btype, "props": clean})
         try:
             ptitle = sc.clean_line(rp.get("title"), 80) or title

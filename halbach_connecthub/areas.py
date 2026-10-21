@@ -159,7 +159,7 @@ class AreaService:
     def view(self, a):
         subs = self.submissions(a["id"], limit=200)
         return {"id": a["id"], "name": a["name"], "slug": a["slug"], "enabled": a["enabled"], "paused": a["paused"], "trust": a["trust"],
-                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "created": a["created"], "auto": a.get("auto"),
+                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "created": a["created"], "auto": a.get("auto"),
                 "key": {"hint": (a.get("key") or {}).get("hint"), "created": (a.get("key") or {}).get("created"),
                         "last_used": (a.get("key") or {}).get("last_used"), "active": bool(a.get("key"))},
                 "current": a.get("current"), "versions": self.versions(a["id"]),
@@ -192,7 +192,7 @@ class AreaService:
             chosen = [b for b in (blocks or DEFAULT_BLOCKS) if b in ALLOWABLE_BLOCKS]
             key = new_passphrase()
             area = {"id": slug, "name": name, "slug": slug, "enabled": True, "paused": False, "trust": trust, "nav": bool(nav),
-                    "limits": _clamp_limits(limits), "blocks": chosen, "created": int(self.clock()), "current": None,
+                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "created": int(self.clock()), "current": None,
                     "key": {"hash": hash_key(key), "created": int(self.clock()), "last_used": None, "hint": key[-5:].replace("-", "")[-4:]}}
             self.areas.append(area)
             self._save()
@@ -203,6 +203,12 @@ class AreaService:
     def update(self, aid, **kw):
         with self.lock:
             a = self._must(aid)
+            hosts = None
+            if kw.get("embed_hosts") is not None:               # checked first, so a refused list changes nothing
+                try:
+                    hosts = sc.clean_embed_hosts(kw["embed_hosts"])
+                except sc.FieldError as e:
+                    raise ValidationError(str(e))
             if "name" in kw:
                 a["name"] = sc.clean_line(kw["name"], 40) or a["name"]
             for k in ("enabled", "paused", "nav"):
@@ -216,6 +222,8 @@ class AreaService:
                 a["limits"] = _clamp_limits(dict(a["limits"], **kw["limits"]))
             if "blocks" in kw and kw["blocks"] is not None:
                 a["blocks"] = [b for b in kw["blocks"] if b in ALLOWABLE_BLOCKS]
+            if hosts is not None:
+                a["embed_hosts"] = hosts
             if a.get("auto") and not (a["trust"] == "auto" and a["enabled"] and not a["paused"]):
                 a.pop("auto", None)                     # switched away from auto (or paused/off): nothing publishes by itself
                 self.audit(aid, "owner", "auto-publish cancelled", 0, "the area is no longer on auto")
@@ -503,7 +511,7 @@ class AreaService:
                         tree = cand
                 if tree:
                     out.append({"id": a["id"], "slug": a["slug"], "name": a["name"], "nav": a["nav"], "tree": tree,
-                                "blocks": a["blocks"]})
+                                "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or [])})
         return out
 
     # ---------------------------------------------------------------- the sender's view
@@ -513,8 +521,8 @@ class AreaService:
                 for s in self.submissions(aid, limit=20)]
 
     def sender_limits(self, a):
-        return {"limits": a["limits"], "blocks": a["blocks"], "paused": a["paused"], "trust": a["trust"], "slug": a["slug"],
-                "format": 1}
+        return {"limits": a["limits"], "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []),
+                "paused": a["paused"], "trust": a["trust"], "slug": a["slug"], "format": 1}
 
     # ---------------------------------------------------------------- audit
     def audit(self, aid, who, what, size, detail):

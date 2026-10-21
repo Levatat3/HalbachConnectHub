@@ -278,5 +278,57 @@ class TestExtrasAndModules(Base):
         self.assertFalse(self.build().ok)
 
 
+class TestAreaEmbeds(Base):
+    """An area's embed widens only that area's own policy, only for a host its owner listed, and is checked again at build time."""
+    URL = "https://player.example.com/app"
+
+    def build_area(self, hosts, url=None):
+        self.model.load_template("blank")
+        tree = self.root / "tree"
+        tree.mkdir(exist_ok=True)
+        doc = {"format": 1, "title": "W", "description": "", "pages": [{"name": "", "title": "W", "blocks": [
+            {"id": "b1", "type": "embed", "props": {"url": url or self.URL, "height": 560}}]}]}
+        (tree / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+        areas = [{"id": "workshop", "slug": "workshop", "name": "Workshop", "nav": True, "tree": str(tree),
+                  "blocks": ["embed", "text"], "embed_hosts": hosts}]
+        return sb.build_site(self.model, self.reg, self.store, self.stage, areas=areas)
+
+    def rules(self):
+        """{path pattern: its content-security-policy line} from the built _headers."""
+        out, cur = {}, None
+        for line in (self.stage / "_headers").read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith(" "):
+                cur = line.strip()
+            elif "ontent-Security-Policy" in line and not line.strip().startswith("!"):
+                out[cur] = line.strip()
+        return out
+
+    def test_a_listed_host_is_framed_only_inside_that_areas_own_policy(self):
+        res = self.build_area(["player.example.com"])
+        self.assertTrue(res.ok, res.errors)
+        rules = self.rules()
+        self.assertIn("frame-src 'self' https://player.example.com", rules["/workshop/*"])
+        self.assertNotIn("player.example.com", rules["/*"], "an area's embed must never widen the whole site's policy")
+        self.assertNotIn("player.example.com", rules["/workshop/files/*"])
+        page = page_json((self.stage / "workshop" / "index.html").read_text(encoding="utf-8"))
+        props = page["blocks"][0]["props"]
+        self.assertEqual(props,{"url": self.URL, "height": 560, "sameorigin": True})
+
+    def test_a_host_the_owner_removed_is_dropped_at_build_time_with_a_warning(self):
+        res = self.build_area(["other.example.org"])                     # approved earlier, no longer allowed
+        self.assertTrue(res.ok, res.errors)
+        self.assertTrue(any("left out" in w["message"] and "embed" in w["message"].lower() for w in res.warnings), res.warnings)
+        self.assertNotIn("player.example.com", (self.stage / "_headers").read_text(encoding="utf-8"))
+        self.assertNotIn("player.example.com", (self.stage / "workshop" / "index.html").read_text(encoding="utf-8"))
+
+    def test_the_trust_flag_and_a_tricky_address_never_come_from_the_bundle(self):
+        for url in ("https://player.example.com@evil.example/", "https://player.example.com:8443/", "http://player.example.com/"):
+            with self.subTest(url=url):
+                res = self.build_area(["player.example.com"], url=url)
+                self.assertTrue(res.ok, res.errors)
+                self.assertNotIn("evil.example", (self.stage / "_headers").read_text(encoding="utf-8"))
+                self.assertNotIn("sameorigin", (self.stage / "workshop" / "index.html").read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

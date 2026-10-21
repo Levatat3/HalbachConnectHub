@@ -69,7 +69,7 @@
     var set = LIMITS && LIMITS.blocks && LIMITS.blocks.length ? LIMITS.blocks : null;
     return set ? set : null;   // null = the owner has not limited it; still only area-safe blocks are offered below
   }
-  function areaBlockTypes() { return ["hero", "text", "cards", "links", "image", "divider", "youtube", "twitch"]; }
+  function areaBlockTypes() { return ["hero", "text", "cards", "links", "image", "divider", "youtube", "twitch", "embed"]; }   // what the owner allows is applied by allowed()
 
   function render() {
     var r = document.getElementById("areaRoot"); if (!r || !SS) return;
@@ -121,7 +121,7 @@
   }
 
   function blockPicker(p, allow) {
-    var types = areaBlockTypes().filter(function (t) { return !allow || allow.indexOf(t) >= 0; });
+    var types = areaBlockTypes().filter(function (t) { return allow ? allow.indexOf(t) >= 0 : t !== "embed"; });   // embed needs the owner's say-so, so it is never assumed
     var body = h("div");
     var grid = h("div", { class: "choices", style: "grid-template-columns:1fr 1fr" });
     types.forEach(function (t) {
@@ -178,7 +178,11 @@
   }
 
   function blockForm(p, blk, spec) {
-    var fields = spec.fields || [], ctrls = {}, wrap = h("div", { class: "form" });
+    var fields = (spec.fields || []).filter(function (f) { return !(blk.type === "embed" && f.key === "module"); }), ctrls = {}, wrap = h("div", { class: "form" });   // an area cannot show the owner's modules
+    if (blk.type === "embed") {
+      var hosts = (LIMITS && LIMITS.embed_hosts) || [];
+      wrap.appendChild(h("p", { class: "hint", text: hosts.length ? "You may embed addresses on: " + hosts.join(", ") + "." : "The owner has not allowed any site to be embedded in this area yet." }));
+    }
     var err = h("div", { class: "err" });
     if (!fields.length) wrap.appendChild(h("p", { class: "hint", text: "This block has no settings." }));
     fields.forEach(function (f) {

@@ -253,6 +253,56 @@ def _clean_value(field, value, ctx):
     raise FieldError("Unknown field type '%s'" % t)
 
 
+# --------------------------------------------------------------------------- embed hosts (areas)
+# An area may embed another site only if its owner listed that exact host. These rules are shared by the bundle check
+# (what a sender may write), the owner's setting and the builder (which checks again at build time).
+_EMBED_NETLOC = re.compile(r"^[A-Za-z0-9.-]{1,253}$")
+_EMBED_HOST = re.compile(r"^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
+_EMBED_REFUSED_ENDINGS = ("localhost", "local", "internal", "test", "invalid", "example", "lan", "home", "corp", "intranet")
+MAX_EMBED_HOSTS = 5
+
+
+def embed_url_host(url):
+    """The host of a plain https address, lower-cased and safe to compare with the owner's list, or None.
+
+    Only https://host[/path][?query] qualifies: no user@host, no port, no brackets or escapes in the host, no
+    spaces, control characters or backslashes anywhere, and at least two labels.
+    """
+    if not isinstance(url, str) or len(url) > 2000 or re.search(r"[\s\x00-\x1f\x7f\\]", url):
+        return None
+    m = re.match(r"^https://([^/?#]*)(?:[/?#].*)?$", url, re.I | re.S)
+    if not m or not _EMBED_NETLOC.match(m.group(1)):
+        return None
+    host = m.group(1).lower()
+    return host if _EMBED_HOST.match(host) else None
+
+
+def clean_embed_hosts(value):
+    """The owner's list of hosts an area may embed. Exact host names only: no wildcards, ports, addresses or private names.
+
+    Accepts a list, or text with one host per line (a pasted https address is reduced to its host).
+    """
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        value = value.replace(",", "\n").split()
+    if not isinstance(value, list):
+        raise FieldError("Embed hosts must be a list of host names")
+    out = []
+    for raw in value:
+        text = str(raw).strip().lower()
+        if not text:
+            continue
+        host = embed_url_host(text) if "://" in text else (text if _EMBED_HOST.match(text) else None)
+        if not host or re.match(r"^[0-9.]+$", host) or host.rsplit(".", 1)[-1] in _EMBED_REFUSED_ENDINGS:
+            raise FieldError("'%s' is not a host name an area can embed (use a full public name such as player.example.com, no wildcards, ports or addresses)" % text[:60])
+        if host not in out:
+            out.append(host)
+    if len(out) > MAX_EMBED_HOSTS:
+        raise FieldError("At most %d embed hosts per area" % MAX_EMBED_HOSTS)
+    return out
+
+
 def validate_props(fields, props, ctx=None):
     """Check a block's settings against its field list.
 
