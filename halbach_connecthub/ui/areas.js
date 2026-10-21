@@ -164,15 +164,19 @@
     [["max_file_mb", "Biggest file (MB)"], ["max_bundle_mb", "Biggest upload (MB)"], ["max_total_mb", "Total for the area (MB)"], ["max_files", "Files per upload"]].forEach(function (k) {
       lim[k[0]] = h("input", { type: "number", value: a.limits[k[0]], style: "width:90px" }); limRow.appendChild(h("label", { class: "hint", style: "margin-right:10px" }, k[1] + " ", lim[k[0]]));
     });
+    var themeBoxes = ((DATA && DATA.themes) || []).map(function (t) { var i = h("input", { type: "checkbox", checked: (a.themes || []).indexOf(t.id) >= 0 }); return [t.id, t.label, i]; });
     var embedHosts = h("input", { type: "text", placeholder: "player.example.com, other.example.org", style: "width:100%" });
     embedHosts.value = (a.embed_hosts || []).join(", ");
     var err = h("div", { class: "err" });
     box.appendChild(h("div", { class: "set", style: "max-width:860px" },
       row("Name", "", name), row("On", "Off hides the area's page and refuses uploads.", en), row("Paused", "Stops new submissions at once; the live page stays up.", pa),
-      row("Show in the menu", "", nav), row("Review", "Even when trusted, every bundle is still checked and every approval is a saved version.", trust),
+      row("Show in the Sites menu", "Lists this area's site under Sites in your main menu. Its own pages never appear in your menu.", nav), row("Review", "Even when trusted, every bundle is still checked and every approval is a saved version.", trust),
       DATA.auto_publish_enabled ? null : h("div", { class: "hint", style: "margin:0 0 8px", text: "Auto-publish is off. Turn it on in Settings → 'Auto-publish areas' to see the Auto trust level here." }),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Blocks they may use" }), h("div", { class: "row", style: "flex-wrap:wrap;margin-top:6px" },
         blockBoxes.map(function (p) { return h("label", { class: "hint", style: "margin-right:12px" }, p[1], " " + p[0]); })))),
+      h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Their own look" }),
+        h("small", { style: "display:block;margin:2px 0 6px", text: "Tick the themes this area may choose from. With none ticked it keeps your site's look. With some ticked, its owner can set a name, logo, colours, theme and layout for their site (plain values only, never scripts), and you still review every change before it goes live." }),
+        h("div", { class: "row", style: "flex-wrap:wrap" }, themeBoxes.length ? themeBoxes.map(function (p) { return h("label", { class: "hint", style: "margin-right:12px" }, p[2], " " + p[1]); }) : h("span", { class: "hint", text: "No themes are available." })))),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Sites they may embed" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "Needs the 'embed' block ticked above. Exact host names only (no wildcards); each is shown inside their page in a frame that cannot reach the rest of your site. Leave empty to allow none." }), embedHosts)),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Limits" }), limRow)),
@@ -181,7 +185,7 @@
       }), btn("Save", "primary", function () {
         var limits = {}; Object.keys(lim).forEach(function (k) { limits[k] = parseInt(lim[k].value, 10); });
         post("/api/areas/" + a.id + "/update", { name: name.value, enabled: en.firstChild.checked, paused: pa.firstChild.checked, nav: nav.firstChild.checked, trust: trust.value,
-          blocks: blockBoxes.filter(function (p) { return p[1].checked; }).map(function (p) { return p[0]; }), embed_hosts: embedHosts.value, limits: limits }, "Area saved.").catch(function (e) { err.textContent = e.message; });
+          blocks: blockBoxes.filter(function (p) { return p[1].checked; }).map(function (p) { return p[0]; }), embed_hosts: embedHosts.value, themes: themeBoxes.filter(function (p) { return p[2].checked; }).map(function (p) { return p[0]; }), limits: limits }, "Area saved.").catch(function (e) { err.textContent = e.message; });
       }))));
   }
   function row(title, small, control) { return h("div", { class: "r" }, h("div", null, h("b", { text: title }), small ? h("small", { text: small }) : null), h("span", { style: "flex:1" }), control); }

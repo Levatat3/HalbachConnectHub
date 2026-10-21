@@ -6,6 +6,7 @@
   var TOKEN = (document.querySelector('meta[name="halbach-token"]') || {}).content || "";
   var SS = null;                 // last /api/site answer
   var LIMITS = null;             // last /api/area/limits answer (owner's allow-list)
+  var DESIGN = null;             // last /api/area/design answer: this site's own look and the themes the owner allows
   var curBlock = null;           // block id open in the editor ("new:<type>" while adding)
 
   // ---------------------------------------------------------------- tiny DOM helpers (text only, never HTML)
@@ -53,6 +54,9 @@
   function load() {
     return api("/api/site").then(function (d) { SS = d; render(); }).catch(fail);
   }
+  function loadDesign() {
+    return api("/api/area/design").then(function (d) { DESIGN = d; render(); }).catch(function () { DESIGN = null; });
+  }
   function loadLimits() {
     return api("/api/area/limits").then(function (d) { LIMITS = d; render(); }).catch(function () { LIMITS = { blocks: null }; render(); });
   }
@@ -87,6 +91,8 @@
         act("page.update", { id: p.id, title: title.value, description: desc.value, label: title.value }, "Saved.").catch(function (e) { showErr(err, e); });
       }))));
 
+    designSection(r);
+
     // blocks
     r.appendChild(h("div", { class: "row", style: "margin:26px 0 12px" }, h("h2", { class: "h2", style: "margin:0", text: "Content" }), h("span", { style: "flex:1" }),
       btn("＋ Add block", "primary", function () { blockPicker(p, allow); })));
@@ -118,6 +124,49 @@
     if (pr.markdown) bits.push(String(pr.markdown).replace(/\s+/g, " ").slice(0, 60));
     if (pr.items) bits.push(pr.items.length + " item" + (pr.items.length === 1 ? "" : "s"));
     return bits.join("  ·  ") || "(no settings)";
+  }
+
+  // ---------------------------------------------------------------- the site's own look (name, logo, theme, colours, layout)
+  function designSection(r) {
+    if (!DESIGN) return;
+    r.appendChild(h("div", { class: "row", style: "margin:26px 0 12px" }, h("h2", { class: "h2", style: "margin:0", text: "Your site's look" })));
+    if (!DESIGN.enabled) {
+      r.appendChild(h("p", { class: "hint", text: "The owner has not turned on custom designs for this area, so your pages use the main site's look." }));
+      return;
+    }
+    var d = DESIGN.design || {}, b = d.brand || {}, v = d.vars || {}, lay = d.layout || {};
+    function field(val, ph, label) {
+      var i = h("input", { type: "text", placeholder: ph || "", "aria-label": label }); i.value = val || ""; return i;
+    }
+    function drow(title, small, control) {
+      return h("div", { class: "r" }, h("div", null, h("b", { text: title }), small ? h("small", { text: small }) : null), h("span", { style: "flex:1" }),
+        h("div", { style: "flex:1;max-width:320px;min-width:0" }, control));
+    }
+    var fName = field(b.name, "Funka's Workshop", "Site name"), fMark = field(b.mark, "FW", "Short mark"), fTag = field(b.tagline, "One short line", "Tagline"),
+      fFoot = field(b.footer, "Shown at the bottom", "Footer"), fLogo = field(b.logo, "files/logo.png", "Logo file"),
+      fAccent = field(v["--accent"], "#ff8800", "Accent colour"), fBg = field(v["--bg"], "#101418", "Background colour"), fText = field(v["--text"], "#e8e8e8", "Text colour");
+    var theme = h("select", { "aria-label": "Theme" }, [h("option", { value: "", text: "The main site's theme" })].concat(DESIGN.themes.map(function (t) { return h("option", { value: t.id, text: t.label }); })));
+    theme.value = d.theme || "";
+    var nav = h("select", { "aria-label": "Menu layout" }, [["", "The main site's layout"], ["top", "Menu across the top"], ["side", "Menu down the side"], ["none", "No menu"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
+    nav.value = lay.nav || "";
+    var err = h("div", { class: "err" });
+    r.appendChild(h("div", { class: "set", style: "max-width:860px" },
+      drow("Site name", "Shown in your menu bar and the page title.", fName), drow("Short mark", "1 to 4 letters, shown in the box beside the name.", fMark),
+      drow("Logo", "A picture in your files folder (png, jpg, gif or webp). Replaces the mark.", fLogo),
+      drow("Tagline", "", fTag), drow("Footer", "", fFoot), drow("Theme", "Only themes the owner allows are listed.", theme),
+      drow("Accent colour", "A colour such as #ff8800.", fAccent), drow("Background colour", "", fBg), drow("Text colour", "", fText), drow("Layout", "", nav),
+      h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save the look", "primary", function () {
+        var design = {}, brand = {};
+        [["name", fName], ["mark", fMark], ["tagline", fTag], ["footer", fFoot], ["logo", fLogo]].forEach(function (p) { if (p[1].value.trim()) brand[p[0]] = p[1].value.trim(); });
+        if (Object.keys(brand).length) design.brand = brand;
+        if (theme.value) design.theme = theme.value;
+        var vars = {};
+        [["--accent", fAccent], ["--bg", fBg], ["--text", fText]].forEach(function (p) { if (p[1].value.trim()) vars[p[0]] = p[1].value.trim(); });
+        if (Object.keys(vars).length) design.vars = vars;
+        if (nav.value) design.layout = { nav: nav.value };
+        if (d.funk && theme.value === "funk") design.funk = d.funk;
+        api("/api/area/design", "POST", { design: design }).then(function (res) { DESIGN = res; toast("Saved. Press Preview to see it."); render(); }).catch(function (e) { showErr(err, e); });
+      }))));
   }
 
   function blockPicker(p, allow) {
@@ -247,9 +296,11 @@
       b.disabled = false; b.textContent = "Send to the site";
       toast("Sent. It is " + body.state + (body.warnings && body.warnings.length ? " (see below)" : "") + ".");
       loadLimits();
+      loadDesign();
     }).catch(function (e) { b.disabled = false; b.textContent = "Send to the site"; fail(e); });
   });
 
   loadLimits();
+  loadDesign();
   load();
 })();

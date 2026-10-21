@@ -70,6 +70,24 @@ If Windows refuses that step for any reason (`icacls` missing, access denied, no
 - The first page has the empty name `""` and lives at the area's address; further pages need a name (`"name": "tools"` → `/funkworkshop/tools/`).
 - Files are referred to as `files/<path>`. Allowed blocks by default: hero, text (Markdown), cards, links, image, divider, youtube, twitch. The owner can narrow this, or add **embed** (see below).
 
+### An area is its own site (tier 1: menu, brand, look)
+An area is a small site of its own under your domain, not a few blocks inside yours:
+- **Its own menu.** The area's pages form their own menu (the first page is the area's home), with a "← your site" link back. None of your menu's tabs appear on it, and none of its pages appear in yours.
+- **One "Sites" dropdown.** Your main menu (and your 404 page) gets a single **Sites** dropdown listing every area that has *Show in the Sites menu* switched on. It is a plain `<details>` element: no script, works from the keyboard.
+- **Its own look, if you allow it.** In **Areas → Settings → Their own look**, tick the themes the area may choose from. With none ticked the area keeps your site's look and a `design` in its `area.json` is ignored with a note. With some ticked, its owner may add a `design` section:
+
+```json
+"design": {
+  "brand":  { "name": "Funka's Workshop", "mark": "FW", "tagline": "Tools and mods", "footer": "made by Funka", "logo": "files/logo.png" },
+  "theme":  "neutral-light",
+  "vars":   { "--accent": "#ff8800", "--bg": "#101418" },
+  "layout": { "nav": "side" }
+}
+```
+`theme` must be one you ticked; `vars` take colours, sizes and font stacks only (no `url()`, `@import` or `expression()`); `layout.nav` is `top`, `side` or `none`; `logo` is a picture from the area's own `files/` folder (png, jpg, gif or webp, never SVG). The Funk theme also accepts a `funk` section, the same settings as the Funk theme maker. The collaborator editor has a **Your site's look** panel for all of this, and Preview shows it.
+- **What this tier cannot contain:** scripts, HTML or free-form CSS. Text values are stored as plain text and escaped on output. The design is checked when it arrives **and again at every build**; if you later untick a theme, the design is left out with a warning at the next Publish. An area's colours go into its own stylesheet and never reach yours.
+- **Coming next (planned, not built):** reviewed custom CSS and then the area's own HTML/CSS/JS pages served as sandboxed documents. The rule for both will be stated here: **anything obfuscated or encrypted is blocked**, so everything you review is readable.
+
 ### Embedding another site (owner-gated)
 The `embed` block shows another site inside the page in a frame. It is **off by default** and needs two things from the owner, in the area's **Settings**: tick `embed` under *Blocks they may use*, and list the exact hosts under *Sites they may embed* (for example `funkstudio-share.example.workers.dev`).
 

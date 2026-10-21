@@ -117,7 +117,7 @@ Advice: template placeholder text left in a page, an image without a description
 
 ## Areas and linked sites
 
-See [AREAS.md](AREAS.md) for areas (a page someone else can send content to, reviewed by you). **Linked sites** (Site → Linked sites) put another site on yours: add its https address and Halbach can check it (reachable, on Cloudflare, embeddable), then show it as a card (the *Linked sites* block), a menu link, or its own page that links out or embeds it. An address with a key in it (`?k=...`) is flagged and needs an explicit confirmation, because everything on the site is public; the key is never printed in warnings.
+See [AREAS.md](AREAS.md) for areas: a small site of its own under your domain that someone else fills and brands (own menu, name, logo, theme, colours and layout, within what you allow), reviewed by you, and listed under one **Sites** dropdown in your main menu. **Linked sites** (Site → Linked sites) put another site on yours: add its https address and Halbach can check it (reachable, on Cloudflare, embeddable), then show it as a card (the *Linked sites* block), a menu link, or its own page that links out or embeds it. An address with a key in it (`?k=...`) is flagged and needs an explicit confirmation, because everything on the site is public; the key is never printed in warnings.
 
 ## What is not here yet
 

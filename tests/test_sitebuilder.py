@@ -366,6 +366,18 @@ class TestSubSites(Base):
         self.assertEqual(home.count('class="hs-sites"'), 1)
         self.assertIn("hs-sites", self.nav_of(self.read("404.html")))
 
+    def test_in_preview_every_sites_link_carries_the_preview_prefix(self):
+        self.model.load_template("blank")
+        tree = self.root / "tree"
+        tree.mkdir(exist_ok=True)
+        (tree / "area.json").write_text(json.dumps({"format": 1, "title": "W", "description": "", "pages": [
+            {"name": "", "title": "W", "blocks": [{"id": "b1", "type": "text", "props": {"markdown": "x"}}]}]}), encoding="utf-8")
+        areas = [{"id": "ws", "slug": "ws", "name": "Workshop", "nav": True, "tree": str(tree), "blocks": ["text"], "embed_hosts": [], "themes": []}]
+        res = sb.build_site(self.model, self.reg, self.store, self.stage, url_base="/preview", areas=areas)
+        self.assertTrue(res.ok, res.errors)
+        self.assertIn('<a href="/preview/ws/">Workshop</a>', self.nav_of(self.read("index.html")))
+        self.assertIn('class="hs-back" href="/preview/"', self.nav_of(self.read("ws/index.html")))
+
     def test_an_area_hidden_from_the_menu_gets_no_dropdown(self):
         res = self.build_area(nav=False)
         self.assertTrue(res.ok, res.errors)

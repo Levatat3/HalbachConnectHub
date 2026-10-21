@@ -327,7 +327,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                                "draft": False, "theme": None, "credit": True, "area": ar["id"], "blocks": blocks})
             area_page_list[ar["id"]].append(area_pages[-1])
         if ar.get("nav") and area_page_list[ar["id"]]:
-            sites_list.append((bname, "/" + slug + "/"))
+            sites_list.append((bname, url_base + "/" + slug + "/"))
     if res.errors:
         return res
     pages = pages + area_pages

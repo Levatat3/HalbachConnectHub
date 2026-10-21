@@ -242,5 +242,81 @@ class TestAreaWindowEndToEnd(unittest.TestCase):
         self.assertEqual(len(doc["pages"][0]["blocks"]), 2)
 
 
+class TestAreaDesignWindow(unittest.TestCase):
+    """The Design panel's API: the sender edits their site's look; Preview shows it; it is written into area.json on send."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._t = tempfile.TemporaryDirectory()
+        cls.folder = Path(cls._t.name) / "page"
+        areaclient.init_folder(cls.folder)
+        cls.srv, cls.hub = server.serve(Path(cls._t.name) / "hub", 0, token="tok", area=True, area_folder=str(cls.folder))
+        cls.port = cls.srv.server_address[1]
+        server.run_in_thread(cls.srv)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+        cls._t.cleanup()
+
+    def req(self, method, path, body=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        h = {"Host": "127.0.0.1:%d" % self.port, "X-Halbach-Token": "tok"}
+        data = json.dumps(body).encode() if body is not None else None
+        if data:
+            h["Content-Type"] = "application/json"
+        c.request(method, path, data, h)
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        return r.status, raw
+
+    GOOD = {"brand": {"name": "Funka's Workshop", "mark": "FW", "footer": "by Funka"}, "theme": "neutral-light",
+            "vars": {"--accent": "#ff8800"}, "layout": {"nav": "side"}}
+
+    def test_offline_every_installed_theme_is_offered_for_the_preview(self):
+        s, raw = self.req("GET", "/api/area/design")
+        view = json.loads(raw)
+        self.assertEqual(s, 200)
+        self.assertTrue(view["enabled"])
+        self.assertFalse(view["from_owner"])
+        self.assertIn("neutral-light", [t["id"] for t in view["themes"]])
+
+    def test_saving_a_design_shows_in_preview_and_is_written_on_send(self):
+        s, raw = self.req("POST", "/api/area/design", {"design": self.GOOD})
+        self.assertEqual(s, 200, raw)
+        self.assertEqual(json.loads(raw)["design"]["brand"]["name"], "Funka's Workshop")
+        self.assertEqual(self.req("POST", "/api/site/preview", {})[0], 200)
+        s, page = self.req("GET", "/preview/")
+        text = page.decode("utf-8")
+        self.assertIn("Funka&#x27;s Workshop", text)
+        self.assertIn('data-nav="side"', text)
+        areamode.dump_area(self.hub.site.model, self.folder, self.hub.design)
+        doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["design"], self.GOOD)
+
+    def test_hostile_designs_are_refused_with_a_plain_reason(self):
+        for bad in ({"vars": {"--accent": "url(https://evil.example/x)"}}, {"theme": "nope"}, {"script": "alert(1)"}, {"brand": {"logo": "../x.png"}},
+                    {"layout": {"nav": "bottom"}}):
+            with self.subTest(design=bad):
+                s, raw = self.req("POST", "/api/area/design", {"design": bad})
+                self.assertEqual(s, 400, raw)
+                self.assertIn("error", json.loads(raw))
+
+    def test_when_the_owner_allowed_no_themes_the_panel_says_so_and_refuses(self):
+        from unittest import mock
+        with mock.patch.object(self.hub, "_design_rules", return_value=([], True)):
+            view = json.loads(self.req("GET", "/api/area/design")[1])
+            self.assertFalse(view["enabled"])
+            s, raw = self.req("POST", "/api/area/design", {"design": self.GOOD})
+            self.assertEqual(s, 400)
+            self.assertIn("not enabled", json.loads(raw)["error"])
+
+    def test_only_the_design_routes_were_added_to_the_window(self):
+        self.assertEqual(self.req("GET", "/api/areas")[0], 404)
+        self.assertEqual(self.req("POST", "/api/areas/create", {"name": "x"})[0], 404)
+
+
 if __name__ == "__main__":
     unittest.main()

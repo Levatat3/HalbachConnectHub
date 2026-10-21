@@ -20,6 +20,7 @@ from . import __version__
 from .live import UpstreamError, fetch_upstream, field_names, start_live_hub
 from .net import LoopbackServer
 from . import areaclient, areamode, funkthemes, sitebuilder
+from . import siteschema as sc
 from .publisher import Publisher, classify
 from .sitemodel import ModelError
 from .areas import AreaService
@@ -37,8 +38,8 @@ PREVIEW_CHARS = 4000
 # In the collaborator's area window only these routes exist. Everything else answers 404 exactly like it would for a
 # stranger, so a restricted window can never reach the owner's modules, publish, tunnel, settings or areas.
 AREA_FILES = {"/": "area.html", "/style.css": "style.css", "/area.js": "area.js"}
-AREA_GET = {"/api/site", "/api/area/limits", "/api/area/status"}
-AREA_POST = {"/api/site/preview", "/api/area/send"}
+AREA_GET = {"/api/site", "/api/area/limits", "/api/area/status", "/api/area/design"}
+AREA_POST = {"/api/site/preview", "/api/area/send", "/api/area/design"}
 # The only site edits a collaborator may make. Everything else SiteService.apply handles (import, settings, theme,
 # brand, mode switch, linked sites, restore, page add/delete/duplicate/move) stays 404 in the restricted window.
 AREA_SITE_ACTIONS = {"page.update", "block.add", "block.update", "block.delete", "block.move"}
@@ -53,9 +54,11 @@ class Hub:
         self.area = area                                       # collaborator's restricted window: only area routes work
         self.area_folder = Path(area_folder) if area_folder else None
         self.site = SiteService(store)
+        self.design = {}
         if area and self.area_folder:
             # The collaborator edits one page kept as area.json + files/ in their own folder.
-            areamode.load_area(self.area_folder, self.site.model)
+            doc = areamode.load_area(self.area_folder, self.site.model)
+            self.design = dict(doc.get("design") or {})                    # the area's own look, edited in the window's Design panel
             self.store.state["settings"]["site_dir"] = str(self.area_folder)   # so images in files/ preview correctly
         self.areas = AreaService(store, self.site.registry,
                                  slug_taken=lambda s: any(p["slug"] == s for p in self.site.model.data["pages"]))
@@ -79,9 +82,33 @@ class Hub:
             raise ValidationError("Not connected yet. Run: halbach area connect --url https://live.example.com --area NAME")
         return areaclient.Area(conn["url"], conn["area"], conn["key"])
 
+    def _design_rules(self):
+        """(allowed theme ids, whether they come from the owner). Offline, every installed theme is allowed for the preview."""
+        try:
+            info = self.area_client().limits()
+            return list(info.get("themes") or []), True
+        except (ValidationError, areaclient.ClientError):
+            return [t["id"] for t in self.site.registry.catalog("theme") if t.get("enabled", True)], False
+
+    def area_design_view(self):
+        themes, from_owner = self._design_rules()
+        catalog = {t["id"]: t.get("label") or t["id"] for t in self.site.registry.catalog("theme")}
+        return {"design": self.design, "themes": [{"id": t, "label": catalog.get(t, t)} for t in themes if t in catalog],
+                "enabled": bool(themes), "from_owner": from_owner}
+
+    def set_area_design(self, raw):
+        themes, from_owner = self._design_rules()
+        if from_owner and not themes:
+            raise ValidationError("The owner has not enabled custom designs for this area.")
+        try:
+            self.design = sc.clean_area_design(raw or {}, themes)
+        except sc.FieldError as e:
+            raise ValidationError(str(e))
+        return self.area_design_view()
+
     def send_area(self):
         """Write the edited page back to area.json, zip it and send it through the drop endpoint."""
-        areamode.dump_area(self.site.model, self.area_folder)
+        areamode.dump_area(self.site.model, self.area_folder, self.design)
         client = self.area_client()
         lim = client.limits()
         if lim.get("paused"):
@@ -257,6 +284,7 @@ def make_handler(hub):
                 lh = (hub.store.state.get("settings") or {}).get("live_host")
                 return self._json({"areas": hub.areas.list_view(), "pending": hub.areas.pending_count(),
                                    "drop_url": ("https://%s/drop/" % lh) if lh else None,
+                                   "themes": [{"id": t["id"], "label": t.get("label") or t["id"]} for t in hub.site.registry.catalog("theme") if t.get("enabled", True)],
                                    "auto_publish_enabled": bool((hub.store.state.get("settings") or {}).get("auto_publish_enabled"))})
             m_audit = re.match(r"^/api/areas/([a-z0-9-]+)/audit$", path)
             if m_audit:
@@ -265,6 +293,8 @@ def make_handler(hub):
                 return self._json({"rows": hub.areas.audit_log(m_audit.group(1))})
             if path == "/api/site":
                 return self._json(hub.site.view())
+            if path == "/api/area/design":
+                return self._area_json(hub.area_design_view)
             if path == "/api/area/limits":
                 return self._area_json(lambda: hub.area_client().limits())
             if path == "/api/area/status":
@@ -381,7 +411,11 @@ def make_handler(hub):
                     if act == "freeze":
                         return self._json({"area": ar.freeze(aid)})
                     return self._err(404, "Not found")
+                if path == "/api/area/design":
+                    return self._area_json(lambda: hub.set_area_design(b.get("design")))
                 if path == "/api/site/preview":
+                    if hub.area:
+                        areamode.apply_design(hub.site.model, hub.design)
                     res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None)
                     return self._json(res.summary())
                 if path == "/api/area/send":

@@ -60,7 +60,27 @@ def load_area(folder, model, theme="neutral-dark"):
     return doc
 
 
-def dump_area(model, folder):
+def apply_design(model, design):
+    """Show the area's own design in the window's preview: its brand, theme, colours and menu layout.
+
+    The editor models the area as a one-site page list; this puts the owner-approved look on it so Preview matches
+    what the sender will get. Plain values only (the design was validated by siteschema.clean_area_design)."""
+    d = design or {}
+    data = model.data
+    for k, v in (d.get("brand") or {}).items():
+        if k in ("name", "mark", "tagline", "footer") and v:
+            data["brand"][k] = v
+    tid = d.get("theme")
+    data["theme"]["id"] = tid if tid and model.registry.theme(tid) else "neutral-dark"
+    data["theme"]["vars"] = dict(d.get("vars") or {})
+    if d.get("funk") and data["theme"]["id"] == "funk":
+        data["theme"]["funk"] = d["funk"]
+    else:
+        data["theme"].pop("funk", None)
+    data["settings"]["nav_style"] = (d.get("layout") or {}).get("nav") or "none"
+
+
+def dump_area(model, folder, design=None):
     """Write every page back to area.json (files/ is left alone). Nothing is silently dropped."""
     folder = Path(folder)
     pages = model.data.get("pages") or []
@@ -76,6 +96,8 @@ def dump_area(model, folder):
     title = (model.data.get("brand", {}).get("name") or "My area").strip() or "My area"
     desc = pages[0].get("description", "") if pages else ""
     doc = {"format": 1, "title": title, "description": desc, "pages": out_pages}
+    if design:
+        doc["design"] = design
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "files").mkdir(parents=True, exist_ok=True)
     (folder / "area.json").write_text(json.dumps(doc, indent=2), encoding="utf-8")
