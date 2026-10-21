@@ -45,6 +45,15 @@ AREA_POST = {"/api/site/preview", "/api/area/send", "/api/area/design"}
 AREA_SITE_ACTIONS = {"page.update", "block.add", "block.update", "block.delete", "block.move"}
 
 
+def _code_mtime():
+    """When this program's own Python files last changed. The window's screens are read from disk on every visit but the
+    Python code is loaded once at start, so comparing the two tells the owner when the hub is running older code."""
+    try:
+        return max(f.stat().st_mtime for f in Path(__file__).parent.glob("*.py"))
+    except (OSError, ValueError):
+        return 0
+
+
 class Hub:
     """Server-side state shared by all requests."""
 
@@ -55,6 +64,7 @@ class Hub:
         self.area_folder = Path(area_folder) if area_folder else None
         self.site = SiteService(store)
         self.design = {}
+        self.code_stamp = _code_mtime()                         # the code this process is actually running
         if area and self.area_folder:
             # The collaborator edits one page kept as area.json + files/ in their own folder.
             doc = areamode.load_area(self.area_folder, self.site.model)
@@ -310,7 +320,9 @@ def make_handler(hub):
                 self.wfile.write(data)
                 return
             if path == "/api/state":
-                return self._json(hub.store.view())
+                view = hub.store.view()
+                view["needs_restart"] = _code_mtime() > hub.code_stamp      # the files on disk are newer than the running code
+                return self._json(view)
             if path == "/api/activity":
                 return self._json({"rows": hub.store.activity()})
             if path == "/api/publish/plan":

@@ -163,12 +163,26 @@
     $("#setAuto").checked = !!st.auto_publish_enabled;
   }
 
+  // Halbach was updated on disk while this window's hub kept running the older code: say so, so a screen that
+  // talks to old code never silently drops a setting.
+  function restartBanner(show) {
+    var b = document.getElementById("restartBanner");
+    if (!show) { if (b) b.remove(); return; }
+    if (b) return;
+    b = document.createElement("div");
+    b.id = "restartBanner"; b.setAttribute("role", "status");
+    b.style.cssText = "position:sticky;top:0;z-index:60;padding:10px 16px;background:#7a4a00;color:#fff;font-size:14px;text-align:center";
+    b.textContent = "Halbach was updated on this PC. Quit it and open it again to use the new version. Until then, some settings may not save.";
+    document.body.insertBefore(b, document.body.firstChild);
+  }
+
   function refresh(keepDrawer) {
     return Promise.all([api("/api/state"), api("/api/live").catch(function () { return LV; }),
                         api("/api/site").catch(function () { return null; }),
                         api("/api/areas").catch(function () { return null; })]).then(function (r) {
       var before = seenNew;
       S = r[0]; LV = r[1]; dashSite = r[2]; dashAreas = r[3];
+      restartBanner(!!S.needs_restart);
       var fresh = S.modules.filter(function (m) { return m.from_inbox && m.new; });
       seenNew = {}; fresh.forEach(function (m) { seenNew[m.id] = 1; });
       if (before) fresh.filter(function (m) { return !before[m.id]; }).forEach(function (m) { toast("New submission from a chat: " + m.name); });

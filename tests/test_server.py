@@ -97,6 +97,14 @@ class TestServer(unittest.TestCase):
         s, areas = self.api("GET", "/api/areas")
         self.assertFalse(areas["auto_publish_enabled"])
 
+    def test_the_window_is_told_when_the_code_on_disk_is_newer_than_the_running_hub(self):
+        from unittest import mock
+        s, state = self.api("GET", "/api/state")
+        self.assertFalse(state["needs_restart"])                         # nothing changed since this hub started
+        with mock.patch.object(server, "_code_mtime", return_value=server._code_mtime() + 3600):
+            s, state = self.api("GET", "/api/state")
+        self.assertTrue(state["needs_restart"])
+
     def test_add_toggle_remove_roundtrip(self):
         s, m = self.api("POST", "/api/modules", {"kind": "static", "name": "Roundtrip", "source": str(self.site)})
         self.assertEqual(s, 201)
