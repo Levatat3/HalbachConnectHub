@@ -105,6 +105,25 @@ class TestServer(unittest.TestCase):
             s, state = self.api("GET", "/api/state")
         self.assertTrue(state["needs_restart"])
 
+    def test_the_owner_can_edit_an_areas_page_and_it_waits_in_review(self):
+        s, made = self.api("POST", "/api/areas/create", {"name": "Edit Test", "slug": "edit-test"})
+        self.assertEqual(s, 201)
+        try:
+            s, c = self.api("GET", "/api/areas/edit-test/content")
+            self.assertEqual((s, c["version"]), (200, None))
+            c["doc"]["pages"][0]["blocks"] = [{"id": "b1", "type": "text", "props": {"markdown": "owner wrote this"}}]
+            s, r = self.api("POST", "/api/areas/edit-test/ownersave", {"doc": c["doc"]})
+            self.assertEqual((s, r["submission"]["state"], r["submission"]["origin"]), (200, "pending", "owner"))
+            s, r = self.api("POST", "/api/areas/edit-test/ownersave", {"doc": {"format": 2}})
+            self.assertEqual(s, 400)
+            self.assertEqual(self.api("GET", "/api/areas/nope/content")[0], 404)
+        finally:
+            self.api("POST", "/api/areas/edit-test/delete", {})
+
+    def test_a_collaborators_window_cannot_reach_the_owner_edit(self):
+        self.assertNotIn("ownersave", " ".join(server.AREA_POST))
+        self.assertFalse(any("content" in p for p in server.AREA_GET))
+
     def test_add_toggle_remove_roundtrip(self):
         s, m = self.api("POST", "/api/modules", {"kind": "static", "name": "Roundtrip", "source": str(self.site)})
         self.assertEqual(s, 201)

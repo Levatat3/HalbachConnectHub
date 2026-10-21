@@ -19,8 +19,10 @@ import os
 import re
 import secrets
 import shutil
+import tempfile
 import threading
 import time
+import zipfile
 
 from . import siteschema as sc
 from .bundle import ALLOWABLE_BLOCKS, DEFAULT_BLOCKS, DEFAULT_LIMITS, KNOWN_EXT, BundleError, validate_bundle
@@ -368,8 +370,10 @@ class AreaService:
             return 0
         return sum(f.stat().st_size for f in (cur / "files").rglob("*") if f.is_file()) if (cur / "files").is_dir() else 0
 
-    def ingest(self, aid, zip_path, ip_hash="owner"):
-        """Validate a received zip and record it as a submission. Returns the submission's meta (never raises for a bad bundle)."""
+    def ingest(self, aid, zip_path, ip_hash="owner", origin=None):
+        """Validate a received zip and record it as a submission. Returns the submission's meta (never raises for a bad bundle).
+
+        origin="owner" marks a page the owner edited from this side; it is checked and reviewed exactly like one that was sent in."""
         with self.lock:
             a = self._must(aid)
             sha = _sha256(zip_path)
@@ -380,6 +384,8 @@ class AreaService:
             sid = "s%011x%04x%s" % (int(self.clock() * 1000), self._seq % 65536, secrets.token_hex(1))      # sorts in the order received
             meta = {"id": sid, "area": aid, "received": int(self.clock()), "size": os.path.getsize(zip_path), "sha256": sha,
                     "state": "pending", "note": "", "warnings": [], "reasons": [], "files": 0, "pages": 0, "blocks": 0}
+            if origin:
+                meta["origin"] = origin
             sub = self._sub_dir(aid, sid)
             try:
                 res = validate_bundle(zip_path, sub / "tree", a, self.registry, existing_bytes=self.approved_bytes(aid))
@@ -393,9 +399,46 @@ class AreaService:
                         title=res["doc"]["title"], file_list=[{"path": k, **v} for k, v in sorted(res["files"].items())][:300])
             meta["changes"] = self._changes(aid, res)
             self._write_meta(aid, sid, meta)
-            self.audit(aid, ip_hash, "received", meta["size"], "%d files" % meta["files"])
+            self.audit(aid, ip_hash, "received", meta["size"], "%d files%s" % (meta["files"], " (edited by the owner)" if origin == "owner" else ""))
             if a["trust"] in ("trusted", "auto") and not a["paused"]:
                 return self.approve(aid, sid, note="approved automatically (%s area)" % a["trust"], by="auto")
+            return meta
+
+    def content(self, aid):
+        """What the owner starts from when editing an area's page: the live area.json, or an empty page when nothing is live."""
+        with self.lock:
+            a = self._must(aid)
+            doc, tree = None, self.current_tree(aid)
+            if tree:
+                try:
+                    doc = json.loads((tree / "area.json").read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    doc = None
+            if not isinstance(doc, dict):
+                doc = {"format": 1, "title": a["name"], "description": "", "pages": [{"name": "", "title": a["name"], "blocks": []}]}
+            return {"doc": doc, "version": a.get("current"), "themes": list(a.get("themes") or []), "blocks": list(a["blocks"])}
+
+    def owner_edit(self, aid, doc):
+        """The owner changes an area's page from this side. The edited page goes through the same checks and the same
+        review queue as anything the area sends: it becomes a pending submission, and nothing is live until it is approved
+        and published. Files already in the live version are carried over unchanged."""
+        if not isinstance(doc, dict):
+            raise ValidationError("The page must be an object.")
+        with self.lock:
+            self._must(aid)
+            tree = self.current_tree(aid)
+            with tempfile.TemporaryDirectory() as t:
+                zp = os.path.join(t, "owner-edit.zip")
+                with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
+                    z.writestr("area.json", json.dumps(doc, indent=1))
+                    if tree and (tree / "files").is_dir():
+                        for f in sorted((tree / "files").rglob("*")):
+                            if f.is_file():
+                                z.write(f, "files/" + f.relative_to(tree / "files").as_posix())
+                meta = self.ingest(aid, zp, ip_hash="owner", origin="owner")
+            if meta["state"] == "invalid":
+                shutil.rmtree(self._sub_dir(aid, meta["id"]), ignore_errors=True)       # a refused edit leaves nothing behind
+                raise ValidationError("; ".join(meta["reasons"][:3]) or "That page was not accepted.")
             return meta
 
     def _changes(self, aid, res):

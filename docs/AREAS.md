@@ -15,6 +15,8 @@ Everything else is in the area's tabs: **Versions** (every approval is a saved s
 
 A **new passphrase** makes the old one stop working immediately. **Revoke** stops everyone.
 
+**Edit page** (owner only) lets you change an area's page from your side, for example to set its theme and colours, or as a backup if the person is away. It starts from the area's live version, and pictures carry over. Saving does **not** publish anything: the edit becomes a pending submission marked "EDITED BY YOU", checked by the same rules as anything the area sends, and it goes live only after you approve it and publish. (In a Trusted or Auto area it is approved on save, as their own sends are.) It is not reachable from a collaborator's window or through the drop door.
+
 ### Trust levels
 
 - **Review** (default): every valid submission waits for you.

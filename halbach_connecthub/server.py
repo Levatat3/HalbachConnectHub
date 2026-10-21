@@ -296,6 +296,11 @@ def make_handler(hub):
                                    "drop_url": ("https://%s/drop/" % lh) if lh else None,
                                    "themes": [{"id": t["id"], "label": t.get("label") or t["id"]} for t in hub.site.registry.catalog("theme") if t.get("enabled", True)],
                                    "auto_publish_enabled": bool((hub.store.state.get("settings") or {}).get("auto_publish_enabled"))})
+            m_content = re.match(r"^/api/areas/([a-z0-9-]+)/content$", path)
+            if m_content:
+                if not hub.areas.get(m_content.group(1)):
+                    return self._err(404, "No such area")
+                return self._json(hub.areas.content(m_content.group(1)))
             m_audit = re.match(r"^/api/areas/([a-z0-9-]+)/audit$", path)
             if m_audit:
                 if not hub.areas.get(m_audit.group(1)):
@@ -422,6 +427,8 @@ def make_handler(hub):
                         return self._json({"ok": True})
                     if act == "freeze":
                         return self._json({"area": ar.freeze(aid)})
+                    if act == "ownersave":
+                        return self._json({"submission": ar.owner_edit(aid, b.get("doc"))})
                     return self._err(404, "Not found")
                 if path == "/api/area/design":
                     return self._area_json(lambda: hub.set_area_design(b.get("design")))

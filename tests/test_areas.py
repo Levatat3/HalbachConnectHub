@@ -283,6 +283,68 @@ class TestReviewFlow(Base):
         self.assertEqual([p["id"] for p in self.store.pending() if p["id"] == "__areas__"], [])
 
 
+class TestOwnerEdit(Base):
+    """The owner can change an area's page from this side. It takes the same road as anything the area sends."""
+
+    def submit(self, name="workshop", text="hello"):
+        z = self.root / ("in-%s.zip" % text.replace(" ", "_"))
+        good_zip(z, text)
+        return self.svc.ingest(name, z, "ip")
+
+    def go_live(self):
+        self.make_area()
+        self.svc.update("workshop", themes=["neutral-light", "neutral-dark"])
+        self.svc.approve("workshop", self.submit(text="one")["id"])
+
+    def test_the_starting_point_is_the_live_page_or_an_empty_one(self):
+        self.make_area()
+        empty = self.svc.content("workshop")
+        self.assertEqual((empty["version"], empty["doc"]["pages"][0]["blocks"]), (None, []))
+        self.svc.approve("workshop", self.submit(text="one")["id"])
+        c = self.svc.content("workshop")
+        self.assertEqual(c["version"], "v0001")
+        self.assertEqual(c["doc"]["pages"][0]["blocks"][2]["props"]["markdown"], "one")
+
+    def test_an_edit_waits_in_review_and_changes_nothing_live_until_approved(self):
+        self.go_live()
+        doc = self.svc.content("workshop")["doc"]
+        doc["design"] = {"theme": "neutral-dark", "vars": {"--bg": "#112233"}}
+        meta = self.svc.owner_edit("workshop", doc)
+        self.assertEqual((meta["state"], meta["origin"]), ("pending", "owner"))
+        self.assertEqual(self.svc.get("workshop")["current"], "v0001")                  # still the old one
+        live = json.loads((self.svc.current_tree("workshop") / "area.json").read_text(encoding="utf-8"))
+        self.assertNotIn("design", live)
+        self.assertTrue((self.svc._sub_dir("workshop", meta["id"]) / "tree" / "files" / "pic.png").is_file())     # pictures carried over
+        approved = self.svc.approve("workshop", meta["id"])
+        self.assertEqual(approved["version"], "v0002")
+        new = json.loads((self.svc.current_tree("workshop") / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(new["design"], {"theme": "neutral-dark", "vars": {"--bg": "#112233"}})
+        self.assertTrue(any(r["what"] == "received" and "owner" in r["detail"] for r in self.svc.audit_log("workshop")))
+
+    def test_a_refused_edit_leaves_nothing_behind_and_says_why(self):
+        self.go_live()
+        doc = self.svc.content("workshop")["doc"]
+        before = [s["id"] for s in self.svc.submissions("workshop")]
+        for bad in ({"theme": "not-a-theme"}, {"vars": {"--bg": "url(https://evil.example/x)"}}):
+            with self.subTest(design=bad):
+                with self.assertRaises(st.ValidationError):
+                    self.svc.owner_edit("workshop", dict(doc, design=bad))
+        with self.assertRaises(st.ValidationError):
+            self.svc.owner_edit("workshop", {"format": 2})
+        with self.assertRaises(st.ValidationError):
+            self.svc.owner_edit("workshop", "not an object")
+        self.assertEqual([s["id"] for s in self.svc.submissions("workshop")], before)
+
+    def test_a_trusted_area_still_checks_the_edit_and_a_review_area_never_skips_review(self):
+        self.go_live()
+        self.svc.update("workshop", trust="trusted")
+        doc = self.svc.content("workshop")["doc"]
+        doc["title"] = "Renamed"
+        meta = self.svc.owner_edit("workshop", doc)
+        self.assertEqual(meta["state"], "approved")                                     # trusted means approved, as for their own sends
+        self.assertEqual(self.svc.get("workshop")["current"], "v0002")
+
+
 class TestBuilderMerge(Base):
     def setUp(self):
         super().setUp()

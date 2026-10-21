@@ -66,14 +66,14 @@
   function areaPanel(a) {
     var box = h("div", { style: "padding:10px 14px 16px" });
     var tabs = h("div", { class: "subnav", role: "tablist", "aria-label": "Area panels" });
-    [["review", "Review (" + a.pending + ")"], ["versions", "Versions"], ["settings", "Settings"], ["audit", "Activity"]].forEach(function (t) {
+    [["review", "Review (" + a.pending + ")"], ["edit", "Edit page"], ["versions", "Versions"], ["settings", "Settings"], ["audit", "Activity"]].forEach(function (t) {
       var on = openPanel === t[0];
       tabs.appendChild(h("button", { class: "sub" + (on ? " on" : ""), type: "button", role: "tab", id: "areatab-" + a.id + "-" + t[0],
         "aria-selected": on ? "true" : "false", "aria-controls": "areapanel-" + a.id, text: t[1], on: { click: function () { openPanel = t[0]; render(); } } }));
     });
     box.appendChild(tabs);
     var panel = h("div", { id: "areapanel-" + a.id, role: "tabpanel", "aria-labelledby": "areatab-" + a.id + "-" + openPanel });
-    ({ review: reviewPanel, versions: versionsPanel, settings: settingsPanel, audit: auditPanel }[openPanel] || reviewPanel)(panel, a);
+    ({ review: reviewPanel, edit: editPanel, versions: versionsPanel, settings: settingsPanel, audit: auditPanel }[openPanel] || reviewPanel)(panel, a);
     box.appendChild(panel);
     return box;
   }
@@ -84,7 +84,7 @@
     a.submissions.forEach(function (s) {
       var line = h("div", { class: "blockform", style: "margin:8px 0" });
       var stateCls = { pending: "live", approved: "static", rejected: "new", invalid: "new" }[s.state] || "static";
-      line.appendChild(h("div", { class: "row" }, h("b", { text: (s.title || "Submission") + "  " }), chip(s.state.toUpperCase(), stateCls),
+      line.appendChild(h("div", { class: "row" }, h("b", { text: (s.title || "Submission") + "  " }), chip(s.state.toUpperCase(), stateCls), s.origin === "owner" ? chip("EDITED BY YOU", "static") : null,
         h("span", { style: "flex:1" }), h("small", { class: "hint", text: when(s.received) + "  ·  " + mb(s.size) })));
       if (s.state === "invalid") (s.reasons || []).forEach(function (r) { line.appendChild(h("div", { class: "errline", text: "✖ " + r })); });
       else {
@@ -138,6 +138,68 @@
       if (!r.rows.length) out.appendChild(h("p", { class: "empty", text: "No activity yet." }));
       r.rows.forEach(function (x) { out.appendChild(h("div", { class: "l" }, h("span", { text: new Date(x.t * 1000).toLocaleTimeString() }), h("b", { class: /fail|reject|error|timeout|incomplete/.test(x.what) ? "warn" : "info", text: x.what }), h("span", { style: "color:var(--text)", text: x.who + (x.detail ? "  ·  " + x.detail : "") + (x.size ? "  ·  " + mb(x.size) : "") }))); });
     }).catch(HB.fail);
+  }
+
+  // ---------------------------------------------------------------- editing their page from this side
+  // Saving does not publish anything: the edited page becomes a pending submission in Review, checked by the same rules
+  // as one they send, and it goes live only after you approve it and publish.
+  var QUICK = [["--bg", "Background"], ["--panel", "Panels"], ["--text", "Text"], ["--accent", "Accent"]];
+
+  function editPanel(box, a) {
+    box.appendChild(h("p", { class: "hint", text: "Loading their page…" }));
+    HB.api("/api/areas/" + a.id + "/content").then(function (c) { box.textContent = ""; drawEdit(box, a, c); }).catch(HB.fail);
+  }
+
+  function drawEdit(box, a, c) {
+    var err = h("div", { class: "err" });
+    var ta = h("textarea", { rows: 18, spellcheck: "false", style: "width:100%;font-family:var(--mono,monospace);font-size:12px" });
+    ta.value = JSON.stringify(c.doc, null, 1);
+    function current() {
+      try { var d = JSON.parse(ta.value); if (!d || typeof d !== "object" || Array.isArray(d)) throw 0; return d; }
+      catch (e) { err.textContent = "The page text is not valid JSON, so the quick settings cannot change it. Fix it first."; return null; }
+    }
+    function setDesign(fn) {
+      var d = current(); if (!d) return;
+      err.textContent = "";
+      d.design = d.design || {};
+      fn(d.design);
+      ["vars", "layout", "brand"].forEach(function (k) { if (d.design[k] && !Object.keys(d.design[k]).length) delete d.design[k]; });
+      if (!Object.keys(d.design).length) delete d.design;
+      ta.value = JSON.stringify(d, null, 1);
+    }
+    var design = (c.doc.design || {}), vars = design.vars || {};
+    var theme = h("select", null, h("option", { value: "", text: "Same as the main site" }));
+    (DATA.themes || []).filter(function (t) { return c.themes.indexOf(t.id) >= 0; }).forEach(function (t) { theme.appendChild(h("option", { value: t.id, text: t.label })); });
+    theme.value = design.theme || "";
+    theme.addEventListener("change", function () { setDesign(function (g) { if (theme.value) g.theme = theme.value; else delete g.theme; }); });
+    var quick = h("div", { class: "row", style: "flex-wrap:wrap;gap:12px" });
+    QUICK.forEach(function (q) {
+      var inp = h("input", { type: "text", value: vars[q[0]] || "", placeholder: "#101820", style: "width:96px" });
+      var pick = h("input", { type: "color", style: "width:36px;padding:0;border:0;background:none" });
+      if (/^#[0-9a-f]{6}$/i.test(inp.value)) pick.value = inp.value;
+      function apply() { setDesign(function (g) { g.vars = g.vars || {}; if (inp.value.trim()) g.vars[q[0]] = inp.value.trim(); else delete g.vars[q[0]]; }); }
+      inp.addEventListener("change", function () { if (/^#[0-9a-f]{6}$/i.test(inp.value)) pick.value = inp.value; apply(); });
+      pick.addEventListener("input", function () { inp.value = pick.value; apply(); });
+      quick.appendChild(h("label", { class: "hint" }, q[1] + " ", inp, " ", pick));
+    });
+    box.appendChild(h("div", { class: "set", style: "max-width:860px" },
+      h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Edit " + a.name + "'s page" }),
+        h("small", { style: "display:block;margin:2px 0 6px", text: "This starts from " + (c.version ? "their live version (" + c.version : "an empty page (nothing live yet") + "). " +
+          "Saving does not publish anything: your edit waits in Review, checked by the same rules as something they send, and goes live only after you approve it and publish. Their pictures carry over as they are." }))),
+      c.themes.length ? h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Their look" }),
+        h("small", { style: "display:block;margin:2px 0 6px", text: "Leave a colour empty to use the theme's own. Plain colours only." }),
+        h("div", { class: "row", style: "flex-wrap:wrap;gap:12px;margin-bottom:8px" }, h("label", { class: "hint" }, "Theme ", theme)), quick))
+        : h("div", { class: "hint", text: "This area has no themes ticked (Settings → Their own look), so a look set here would be ignored. Tick one first." }),
+      h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "The page itself (advanced)" }),
+        h("small", { style: "display:block;margin:2px 0 6px", text: "The whole area.json. Change anything the area's rules allow." }), ta)),
+      h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save for review", "primary", function () {
+        var d = current(); if (!d) return;
+        err.textContent = "";
+        HB.api("/api/areas/" + a.id + "/ownersave", "POST", { doc: d }).then(function (r) {
+          HB.toast(r.submission && r.submission.state === "approved" ? "Saved and approved." : "Saved. It is waiting in Review.");
+          openPanel = "review"; return load();
+        }).catch(function (e) { err.textContent = e.message; });
+      }))));
   }
 
   // ---------------------------------------------------------------- settings

@@ -417,6 +417,15 @@ class TestSubSites(Base):
         self.assertIn("Tools and mods", page)
         self.assertNotIn("data-nav=\"side\"", self.read("index.html"))     # the main site keeps its own layout
 
+    def test_colours_alone_give_the_area_its_own_background_without_picking_a_theme(self):
+        res = self.build_area(design={"vars": {"--bg": "#112233"}}, themes=["neutral-light"])
+        self.assertTrue(res.ok, res.errors)
+        page = self.read("funkas-workshop/index.html")
+        area_css = self.read(re.search(r'<link rel="stylesheet" href="([^"]+)"', page).group(1).lstrip("/"))
+        self.assertIn("--bg:#112233", area_css)
+        main_css = self.read(re.search(r'<link rel="stylesheet" href="([^"]+)"', self.read("index.html")).group(1).lstrip("/"))
+        self.assertNotIn("#112233", main_css)
+
     def test_a_design_is_dropped_with_a_warning_when_the_owner_has_not_allowed_themes(self):
         res = self.build_area(design={"theme": "neutral-light", "vars": {"--accent": "#ff8800"}}, themes=[])
         self.assertTrue(res.ok, res.errors)
