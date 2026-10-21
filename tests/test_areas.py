@@ -720,6 +720,14 @@ class TestValidateOffline(unittest.TestCase):
     def temp_leftovers(self):
         return list(Path(tempfile.gettempdir()).glob("halbach-validate-*"))
 
+    def test_a_brand_new_init_folder_validates_as_it_is(self):
+        """The first command a newcomer runs after init must not fail on the starter file itself."""
+        fresh = self.root / "fresh"
+        areaclient.init_folder(fresh)                     # no pictures added, nothing edited
+        code, out = self.run_cli("validate", str(fresh))
+        self.assertEqual(code, 0, out)
+        self.assertIn("Looks good", out)
+
     def test_a_valid_folder_passes_with_a_summary_and_without_a_connection_file(self):
         code, out = self.run_cli("validate", str(self.folder))
         self.assertEqual(code, 0, out)
