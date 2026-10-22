@@ -453,6 +453,53 @@ class TestAreaDesign(Base):
         self.assertEqual(saved["design"]["brand"]["name"], "<b>Fun</b> & co")       # stored as text; the builder escapes it on output
 
 
+class TestAreaStylesheet(Base):
+    """An area's own stylesheet exists only when the owner allowed it, is one file named in design.css, and is checked as written."""
+    CSS = b'body { background: #112233 url("files/logo.png"); }\n.hero h1 { letter-spacing: .1em; }\n'
+
+    def area(self, css=True, themes=()):
+        return dict(AREA, themes=list(themes), custom_css=css)
+
+    def entries(self, css=None, design=None, name="files/style.css"):
+        design = {"css": name} if design is None else design
+        return [("area.json", zk.area_json(design=design)), ("files/logo.png", zk.png()), (name, self.CSS if css is None else css)]
+
+    def test_an_allowed_stylesheet_is_accepted_and_kept_as_written(self):
+        res = self.run_bundle(self.entries(), area=self.area())
+        saved = json.loads((self.work / "tree" / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["design"], {"css": "files/style.css"})
+        self.assertEqual((self.work / "tree" / "files" / "style.css").read_bytes(), self.CSS)
+        self.assertEqual(res["warnings"], [])
+
+    def test_not_allowed_means_refused_with_a_reason_not_silently_ignored(self):
+        e = self.refused(self.entries(), area=self.area(css=False))
+        self.assertTrue("not an allowed file type" in " ".join(e.reasons) or "stylesheet" in " ".join(e.reasons))
+
+    def test_the_file_must_be_named_in_design_css_and_nothing_else_may_be_a_stylesheet(self):
+        self.refused(self.entries(design={}), expect="not used", area=self.area())
+        self.refused(self.entries() + [("files/other.css", b"a{}")], expect="not used", area=self.area())
+        self.refused(self.entries(design={"css": "files/missing.css"}), expect="not in the bundle", area=self.area())
+        self.refused(self.entries(design={"css": "style.css"}), expect="design.css", area=self.area())
+
+    def test_hostile_stylesheets_are_refused_naming_the_file(self):
+        for css in (b'@import url("https://evil.example/x.css");', b"a{background:url(https://evil.example/p.png)}",
+                    b"a{color:\\72ed}", b"a{width:expression(alert(1))}"):
+            with self.subTest(css=css):
+                self.refused(self.entries(css=css), expect="style.css", area=self.area())
+
+    def test_a_binary_or_non_text_stylesheet_is_refused(self):
+        self.refused(self.entries(css=b"\xff\xfe\x00a{}"), area=self.area())
+
+    def test_a_stylesheet_and_themes_can_be_used_together(self):
+        self.run_bundle(self.entries(design={"css": "files/style.css", "theme": "neutral-dark"}), area=self.area(themes=["neutral-dark"]))
+        saved = json.loads((self.work / "tree" / "area.json").read_text(encoding="utf-8"))
+        self.assertEqual(saved["design"], {"theme": "neutral-dark", "css": "files/style.css"})
+
+    def test_review_flags_what_can_cover_the_page(self):
+        res = self.run_bundle(self.entries(css=b".x { position: fixed; z-index: 5000; }\n"), area=self.area())
+        self.assertTrue(any("style.css" in w and "fixed" in w for w in res["warnings"]), res["warnings"])
+
+
 class TestNoSideEffectsOnSuccessOrFailure(Base):
     def test_extraction_never_writes_outside_the_destination(self):
         self.run_bundle([GOOD_DOC, ("files/deep/er/a.png", zk.png())])

@@ -87,8 +87,22 @@ An area is a small site of its own under your domain, not a few blocks inside yo
 }
 ```
 `theme` must be one you ticked; `vars` take colours, sizes and font stacks only (no `url()`, `@import` or `expression()`); `layout.nav` is `top`, `side` or `none`; `logo` is a picture from the area's own `files/` folder (png, jpg, gif or webp, never SVG). The Funk theme also accepts a `funk` section, the same settings as the Funk theme maker. The collaborator editor has a **Your site's look** panel for all of this, and Preview shows it.
-- **What this tier cannot contain:** scripts, HTML or free-form CSS. Text values are stored as plain text and escaped on output. The design is checked when it arrives **and again at every build**; if you later untick a theme, the design is left out with a warning at the next Publish. An area's colours go into its own stylesheet and never reach yours.
-- **Coming next (planned, not built):** reviewed custom CSS and then the area's own HTML/CSS/JS pages served as sandboxed documents. The rule for both will be stated here: **anything obfuscated or encrypted is blocked**, so everything you review is readable.
+- **What this tier cannot contain:** scripts, HTML or (without the next setting) free-form CSS. Text values are stored as plain text and escaped on output. The design is checked when it arrives **and again at every build**; if you later untick a theme, the design is left out with a warning at the next Publish. An area's colours go into its own stylesheet and never reach yours.
+- **Their own stylesheet (tier 2), if you allow it.** In **Areas → Settings → Their own stylesheet (CSS)**, switch it on. The area may then send **one** CSS file, named in its `design`:
+
+```json
+"design": { "css": "files/style.css" }
+```
+  The file is put at the end of the area's own stylesheet (after its theme, so its rules win) and never reaches your site's stylesheet or any other area. You review it like everything else, and a review warning is added for things that can cover the page (`position: fixed`, a very high `z-index`).
+
+  **What is refused, with a plain reason, when it arrives and again at every build:**
+  - **Anything obfuscated or encrypted.** No backslash escapes outside quoted text (they hide what the CSS says), no quoted text over 300 characters or unbroken run of 120+ characters (that is how encoded data looks), no lines over 4,000 characters (packed files must be written out to be reviewed), no non-ASCII characters outside quoted text and comments, no hidden or control characters, no huge comments. A stylesheet is never rewritten into something safer: it passes as written or is refused.
+  - **Anything that reaches outside.** No `@import`, no `@namespace`, no `data:` addresses, no outside addresses of any kind. `url()` may only name a picture (png, jpg, gif or webp, never SVG) that is in the area's own `files/` folder; those become the area's own addresses at build.
+  - **Script-like features.** No `expression()`, `behavior`, `-moz-binding`, `javascript:`, `image-set()`, `image()`, `src()`, `attr()`, `paint()` or similar, and only a short list of `@` rules (`@media`, `@supports`, `@keyframes`, `@layer`, `@container`, `@font-face`, `@property`). `@font-face` may use fonts installed on the visitor's PC (`local()`), never download one.
+  - Also: a size limit (100 KB), balanced brackets, at most 6 levels of nesting, UTF-8 text, and the file must be the one named in `design.css` (an area has one stylesheet, and the file is not published as a separate file).
+
+  If you later switch the setting off, the stylesheet is left out with a warning at the next Publish. Visitors see none of this: they just see the page, with no prompts or warnings.
+- **Coming next (planned, not built):** the area's own HTML/CSS/JS pages served as sandboxed documents. The same rule will apply: **anything obfuscated or encrypted is blocked**, so everything you review is readable.
 
 ### Embedding another site (owner-gated)
 The `embed` block shows another site inside the page in a frame. It is **off by default** and needs two things from the owner, in the area's **Settings**: tick `embed` under *Blocks they may use*, and list the exact hosts under *Sites they may embed* (for example `funkstudio-share.example.workers.dev`).

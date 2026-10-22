@@ -345,6 +345,77 @@ class TestOwnerEdit(Base):
         self.assertEqual(self.svc.get("workshop")["current"], "v0002")
 
 
+class TestCustomCssPermission(Base):
+    def test_only_the_owner_can_turn_it_on_and_it_is_off_by_default(self):
+        view, _ = self.make_area()
+        self.assertFalse(view["custom_css"])
+        self.assertFalse(self.svc.sender_limits(self.svc.get("workshop"))["custom_css"])
+        self.assertTrue(self.svc.update("workshop", custom_css=True)["custom_css"])
+        self.assertTrue(self.svc.sender_limits(self.svc.get("workshop"))["custom_css"])
+        self.assertFalse(self.svc.update("workshop", custom_css=False)["custom_css"])
+
+    def test_a_stylesheet_is_only_accepted_while_it_is_on(self):
+        self.make_area()
+        zp = self.root / "css.zip"
+        zk.make_zip(zp, [("area.json", zk.area_json(design={"css": "files/style.css"})), ("files/style.css", b"body{color:#fff}\n")])
+        self.assertEqual(self.svc.ingest("workshop", zp, "ip")["state"], "invalid")
+        self.svc.update("workshop", custom_css=True)
+        zp2 = self.root / "css2.zip"
+        zk.make_zip(zp2, [("area.json", zk.area_json(design={"css": "files/style.css"})), ("files/style.css", b"body{color:#eee}\n")])
+        on = self.svc.ingest("workshop", zp2, "ip")
+        self.assertEqual(on["state"], "pending", on)
+
+
+class TestOwnerEditStylesheet(Base):
+    """The owner can set an area's stylesheet from the window too; it is checked exactly like one they send."""
+    submit = TestOwnerEdit.submit
+    go_live = TestOwnerEdit.go_live
+
+    def test_the_owner_sets_replaces_and_removes_a_stylesheet(self):
+        self.go_live()
+        self.svc.update("workshop", custom_css=True)
+        doc = self.svc.content("workshop")["doc"]
+        a = self.svc.owner_edit("workshop", doc, css="body { background: #123456; }\n")
+        self.assertEqual(a["state"], "pending")
+        self.svc.approve("workshop", a["id"])
+        c = self.svc.content("workshop")
+        self.assertEqual((c["doc"]["design"]["css"], c["css"].strip(), c["custom_css"]), ("files/style.css", "body { background: #123456; }", True))
+        b = self.svc.owner_edit("workshop", c["doc"], css="body { background: #654321; }\n")          # replaces, no second stylesheet
+        self.svc.approve("workshop", b["id"])
+        self.assertIn("#654321", self.svc.content("workshop")["css"])
+        d = self.svc.owner_edit("workshop", self.svc.content("workshop")["doc"], css="")
+        self.svc.approve("workshop", d["id"])
+        c = self.svc.content("workshop")
+        self.assertEqual(c["css"], "")
+        self.assertNotIn("design", c["doc"])
+
+    def test_leaving_css_alone_keeps_the_existing_stylesheet(self):
+        self.go_live()
+        self.svc.update("workshop", custom_css=True)
+        a = self.svc.owner_edit("workshop", self.svc.content("workshop")["doc"], css="body{color:#fff}\n")
+        self.svc.approve("workshop", a["id"])
+        doc = self.svc.content("workshop")["doc"]
+        doc["title"] = "Renamed"
+        b = self.svc.owner_edit("workshop", doc)
+        self.svc.approve("workshop", b["id"])
+        self.assertEqual(self.svc.content("workshop")["css"].strip(), "body{color:#fff}")
+
+    def test_a_hostile_or_not_allowed_stylesheet_is_refused_and_leaves_nothing_behind(self):
+        self.go_live()
+        doc = self.svc.content("workshop")["doc"]
+        before = [x["id"] for x in self.svc.submissions("workshop")]
+        with self.assertRaises(st.ValidationError):
+            self.svc.owner_edit("workshop", doc, css="body{color:#fff}")                          # not switched on
+        self.svc.update("workshop", custom_css=True)
+        for bad in ("@import url(https://evil.example/x.css);", "a{background:url(https://evil.example/p.png)}", "a{color:\\72ed}"):
+            with self.subTest(css=bad):
+                with self.assertRaises(st.ValidationError):
+                    self.svc.owner_edit("workshop", doc, css=bad)
+        with self.assertRaises(st.ValidationError):
+            self.svc.owner_edit("workshop", doc, css=123)
+        self.assertEqual([x["id"] for x in self.svc.submissions("workshop")], before)
+
+
 class TestBuilderMerge(Base):
     def setUp(self):
         super().setUp()

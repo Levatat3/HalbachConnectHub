@@ -426,6 +426,47 @@ class TestSubSites(Base):
         main_css = self.read(re.search(r'<link rel="stylesheet" href="([^"]+)"', self.read("index.html")).group(1).lstrip("/"))
         self.assertNotIn("#112233", main_css)
 
+    def build_with_css(self, css, allow=True):
+        self.model.load_template("blank")
+        tree = self.root / "tree"
+        (tree / "files").mkdir(parents=True, exist_ok=True)
+        (tree / "files" / "bg.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        (tree / "files" / "style.css").write_text(css, encoding="utf-8")
+        doc = {"format": 1, "title": "W", "description": "", "design": {"css": "files/style.css"},
+               "pages": [{"name": "", "title": "Home", "blocks": [{"id": "b1", "type": "text", "props": {"markdown": "hi"}}]}]}
+        (tree / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+        areas = [{"id": "funkas-workshop", "slug": "funkas-workshop", "name": "Funkas Workshop", "nav": True, "tree": str(tree), "blocks": ["text"],
+                  "embed_hosts": [], "themes": [], "custom_css": allow}]
+        return sb.build_site(self.model, self.reg, self.store, self.stage, areas=areas)
+
+    def test_an_areas_own_stylesheet_is_merged_into_its_own_stylesheet_only(self):
+        res = self.build_with_css('body{background:#abcdef url("files/bg.png")}\n')
+        self.assertTrue(res.ok, res.errors)
+        page = self.read("funkas-workshop/index.html")
+        href = re.search(r'<link rel="stylesheet" href="([^"]+)"', page).group(1)
+        css = self.read(href.lstrip("/"))
+        self.assertIn("#abcdef", css)
+        self.assertIn('url("/funkas-workshop/files/bg.png")', css)
+        self.assertLess(css.index(":root{"), css.index("#abcdef"))                   # after the theme, so it can override it
+        main = self.read(re.search(r'<link rel="stylesheet" href="([^"]+)"', self.read("index.html")).group(1).lstrip("/"))
+        self.assertNotIn("#abcdef", main)
+        self.assertTrue((self.stage / "funkas-workshop" / "files" / "bg.png").is_file())
+        self.assertFalse((self.stage / "funkas-workshop" / "files" / "style.css").exists(), "the raw stylesheet must not be published as-is")
+
+    def test_the_stylesheet_is_checked_again_at_build_and_left_out_with_a_warning(self):
+        res = self.build_with_css('@import url("https://evil.example/x.css");\nbody{background:#abcdef}\n')       # got in somehow
+        self.assertTrue(res.ok, res.errors)
+        self.assertTrue(any("stylesheet" in w["message"] and "left out" in w["message"] for w in res.warnings), res.warnings)
+        every = "".join(f.read_text(encoding="utf-8", errors="ignore") for f in self.stage.rglob("*.css")) + self.read("funkas-workshop/index.html")
+        self.assertNotIn("evil.example", every)
+        self.assertNotIn("#abcdef", every)
+
+    def test_when_the_owner_takes_the_permission_away_the_stylesheet_is_dropped_but_the_site_still_builds(self):
+        res = self.build_with_css("body{background:#abcdef}\n", allow=False)
+        self.assertTrue(res.ok, res.errors)
+        self.assertTrue(any("custom design" in w["message"] for w in res.warnings), res.warnings)
+        self.assertNotIn("#abcdef", "".join(f.read_text(encoding="utf-8", errors="ignore") for f in self.stage.rglob("*.css")))
+
     def test_a_design_is_dropped_with_a_warning_when_the_owner_has_not_allowed_themes(self):
         res = self.build_area(design={"theme": "neutral-light", "vars": {"--accent": "#ff8800"}}, themes=[])
         self.assertTrue(res.ok, res.errors)

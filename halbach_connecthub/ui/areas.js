@@ -167,6 +167,8 @@
       if (!Object.keys(d.design).length) delete d.design;
       ta.value = JSON.stringify(d, null, 1);
     }
+    var cssBox = c.custom_css ? h("textarea", { rows: 10, spellcheck: "false", placeholder: "/* their own CSS */\nbody { background: #1a0f2e; }", style: "width:100%;font-family:var(--mono,monospace);font-size:12px" }) : null;
+    if (cssBox) cssBox.value = c.css || "";
     var design = (c.doc.design || {}), vars = design.vars || {};
     var theme = h("select", null, h("option", { value: "", text: "Same as the main site" }));
     (DATA.themes || []).filter(function (t) { return c.themes.indexOf(t.id) >= 0; }).forEach(function (t) { theme.appendChild(h("option", { value: t.id, text: t.label })); });
@@ -190,12 +192,14 @@
         h("small", { style: "display:block;margin:2px 0 6px", text: "Leave a colour empty to use the theme's own. Plain colours only." }),
         h("div", { class: "row", style: "flex-wrap:wrap;gap:12px;margin-bottom:8px" }, h("label", { class: "hint" }, "Theme ", theme)), quick))
         : h("div", { class: "hint", text: "This area has no themes ticked (Settings → Their own look), so a look set here would be ignored. Tick one first." }),
+      cssBox ? h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Their stylesheet (CSS)" }),
+        h("small", { style: "display:block;margin:2px 0 6px", text: "Checked as written: no scripts, no outside addresses, only their own pictures, nothing obfuscated or encrypted. Leave it empty for none. Saving still waits for your review." }), cssBox)) : null,
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "The page itself (advanced)" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "The whole area.json. Change anything the area's rules allow." }), ta)),
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save for review", "primary", function () {
         var d = current(); if (!d) return;
         err.textContent = "";
-        HB.api("/api/areas/" + a.id + "/ownersave", "POST", { doc: d }).then(function (r) {
+        HB.api("/api/areas/" + a.id + "/ownersave", "POST", cssBox ? { doc: d, css: cssBox.value } : { doc: d }).then(function (r) {
           HB.toast(r.submission && r.submission.state === "approved" ? "Saved and approved." : "Saved. It is waiting in Review.");
           openPanel = "review"; return load();
         }).catch(function (e) { err.textContent = e.message; });
@@ -227,6 +231,7 @@
       lim[k[0]] = h("input", { type: "number", value: a.limits[k[0]], style: "width:90px" }); limRow.appendChild(h("label", { class: "hint", style: "margin-right:10px" }, k[1] + " ", lim[k[0]]));
     });
     var themeBoxes = ((DATA && DATA.themes) || []).map(function (t) { var i = h("input", { type: "checkbox", checked: (a.themes || []).indexOf(t.id) >= 0 }); return [t.id, t.label, i]; });
+    var css = sw(!!a.custom_css, function () {});
     var embedHosts = h("input", { type: "text", placeholder: "player.example.com, other.example.org", style: "width:100%" });
     embedHosts.value = (a.embed_hosts || []).join(", ");
     var err = h("div", { class: "err" });
@@ -239,6 +244,7 @@
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Their own look" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "Tick the themes this area may choose from. With none ticked it keeps your site's look. With some ticked, its owner can set a name, logo, colours, theme and layout for their site (plain values only, never scripts), and you still review every change before it goes live." }),
         h("div", { class: "row", style: "flex-wrap:wrap" }, themeBoxes.length ? themeBoxes.map(function (p) { return h("label", { class: "hint", style: "margin-right:12px" }, p[2], " " + p[1]); }) : h("span", { class: "hint", text: "No themes are available." })))),
+      row("Their own stylesheet (CSS)", "Lets them send one CSS file for their site. It is checked when it arrives and again at every build: no scripts, no outside addresses, only their own pictures, and anything obfuscated or encrypted is refused. You still review it before it goes live.", css),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Sites they may embed" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "Needs the 'embed' block ticked above. Exact host names only (no wildcards); each is shown inside their page in a frame that cannot reach the rest of your site. Leave empty to allow none." }), embedHosts)),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Limits" }), limRow)),
@@ -247,7 +253,7 @@
       }), btn("Save", "primary", function () {
         var limits = {}; Object.keys(lim).forEach(function (k) { limits[k] = parseInt(lim[k].value, 10); });
         post("/api/areas/" + a.id + "/update", { name: name.value, enabled: en.firstChild.checked, paused: pa.firstChild.checked, nav: nav.firstChild.checked, trust: trust.value,
-          blocks: blockBoxes.filter(function (p) { return p[1].checked; }).map(function (p) { return p[0]; }), embed_hosts: embedHosts.value, themes: themeBoxes.filter(function (p) { return p[2].checked; }).map(function (p) { return p[0]; }), limits: limits }, "Area saved.").catch(function (e) { err.textContent = e.message; });
+          blocks: blockBoxes.filter(function (p) { return p[1].checked; }).map(function (p) { return p[0]; }), embed_hosts: embedHosts.value, custom_css: css.firstChild.checked, themes: themeBoxes.filter(function (p) { return p[2].checked; }).map(function (p) { return p[0]; }), limits: limits }, "Area saved.").catch(function (e) { err.textContent = e.message; });
       }))));
   }
   function row(title, small, control) { return h("div", { class: "r" }, h("div", null, h("b", { text: title }), small ? h("small", { text: small }) : null), h("span", { style: "flex:1" }), control); }

@@ -22,7 +22,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import publisher
+from . import csscheck, publisher
 from .siteschema import RESERVED_SLUGS, FieldError, clean_area_design, embed_url_host
 from .store import MAX_FILES, MAX_FILE_BYTES, collect_files
 
@@ -270,6 +270,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     # ---- areas: approved content from collaborators, confined to each area's own address
     area_pages, area_types, area_frames = [], {}, {}
     area_designs, area_shell, area_page_list, sites_list = {}, {}, {}, []
+    area_css = {}
     model_slugs = {p["slug"] for p in data["pages"]}
     for ar in (areas or []):
         slug = ar["slug"]
@@ -285,12 +286,25 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         design = {}
         if doc.get("design"):                                   # checked again here: the owner may have changed the allowed themes since
             ok_themes = [t for t in (ar.get("themes") or []) if registry.theme(t)]
+            allow_css = bool(ar.get("custom_css"))
             try:
-                design = clean_area_design(doc["design"], ok_themes) if ok_themes else {}
+                design = clean_area_design(doc["design"], ok_themes, allow_css) if (ok_themes or allow_css) else {}
             except FieldError:
                 design = {}
             if not design:
                 res.warnings.append({"path": "areas/" + ar["id"], "message": "The custom design of area '%s' was left out because the area is no longer allowed to use it." % ar["name"]})
+        if design.get("css"):                                   # the stylesheet is read and checked again too, then merged into the area's own stylesheet
+            css_path = Path(ar["tree"]) / design["css"]
+            have = {"files/" + f.relative_to(Path(ar["tree"]) / "files").as_posix() for f in (Path(ar["tree"]) / "files").rglob("*") if f.is_file()}
+            try:
+                chk = csscheck.check(css_path.read_text(encoding="utf-8"), have, slug, url_base)
+            except (OSError, UnicodeDecodeError):
+                chk = None
+            if chk is None or not chk.ok:
+                res.warnings.append({"path": "areas/" + ar["id"], "message": "The stylesheet of area '%s' was left out: %s" % (ar["name"], "it cannot be read" if chk is None else chk.problems[0])})
+                design = {k: v for k, v in design.items() if k != "css"}
+            else:
+                area_css[ar["id"]] = chk.css
         area_designs[ar["id"]] = design
         dbrand = design.get("brand") or {}
         bname = dbrand.get("name") or ar["name"]
@@ -394,7 +408,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     themes = {}
     theme_specs = [(tid, tid, (data["theme"].get("vars") or {}) if tid == site_theme else {}) for tid in theme_ids]
     for aid, d in area_designs.items():                         # an area with its own look gets its own stylesheet
-        if d.get("theme") or d.get("vars"):
+        if d.get("theme") or d.get("vars") or aid in area_css:
             theme_specs.append(("area:" + aid, d.get("theme") or site_theme, d.get("vars") or {}))
     for key, tid, over_vars in theme_specs:
         plug = registry.theme(tid)
@@ -407,6 +421,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         mode = data["theme"].get("mode", "auto") if key == site_theme else "auto"
         scheme = {"light": "color-scheme:light;", "dark": "color-scheme:dark;"}.get(mode, "")
         css_parts.append(":root{%s%s}" % (decl, scheme))
+        if key.startswith("area:") and area_css.get(key[5:]):
+            css_parts.append("/* the area's own stylesheet */\n" + area_css[key[5:]])      # last, so its rules can override the theme
         css = "\n".join(css_parts).encode("utf-8")
         css_name = "_halbach/theme.%s.css" % _hash(css)
         total_bytes += _write(stage / css_name, css)
@@ -452,7 +468,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         if not src_root.is_dir():
             continue
         for f in sorted(src_root.rglob("*")):
-            if f.is_symlink() or not f.is_file():
+            if f.is_symlink() or not f.is_file() or f.suffix.lower() == ".css":     # a stylesheet is merged into the area's own, never published as it came
                 continue
             dest = (base / f.relative_to(src_root)).resolve()
             try:

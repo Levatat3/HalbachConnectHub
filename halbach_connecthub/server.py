@@ -93,25 +93,29 @@ class Hub:
         return areaclient.Area(conn["url"], conn["area"], conn["key"])
 
     def _design_rules(self):
-        """(allowed theme ids, whether they come from the owner). Offline, every installed theme is allowed for the preview."""
+        """(allowed theme ids, whether they come from the owner, whether the owner allows an own stylesheet).
+        Offline, every installed theme and a stylesheet are allowed for the preview."""
         try:
             info = self.area_client().limits()
-            return list(info.get("themes") or []), True
+            return list(info.get("themes") or []), True, bool(info.get("custom_css"))
         except (ValidationError, areaclient.ClientError):
-            return [t["id"] for t in self.site.registry.catalog("theme") if t.get("enabled", True)], False
+            return [t["id"] for t in self.site.registry.catalog("theme") if t.get("enabled", True)], False, True
 
     def area_design_view(self):
-        themes, from_owner = self._design_rules()
+        themes, from_owner, _css = self._design_rules()
         catalog = {t["id"]: t.get("label") or t["id"] for t in self.site.registry.catalog("theme")}
         return {"design": self.design, "themes": [{"id": t, "label": catalog.get(t, t)} for t in themes if t in catalog],
                 "enabled": bool(themes), "from_owner": from_owner}
 
     def set_area_design(self, raw):
-        themes, from_owner = self._design_rules()
-        if from_owner and not themes:
+        themes, from_owner, css_ok = self._design_rules()
+        if from_owner and not themes and not css_ok:
             raise ValidationError("The owner has not enabled custom designs for this area.")
+        raw = dict(raw or {})
+        if self.design.get("css") and "css" not in raw:         # the panel does not edit the stylesheet; saving the look must not lose it
+            raw["css"] = self.design["css"]
         try:
-            self.design = sc.clean_area_design(raw or {}, themes)
+            self.design = sc.clean_area_design(raw, themes, allow_css=css_ok)
         except sc.FieldError as e:
             raise ValidationError(str(e))
         return self.area_design_view()
@@ -408,7 +412,7 @@ def make_handler(hub):
                     aid, act = m_area.groups()
                     ar = hub.areas
                     if act == "update":
-                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks", "embed_hosts", "themes") if k in b})})
+                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks", "embed_hosts", "themes", "custom_css") if k in b})})
                     if act == "regenerate":
                         key = ar.regenerate_key(aid)
                         return self._json({"key": key})
@@ -428,7 +432,7 @@ def make_handler(hub):
                     if act == "freeze":
                         return self._json({"area": ar.freeze(aid)})
                     if act == "ownersave":
-                        return self._json({"submission": ar.owner_edit(aid, b.get("doc"))})
+                        return self._json({"submission": ar.owner_edit(aid, b.get("doc"), css=b.get("css"))})
                     return self._err(404, "Not found")
                 if path == "/api/area/design":
                     return self._area_json(lambda: hub.set_area_design(b.get("design")))

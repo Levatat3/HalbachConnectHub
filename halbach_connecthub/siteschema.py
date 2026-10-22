@@ -403,15 +403,17 @@ def clean_funktheme(value):
 
 # --------------------------------------------------------------------------- an area's own design (sub-site branding)
 AREA_NAVS = ("top", "side", "none")
+_CSS_FILE_RE = re.compile(r"^files/[A-Za-z0-9][A-Za-z0-9 ._()+,@~-]{0,100}\.css$")
 _LOGO_RE = re.compile(r"^files/[A-Za-z0-9][A-Za-z0-9 ._()+,@~-]{0,100}\.(?:png|jpg|jpeg|gif|webp)$")
 MAX_AREA_VARS = 40
 
 
-def clean_area_design(value, allowed_themes):
+def clean_area_design(value, allowed_themes, allow_css=False):
     """An area's own branding, validated. Returns the canonical dict ({} when empty); raises FieldError with a plain reason.
 
     {"brand": {name, mark, tagline, footer, logo}, "theme": id, "vars": {"--accent": "#fa0"}, "layout": {"nav": "top|side|none"},
-     "funk": {...}}. allowed_themes is the list of theme ids the owner lets this area use. Only plain text, validated
+     "funk": {...}, "css": "files/style.css"}. allowed_themes is the list of theme ids the owner lets this area use; "css" (the
+    area's own stylesheet, checked separately by csscheck) is accepted only when the owner allowed it (allow_css). Only plain text, validated
     colours/sizes, a theme from that list, a layout preset and a picture from the area's own files: no markup, no scripts.
     """
     if value in (None, {}):
@@ -419,7 +421,7 @@ def clean_area_design(value, allowed_themes):
     if not isinstance(value, dict):
         raise FieldError("design must be an object")
     for k in value:
-        if k not in ("brand", "theme", "vars", "layout", "funk"):
+        if k not in ("brand", "theme", "vars", "layout", "funk", "css"):
             raise FieldError("design has a setting that does not exist (%s)" % str(k)[:30])
     out = {}
     b = value.get("brand")
@@ -465,6 +467,13 @@ def clean_area_design(value, allowed_themes):
         if layout.get("nav") not in AREA_NAVS:
             raise FieldError("design.layout.nav must be one of: %s" % ", ".join(AREA_NAVS))
         out["layout"] = {"nav": layout["nav"]}
+    css = value.get("css")
+    if css not in (None, ""):
+        if not allow_css:
+            raise FieldError("design.css is not available: the owner has not allowed this area its own stylesheet")
+        if not isinstance(css, str) or not _CSS_FILE_RE.match(css):
+            raise FieldError("design.css must be a stylesheet in the files folder, such as files/style.css")
+        out["css"] = css
     funk = value.get("funk")
     if funk not in (None, {}):
         if out.get("theme") != "funk":

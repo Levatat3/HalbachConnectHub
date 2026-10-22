@@ -20,6 +20,7 @@ import unicodedata
 import zipfile
 import zlib
 
+from . import csscheck
 from . import siteschema as sc
 
 FORMAT = 1
@@ -40,7 +41,7 @@ DEFAULT_LIMITS = {"max_file_mb": 50, "max_bundle_mb": 80, "max_total_mb": 500, "
 DEFAULT_BLOCKS = ["hero", "text", "cards", "links", "image", "divider", "youtube", "twitch"]
 # Block types an owner may ever allow for an area: nothing that takes a module, an outside page, or runs code.
 ALLOWABLE_BLOCKS = {"hero", "text", "cards", "links", "image", "divider", "youtube", "twitch", "embed"}   # embed is never on by default: it also needs the owner's host list
-KNOWN_EXT = {"md", "txt", "png", "jpg", "jpeg", "gif", "webp", "pdf"}          # the only types this version can validate
+KNOWN_EXT = {"md", "txt", "png", "jpg", "jpeg", "gif", "webp", "pdf", "css"}   # the only types this version can validate (css only when the owner allows it)
 DANGEROUS_PARTS = {"html", "htm", "xhtml", "js", "mjs", "svg", "xml", "swf", "exe", "dll", "bat", "cmd", "com", "ps1", "vbs", "vbe",
                    "lnk", "scr", "msi", "jar", "php", "py", "sh", "pif", "hta", "cpl", "reg", "wsf", "zip", "iso", "dmg", "app", "apk"}
 RESERVED_NAMES = {"con", "prn", "aux", "nul"} | {"com%d" % i for i in range(1, 10)} | {"lpt%d" % i for i in range(1, 10)}
@@ -328,6 +329,14 @@ def check_content(path, rel, ext, limits, warnings):
         return None
     if ext == "pdf":
         return None if head[:5] == b"%PDF-" else "'%s' is not a PDF" % _show(rel)
+    if ext == "css":
+        try:
+            with open(path, "rb") as f:
+                data = f.read(csscheck.MAX_CSS_BYTES + 1)
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            return "'%s' is not UTF-8 text" % _show(rel)
+        return None if len(data) <= csscheck.MAX_CSS_BYTES else "'%s' is larger than %d KB" % (_show(rel), csscheck.MAX_CSS_BYTES // 1024)
     if ext in ("md", "txt"):
         if b"\x00" in head:
             return "'%s' is not a text file" % _show(rel)
@@ -373,6 +382,8 @@ def inspect_archive(zf, limits):
         if name != "area.json":
             if not name.startswith("files/"):
                 raise BundleError("'%s' is not allowed. A bundle holds only area.json and a files/ folder." % _show(name))
+            if name.lower().endswith(".css") and "css" not in allowed:
+                raise BundleError("'%s' is a stylesheet, which the owner has not allowed this area to send." % _show(name))
             bad = extension_problem(name, allowed)
             if bad:
                 raise BundleError(bad)
@@ -487,7 +498,7 @@ def _embed_problem(props, hosts):
     return None
 
 
-def parse_area_doc(raw, area, registry, files, warnings):
+def parse_area_doc(raw, area, registry, files, warnings, root=None):
     """Validate area.json against the area's rules. Returns the canonical document (or raises BundleError)."""
     if len(raw) > MAX_AREA_JSON:
         raise BundleError("area.json is larger than %d KB." % (MAX_AREA_JSON // 1024))
@@ -561,18 +572,33 @@ def parse_area_doc(raw, area, registry, files, warnings):
             raise BundleError(str(e))
         pages.append({"name": pname, "title": ptitle, "blocks": blocks})
     design = {}
+    custom_css = bool(area.get("custom_css"))
     if doc.get("design") not in (None, {}):
         themes = [t for t in (area.get("themes") or []) if registry.theme(t)]
-        if not themes:
+        if not themes and not custom_css:
             warnings.append("The 'design' section was ignored: the owner has not enabled custom designs for this area.")
         else:
             try:
-                design = sc.clean_area_design(doc["design"], themes)
+                design = sc.clean_area_design(doc["design"], themes, allow_css=custom_css)
             except sc.FieldError as e:
                 errors.append("design: %s" % e)
             logo = (design.get("brand") or {}).get("logo")
             if logo and logo not in files:
                 errors.append("design: the logo %s is not in the bundle" % _show(logo))
+    css_name = design.get("css")
+    for n in sorted(f for f in files if f.lower().endswith(".css")):
+        if n != css_name:
+            errors.append("%s is not used: name it in design.css (an area has one stylesheet)" % _show(n))
+    if css_name:
+        if css_name not in files:
+            errors.append("design: the stylesheet %s is not in the bundle" % _show(css_name))
+        elif root is None:
+            errors.append("design: the stylesheet cannot be checked here")
+        else:
+            with open(os.path.join(root, *css_name.split("/")), "rb") as fh:
+                res = csscheck.check(fh.read().decode("utf-8"), set(files), area["slug"])
+            errors += ["%s: %s" % (_show(css_name), p) for p in res.problems]
+            warnings += ["%s: %s" % (_show(css_name), w) for w in res.warnings]
     if errors:
         raise BundleError(errors[:8])
     out = {"format": FORMAT, "title": title, "description": desc, "pages": pages}
@@ -589,6 +615,8 @@ def validate_bundle(zip_path, dest, area, registry, existing_bytes=0):
     On any failure nothing is left behind at dest.
     """
     limits = dict(DEFAULT_LIMITS, **(area.get("limits") or {}))
+    if area.get("custom_css"):                                  # a stylesheet is only a possible file type when the owner allowed it
+        limits["extensions"] = sorted(set(limits.get("extensions") or []) | {"css"})
     area = dict(area, limits=limits)
     tmp = str(dest) + ".part"
     shutil.rmtree(tmp, ignore_errors=True)
@@ -621,7 +649,7 @@ def validate_bundle(zip_path, dest, area, registry, existing_bytes=0):
             total_new = sum(f["size"] for f in files.values())
             if existing_bytes + total_new > int(limits["max_total_mb"]) * 1024 * 1024:
                 raise BundleError("The area would be larger than its %d MB total limit." % int(limits["max_total_mb"]))
-            doc = parse_area_doc(area_raw, area, registry, files, warnings)
+            doc = parse_area_doc(area_raw, area, registry, files, warnings, root=tmp)
             with open(os.path.join(tmp, "area.json"), "w", encoding="utf-8", newline="\n") as f:
                 json.dump(doc, f, indent=1)
         os.replace(tmp, dest)

@@ -161,7 +161,7 @@ class AreaService:
     def view(self, a):
         subs = self.submissions(a["id"], limit=200)
         return {"id": a["id"], "name": a["name"], "slug": a["slug"], "enabled": a["enabled"], "paused": a["paused"], "trust": a["trust"],
-                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "themes": a.get("themes") or [], "created": a["created"], "auto": a.get("auto"),
+                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "themes": a.get("themes") or [], "custom_css": bool(a.get("custom_css")), "created": a["created"], "auto": a.get("auto"),
                 "key": {"hint": (a.get("key") or {}).get("hint"), "created": (a.get("key") or {}).get("created"),
                         "last_used": (a.get("key") or {}).get("last_used"), "active": bool(a.get("key"))},
                 "current": a.get("current"), "versions": self.versions(a["id"]),
@@ -194,7 +194,7 @@ class AreaService:
             chosen = [b for b in (blocks or DEFAULT_BLOCKS) if b in ALLOWABLE_BLOCKS]
             key = new_passphrase()
             area = {"id": slug, "name": name, "slug": slug, "enabled": True, "paused": False, "trust": trust, "nav": bool(nav),
-                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "themes": [], "created": int(self.clock()), "current": None,
+                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "themes": [], "custom_css": False, "created": int(self.clock()), "current": None,
                     "key": {"hash": hash_key(key), "created": int(self.clock()), "last_used": None, "hint": key[-5:].replace("-", "")[-4:]}}
             self.areas.append(area)
             self._save()
@@ -235,7 +235,7 @@ class AreaService:
                 themes = self._clean_theme_ids(kw["themes"])
             if "name" in kw:
                 a["name"] = sc.clean_line(kw["name"], 40) or a["name"]
-            for k in ("enabled", "paused", "nav"):
+            for k in ("enabled", "paused", "nav", "custom_css"):
                 if k in kw:
                     a[k] = bool(kw[k])
             if "trust" in kw:
@@ -416,25 +416,48 @@ class AreaService:
                     doc = None
             if not isinstance(doc, dict):
                 doc = {"format": 1, "title": a["name"], "description": "", "pages": [{"name": "", "title": a["name"], "blocks": []}]}
-            return {"doc": doc, "version": a.get("current"), "themes": list(a.get("themes") or []), "blocks": list(a["blocks"])}
+            css = ""
+            name = (doc.get("design") or {}).get("css")
+            if tree and isinstance(name, str):
+                try:
+                    css = (tree / name).read_text(encoding="utf-8")
+                except OSError:
+                    css = ""
+            return {"doc": doc, "version": a.get("current"), "themes": list(a.get("themes") or []), "blocks": list(a["blocks"]),
+                    "custom_css": bool(a.get("custom_css")), "css": css}
 
-    def owner_edit(self, aid, doc):
+    def owner_edit(self, aid, doc, css=None):
         """The owner changes an area's page from this side. The edited page goes through the same checks and the same
         review queue as anything the area sends: it becomes a pending submission, and nothing is live until it is approved
-        and published. Files already in the live version are carried over unchanged."""
+        and published. Files already in the live version are carried over unchanged. css = the area's stylesheet text:
+        a string replaces it (empty removes it), None leaves it as it is."""
         if not isinstance(doc, dict):
             raise ValidationError("The page must be an object.")
+        if css is not None and not isinstance(css, str):
+            raise ValidationError("The stylesheet must be text.")
         with self.lock:
             self._must(aid)
             tree = self.current_tree(aid)
+            doc = dict(doc)
+            if css is not None:
+                design = dict(doc.get("design") or {})
+                if css.strip():
+                    design["css"] = "files/style.css"
+                else:
+                    design.pop("css", None)
+                doc["design"] = design
+                if not design:
+                    doc.pop("design")
             with tempfile.TemporaryDirectory() as t:
                 zp = os.path.join(t, "owner-edit.zip")
                 with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
                     z.writestr("area.json", json.dumps(doc, indent=1))
                     if tree and (tree / "files").is_dir():
                         for f in sorted((tree / "files").rglob("*")):
-                            if f.is_file():
+                            if f.is_file() and not (css is not None and f.suffix.lower() == ".css"):     # a new stylesheet replaces the old one
                                 z.write(f, "files/" + f.relative_to(tree / "files").as_posix())
+                    if css is not None and css.strip():
+                        z.writestr("files/style.css", css)
                 meta = self.ingest(aid, zp, ip_hash="owner", origin="owner")
             if meta["state"] == "invalid":
                 shutil.rmtree(self._sub_dir(aid, meta["id"]), ignore_errors=True)       # a refused edit leaves nothing behind
@@ -578,7 +601,8 @@ class AreaService:
                         tree = cand
                 if tree:
                     out.append({"id": a["id"], "slug": a["slug"], "name": a["name"], "nav": a["nav"], "tree": tree,
-                                "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or [])})
+                                "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
+                                "custom_css": bool(a.get("custom_css"))})
         return out
 
     # ---------------------------------------------------------------- the sender's view
@@ -589,7 +613,7 @@ class AreaService:
 
     def sender_limits(self, a):
         return {"limits": a["limits"], "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
-                "paused": a["paused"], "trust": a["trust"], "slug": a["slug"], "format": 1}
+                "custom_css": bool(a.get("custom_css")), "paused": a["paused"], "trust": a["trust"], "slug": a["slug"], "format": 1}
 
     # ---------------------------------------------------------------- audit
     def audit(self, aid, who, what, size, detail):
