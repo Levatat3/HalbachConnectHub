@@ -45,6 +45,9 @@ def main(argv=None):
     if args and args[0] == "site":
         from .sitecli import main as site_main
         return site_main(args[1:])
+    if args and args[0] == "update":
+        from .updatecli import main as update_main
+        return update_main(args[1:])
     ap = argparse.ArgumentParser(prog="halbach", description="Halbach ConnectHub: choose what your site shows.", formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8780, help="local port (default 8780; 0 = any free port)")
     ap.add_argument("--live-port", type=int, default=8782, help="port for the live hub (default 8782)")
@@ -54,7 +57,8 @@ def main(argv=None):
     ap.epilog = ("To send something for review from a script or chat:  halbach submit <folder|file> --name NAME\n"
                  "To build, check or publish the modular site without the window:  halbach site check | build | publish | export | import\n"
                  "To send content to someone's site (an area you have a key for):  halbach area init | connect | send | status\n"
-                 "To edit and send your area from a window:  halbach --area <folder>")
+                 "To edit and send your area from a window:  halbach --area <folder>\n"
+                 "To check for a newer Halbach and install it safely:  halbach update check | apply | rollback")
     ap.add_argument("--version", action="version", version="halbach-connecthub " + __version__)
     a = ap.parse_args(args)
 
@@ -71,13 +75,13 @@ def main(argv=None):
         if a.area:
             srv, hub = serve(home, a.port, area=True, area_folder=a.area)
         else:
-            srv, hub = serve(home, a.port, live_port=a.live_port, inbox=True)
+            srv, hub = serve(home, a.port, live_port=a.live_port, inbox=True, updates=True)
     except OSError:
         print("Port %d is in use; picking a free one." % a.port)
         if a.area:
             srv, hub = serve(home, 0, area=True, area_folder=a.area)
         else:
-            srv, hub = serve(home, 0, live_port=a.live_port, inbox=True)
+            srv, hub = serve(home, 0, live_port=a.live_port, inbox=True, updates=True)
     url = "http://127.0.0.1:%d/" % srv.server_address[1]
     lock.publish_info(url, hub.live_srv.server_address[1] if hub.live_srv else 0)
     hub.store.log("info", "Area editor started" if a.area else "Hub started")

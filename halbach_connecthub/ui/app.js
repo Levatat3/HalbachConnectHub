@@ -161,6 +161,73 @@
     var st = S.settings || {};
     $("#setSite").value = st.site_dir || ""; $("#setProject").value = st.project || ""; $("#setDomain").value = st.domain || ""; $("#setLive").value = st.live_host || ""; $("#setTunnel").value = st.tunnel_name || ""; $("#setOrig").value = st.extra_origins || ""; $("#setCf").value = st.cloudflared_path || "";
     $("#setAuto").checked = !!st.auto_publish_enabled;
+    $("#setUpdCheck").checked = st.update_check !== false;
+    $("#setUpdChan").value = st.update_channel && st.update_channel !== "release" ? st.update_channel : "";
+    renderUpdate(S.update);
+  }
+
+  // ---- updates: what the last check found, the confirm-then-install button, and the way back. Text only (textContent).
+  function when(ts) { return ts ? new Date(ts * 1000).toLocaleString() : "never"; }
+  function renderUpdate(u) {
+    if (!u || !$("#updText")) return;
+    var cur = u.current || {}, lat = u.latest || {};
+    var text = "This copy: Halbach " + cur.version + (cur.commit ? " (" + String(cur.commit).slice(0, 7) + ")" : "") + ". ";
+    if (u.status === "available") text += "A newer version is available: " + (lat.version || lat.name) + ".";
+    else if (u.status === "up-to-date") text += "You are up to date. Last checked " + when(u.checked) + ".";
+    else if (u.status === "none") text += "Nothing has been published on GitHub to update to yet.";
+    else if (u.status === "unknown") text += u.error;
+    else if (u.status === "error") text += "The last check did not work: " + u.error;
+    else text += "Not checked yet.";
+    if (cur.restart_pending) text += " An update is installed: quit Halbach and open it again to use it.";
+    $("#updText").textContent = text;
+    var notes = $("#updNotes");
+    notes.style.display = u.status === "available" && lat.notes ? "" : "none";
+    notes.textContent = u.status === "available" && lat.notes ? "What changed:\n" + lat.notes : "";
+    var canApply = u.status === "available" && cur.can_apply;
+    $("#updApplyBtn").style.display = canApply ? "" : "none";
+    $("#updApplyBtn").textContent = "Update to " + (lat.version || (lat.name || "").split(" @")[0] || "the new version") + "…";
+    $("#updBackBtn").style.display = (u.backups || []).length && cur.can_apply ? "" : "none";
+    $("#updErr").textContent = u.status === "available" && !cur.can_apply ? cur.why_not : "";
+  }
+  function updateBanner(u) {
+    var b = document.getElementById("updateBanner");
+    var show = u && u.status === "available" && !(u.current || {}).restart_pending;
+    if (!show) { if (b) b.remove(); return; }
+    var lat = u.latest || {};
+    var msg = "A newer Halbach is available (" + (lat.version || lat.name) + "). Open Settings → Updates to look at it.";
+    if (b) { b.textContent = msg; return; }
+    b = document.createElement("div");
+    b.id = "updateBanner"; b.setAttribute("role", "status");
+    b.style.cssText = "padding:8px 16px;background:#0b3a57;color:#fff;font-size:14px;text-align:center";
+    b.textContent = msg;
+    var rb = document.getElementById("restartBanner");
+    document.body.insertBefore(b, rb ? rb.nextSibling : document.body.firstChild);
+  }
+  function updateAction(act) {
+    var err = $("#updErr"); err.textContent = "";
+    var u = S.update || {};
+    if (act === "updCheck") {
+      $("#updText").textContent = "Asking GitHub…";
+      return api("/api/update/check", "POST", {}).then(function (r) { S.update = r; renderUpdate(r); updateBanner(r); }).catch(function (e) { err.textContent = e.message; });
+    }
+    if (act === "updApply") {
+      var lat = u.latest || {};
+      if (!confirm("Update Halbach to " + (lat.version || lat.name) + "?\n\nHalbach downloads it from GitHub, checks that it starts, saves your current program files as a backup, then replaces them. " +
+                   "Your sites, areas, keys and settings are not touched. You will need to quit Halbach and open it again afterwards, and you can go back from here.")) return;
+      $("#updText").textContent = "Downloading and checking the update… this can take a minute.";
+      return api("/api/update/apply", "POST", { expect: lat.token }).then(function (r) {
+        toast("Updated " + r.from + " → " + r.to + ". Quit Halbach and open it again to use it.");
+        return refresh(true);
+      }).catch(function (e) { err.textContent = e.message; return refresh(true); });
+    }
+    if (act === "updBack") {
+      var b0 = (u.backups || [])[0] || {};
+      if (!confirm("Go back to Halbach " + b0.version + "?\n\nYour program files are put back from the backup. Your sites, areas, keys and settings are not touched. You will need to quit Halbach and open it again afterwards.")) return;
+      return api("/api/update/rollback", "POST", {}).then(function (r) {
+        toast("Went back to " + r.to + ". Quit Halbach and open it again to use it.");
+        return refresh(true);
+      }).catch(function (e) { err.textContent = e.message; });
+    }
   }
 
   // Halbach was updated on disk while this window's hub kept running the older code: say so, so a screen that
@@ -183,6 +250,7 @@
       var before = seenNew;
       S = r[0]; LV = r[1]; dashSite = r[2]; dashAreas = r[3];
       restartBanner(!!S.needs_restart);
+      updateBanner(S.update);
       var fresh = S.modules.filter(function (m) { return m.from_inbox && m.new; });
       seenNew = {}; fresh.forEach(function (m) { seenNew[m.id] = 1; });
       if (before) fresh.filter(function (m) { return !before[m.id]; }).forEach(function (m) { toast("New submission from a chat: " + m.name); });
@@ -399,10 +467,11 @@
         case "wtChoose": return openThemeMaker({ current: savedWindowTheme(), onSave: function (t) { saveWindowTheme(t); },
                                                   onDone: function (t) { saveWindowTheme(t); toast("Window theme saved"); } });
         case "wtReset": window.HB.saveWindowTheme(null); return toast("Window theme reset");
+        case "updCheck": case "updApply": case "updBack": return updateAction(act);
         case "publish": return startPublish(false);
         case "previewPublish": return startPublish(true);
         case "saveSettings":
-          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value, tunnel_name: $("#setTunnel").value, extra_origins: $("#setOrig").value, cloudflared_path: $("#setCf").value, auto_publish_enabled: !!$("#setAuto").checked })
+          return api("/api/settings", "POST", { site_dir: $("#setSite").value, project: $("#setProject").value, domain: $("#setDomain").value, live_host: $("#setLive").value, tunnel_name: $("#setTunnel").value, extra_origins: $("#setOrig").value, cloudflared_path: $("#setCf").value, auto_publish_enabled: !!$("#setAuto").checked, update_check: !!$("#setUpdCheck").checked, update_channel: $("#setUpdChan").value.trim() || "release" })
             .then(function () { $("#setErr").textContent = ""; toast("Settings saved"); return refresh(); })
             .catch(function (e) { $("#setErr").textContent = e.message; });
       }

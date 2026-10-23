@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 from . import __version__
 from .live import UpstreamError, fetch_upstream, field_names, start_live_hub
 from .net import LoopbackServer
-from . import areaclient, areamode, funkthemes, sitebuilder
+from . import areaclient, areamode, funkthemes, sitebuilder, update
 from . import siteschema as sc
 from .publisher import Publisher, classify
 from .sitemodel import ModelError
@@ -142,6 +142,61 @@ class Hub:
             raise ValidationError("The bundle was refused: " + "; ".join(body.get("reasons") or ["unknown reason"]))
         raise ValidationError(body.get("error") or ("The site answered %d." % code))
 
+    # ---------------------------------------------------------------- updates (check, confirm, install, go back)
+    def update_settings(self):
+        s = self.store.state.get("settings") or {}
+        return bool(s.get("update_check", True)), s.get("update_channel") or "release"
+
+    def update_summary(self):
+        """What the window needs to know, from the last check only (this never goes to the network)."""
+        _auto, channel = self.update_settings()
+        last = update.load_check(self.store.home)
+        info = update.local_info()
+        out = {"current": info, "channel": channel, "auto_check": self.update_settings()[0], "checked": (last or {}).get("checked"),
+               "status": (last or {}).get("status", "never"), "latest": (last or {}).get("latest"), "error": (last or {}).get("error", ""),
+               "backups": update.backups(self.store.home)[:3]}
+        if last and last.get("channel") != channel:
+            out.update(status="never", latest=None, error="")           # the channel changed since that check
+        return out
+
+    def update_check(self):
+        _auto, channel = self.update_settings()
+        res = update.check(getattr(self, "update_opener", None), channel=channel)
+        update.save_check(self.store.home, res)
+        if res["status"] == "available":
+            self.store.log("info", "A newer Halbach is available: %s" % ((res["latest"] or {}).get("version") or (res["latest"] or {}).get("name")))
+        return self.update_summary()
+
+    def update_apply(self, expect):
+        _auto, channel = self.update_settings()
+        res = update.apply(self.store.home, expect, opener=getattr(self, "update_opener", None), channel=channel,
+                           log=lambda m: self.store.log("info", m))
+        self.store.log("info", "Halbach updated %s -> %s (restart to use it)" % (res["from"], res["to"]))
+        update.save_check(self.store.home, {"status": "up-to-date", "checked": int(__import__("time").time()), "channel": channel,
+                                            "latest": None, "error": "", "current": update.local_info(), "can_apply": True, "why_not": ""})
+        return res
+
+    def update_rollback(self):
+        res = update.rollback(self.store.home)
+        self.store.log("info", "Halbach went back to %s (restart to use it)" % res["to"])
+        return res
+
+    def start_update_watcher(self, first_delay=30.0, interval=3600.0):
+        """Once a day, if the owner has not switched it off, ask GitHub whether a newer version exists. Only ever reads."""
+        self._update_stop = threading.Event()
+
+        def run():
+            if self._update_stop.wait(first_delay):
+                return
+            while not self._update_stop.is_set():
+                try:
+                    if self.update_settings()[0] and update.due(self.store.home):
+                        self.update_check()
+                except Exception as e:  # a failed check must never hurt the hub
+                    self.store.log("warn", "Update check failed: %s" % e)
+                self._update_stop.wait(interval)
+        threading.Thread(target=run, daemon=True).start()
+
     def start_inbox_watcher(self, interval=3.0):
         """Import new drop-off folders as switched-off modules, now and every few seconds."""
         self._inbox_stop = threading.Event()
@@ -166,6 +221,8 @@ class Hub:
     def close(self):
         if getattr(self, "_inbox_stop", None):
             self._inbox_stop.set()
+        if getattr(self, "_update_stop", None):
+            self._update_stop.set()
         if self.autopublish:
             self.autopublish.close()
         self.tunnel.stop()
@@ -294,6 +351,8 @@ def make_handler(hub):
                 return self._json({"themes": funkthemes.library(), "dir": funkthemes.DIR})
             if path == "/api/windowtheme":
                 return self._json({"theme": hub.store.window_theme()})
+            if path == "/api/update":
+                return self._json(hub.update_summary())
             if path == "/api/areas":
                 lh = (hub.store.state.get("settings") or {}).get("live_host")
                 return self._json({"areas": hub.areas.list_view(), "pending": hub.areas.pending_count(),
@@ -331,6 +390,7 @@ def make_handler(hub):
             if path == "/api/state":
                 view = hub.store.view()
                 view["needs_restart"] = _code_mtime() > hub.code_stamp      # the files on disk are newer than the running code
+                view["update"] = hub.update_summary()
                 return self._json(view)
             if path == "/api/activity":
                 return self._json({"rows": hub.store.activity()})
@@ -434,6 +494,15 @@ def make_handler(hub):
                     if act == "ownersave":
                         return self._json({"submission": ar.owner_edit(aid, b.get("doc"), css=b.get("css"))})
                     return self._err(404, "Not found")
+                if path in ("/api/update/check", "/api/update/apply", "/api/update/rollback"):
+                    try:
+                        if path.endswith("check"):
+                            return self._json(hub.update_check())
+                        if path.endswith("apply"):
+                            return self._json(hub.update_apply(b.get("expect")))
+                        return self._json(hub.update_rollback())
+                    except update.UpdateError as e:
+                        return self._err(400, str(e))
                 if path == "/api/area/design":
                     return self._area_json(lambda: hub.set_area_design(b.get("design")))
                 if path == "/api/site/preview":
@@ -450,7 +519,8 @@ def make_handler(hub):
                                                      domain=b.get("domain"), live_host=b.get("live_host"),
                                                      tunnel_name=b.get("tunnel_name"), extra_origins=b.get("extra_origins"),
                                                      cloudflared_path=b.get("cloudflared_path"), site_mode=b.get("site_mode"),
-                                                     auto_publish_enabled=b.get("auto_publish_enabled")))
+                                                     auto_publish_enabled=b.get("auto_publish_enabled"),
+                                                     update_check=b.get("update_check"), update_channel=b.get("update_channel")))
                 if path == "/api/publish":
                     hub.publisher.start(preview=bool(b.get("preview")))
                     return self._json(hub.publisher.status(), 202)
@@ -600,7 +670,7 @@ def pick_path(kind):
     return out.stdout.strip()
 
 
-def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False, area=False, area_folder=None):
+def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=False, area=False, area_folder=None, updates=False):
     """Start the server; returns (server, hub). Port 0 picks a free one.
 
     With area=True the window is a collaborator's restricted editor: no live hub, no tunnel, no publisher,
@@ -613,6 +683,8 @@ def serve(home=None, port=0, token=None, publisher=None, live_port=None, inbox=F
         hub.start_live(live_port)
     if not area and inbox:
         hub.start_inbox_watcher()
+    if not area and updates:
+        hub.start_update_watcher()
     return srv, hub
 
 

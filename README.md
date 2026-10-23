@@ -21,6 +21,7 @@ Drop a folder in, switch it on, press **Publish**. Edits inside a folder you hav
 - **Publishing (0.2):** content-hashed scripts and stylesheets, a `manifest.json`, a test publish to a private preview address, and a post-deploy check that the live site shows the new build.
 - **Modular site (0.4):** let Halbach build the whole site — pages, blocks, themes, menu, redirects, a preview with the real security headers, history with restore, and export/import. Classic mode stays the default. See **[docs/MODULAR.md](docs/MODULAR.md)**.
 - **Collaboration (0.5):** **areas** (someone else sends a reviewed zip through your tunnel; they never get a key of yours) and **linked sites** (other https sites as cards, menu links or pages). Collaborators can also edit and preview their page in a window (`halbach --area <folder>`) and send it from there. See **[docs/AREAS.md](docs/AREAS.md)**.
+- **Updates:** Settings → Updates (or `halbach update check | apply | rollback`) looks on GitHub for a newer version, shows what changed, and installs it only after you confirm: checked, test-started, backed up, undoable, and your sites, areas, keys and settings are never touched. See **[docs/UPDATES.md](docs/UPDATES.md)**.
 - **FunkThemes (0.5):** an animated theme engine and theme maker by Funk, used unmodified, with a "Powered by FunkThemes" credit. See **[third_party/funkthemes](third_party/funkthemes/README.md)**.
 
 ## New in 0.5: areas and linked sites

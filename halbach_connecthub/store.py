@@ -552,6 +552,13 @@ class Store:
             s = self.state["settings"]
             if "auto_publish_enabled" in kw and kw["auto_publish_enabled"] is not None:
                 s["auto_publish_enabled"] = bool(kw["auto_publish_enabled"])
+            if "update_check" in kw and kw["update_check"] is not None:
+                s["update_check"] = bool(kw["update_check"])
+            if kw.get("update_channel") is not None:
+                ch = str(kw["update_channel"]).strip() or "release"
+                if ch != "release" and not (ch.startswith("branch:") and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,59}", ch[7:]) and ".." not in ch):
+                    raise ValidationError("The update channel is 'release' or 'branch:NAME'")
+                s["update_channel"] = ch
             for k in ("site_dir", "project", "domain", "live_host", "tunnel_name", "cloudflared_path", "extra_origins", "site_mode"):
                 if k in kw and kw[k] is not None:
                     v = str(kw[k]).strip()

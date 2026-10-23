@@ -11,6 +11,10 @@ derived from this repository's commit history, not written after the fact.
   effect, per-effect settings, up to two stacked effect layers and motion settings. The site accepts them with
   strict whitelists; picture, video, web and Wallpaper Engine themes, assets and sound stay refused, and music
   reaction is forced off on a site.
+- **Update check and safe updater** (`halbach update check | apply | rollback`, and Settings → Updates): looks on GitHub for a
+  newer release (or branch), shows what changed, and installs it only after you confirm. The download is checked, test-started
+  in isolation, backed up and swapped in undoably; your sites, areas, keys and settings are never touched. Git checkouts and pip
+  installs are never overwritten. See `docs/UPDATES.md`.
 - **Owner edit:** an area's page can be edited from the Areas screen. It waits in Review like anything the area sends.
 - **Areas: their own stylesheet (tier 2):** an owner-enabled, reviewed CSS file per area, checked as written. Anything
   obfuscated or encrypted, any outside address and any script-like feature is refused.
