@@ -330,6 +330,28 @@ class TestAreaEmbeds(Base):
                 self.assertNotIn("sameorigin", (self.stage / "workshop" / "index.html").read_text(encoding="utf-8"))
 
 
+class TestPreviewExtras(Base):
+    """build_site's preview-only extras: an area's stylesheet on the site theme, and same-origin embeds."""
+
+    def test_extra_css_goes_after_the_theme_and_embeds_get_sameorigin_only_when_asked(self):
+        self.model.load_template("blank")
+        self.model.add_page("Demo", "demo") if hasattr(self.model, "add_page") else None
+        data = self.model.data
+        data["pages"][0]["blocks"].append({"id": "e1", "type": "embed", "enabled": True, "props": {"url": "https://player.example.dev/", "height": 400}})
+        plain = sb.build_site(self.model, self.reg, self.store, self.stage / "a")
+        self.assertTrue(plain.ok, plain.errors)
+        html = (self.stage / "a" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('"sameorigin"', html.replace(" ", ""))
+        res = sb.build_site(self.model, self.reg, self.store, self.stage / "b", extra_css="h1{letter-spacing:.3em}\n", embed_sameorigin=True)
+        self.assertTrue(res.ok, res.errors)
+        html = (self.stage / "b" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('"sameorigin":true', html.replace(" ", ""))
+        css = next((self.stage / "b" / "_halbach").glob("theme.*.css")).read_text(encoding="utf-8")
+        self.assertLess(css.index(":root{"), css.index("letter-spacing:.3em"))
+        css_a = next((self.stage / "a" / "_halbach").glob("theme.*.css")).read_text(encoding="utf-8")
+        self.assertNotIn("letter-spacing:.3em", css_a)
+
+
 class TestSubSites(Base):
     """An area is a sub-site: its own menu, brand and look; the main menu only gets one "Sites" dropdown."""
 

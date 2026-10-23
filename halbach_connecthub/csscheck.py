@@ -166,10 +166,11 @@ def check(text, files=None, slug=None, url_base=""):
         wr.append("uses a very high z-index (%s), which can cover parts of the page" % m.group(1))
     if pr:
         return res
+    base = (url_base + "/" + (slug + "/" if slug else "")) if slug is not None else ""     # slug "" = the root of a preview
     out, last = [], 0
     for (a, b), raw in sorted(replaced.items()):
         out.append(code[last:a])
-        out.append('url("%s%s")' % ((url_base + "/" + slug + "/") if slug else "", raw) if slug else 'url("%s")' % raw)
+        out.append('url("%s%s")' % (base, raw))
         last = b
     out.append(code[last:])
     css = "".join(out)

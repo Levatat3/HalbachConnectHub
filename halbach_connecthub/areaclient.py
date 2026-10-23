@@ -28,6 +28,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+from . import csscheck
 from .bundle import BundleError, check_name, extension_problem, DEFAULT_LIMITS, validate_bundle
 from .registry import Registry
 from .store import home_dir

@@ -237,8 +237,11 @@ def _shell(model, title, desc, head_extra, body_main, nav, page_json, runtime_ur
 
 
 # --------------------------------------------------------------------------- the build
-def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, include_drafts=False, areas=None):
-    """Build the whole site into stage_dir. Returns a BuildResult; check .ok before deploying."""
+def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, include_drafts=False, areas=None, extra_css=None, embed_sameorigin=False):
+    """Build the whole site into stage_dir. Returns a BuildResult; check .ok before deploying.
+
+    extra_css (already checked) is appended to the site theme's stylesheet, and embed_sameorigin gives embed frames the same-origin
+    permission an area's approved embeds get on the real site. Both are for a collaborator's local preview only."""
     res = BuildResult()
     data = model.data
     stage = Path(stage_dir)
@@ -421,6 +424,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         mode = data["theme"].get("mode", "auto") if key == site_theme else "auto"
         scheme = {"light": "color-scheme:light;", "dark": "color-scheme:dark;"}.get(mode, "")
         css_parts.append(":root{%s%s}" % (decl, scheme))
+        if extra_css and key == site_theme:
+            css_parts.append("/* the area's own stylesheet (preview) */\n" + extra_css)
         if key.startswith("area:") and area_css.get(key[5:]):
             css_parts.append("/* the area's own stylesheet */\n" + area_css[key[5:]])      # last, so its rules can override the theme
         css = "\n".join(css_parts).encode("utf-8")
@@ -538,6 +543,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             if not b.get("enabled", True):
                 continue
             props = json.loads(json.dumps(b.get("props", {})))
+            if embed_sameorigin and b["type"] == "embed" and not p.get("area"):
+                props["sameorigin"] = True
             if b["type"] == "cards":
                 for item in props.get("items", []):
                     target = item.pop("page", None)

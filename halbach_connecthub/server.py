@@ -120,6 +120,22 @@ class Hub:
             raise ValidationError(str(e))
         return self.area_design_view()
 
+    def area_preview_css(self):
+        """(the area's own stylesheet checked and ready for the preview, or "", plus any reasons it was left out)."""
+        name = (self.design or {}).get("css")
+        if not name or not self.area_folder:
+            return "", []
+        try:
+            text = (self.area_folder / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return "", ["The stylesheet %s could not be read, so Preview leaves it out." % name]
+        files_dir = self.area_folder / "files"
+        have = {"files/" + f.relative_to(files_dir).as_posix() for f in files_dir.rglob("*") if f.is_file()} if files_dir.is_dir() else set()
+        res = areaclient.csscheck.check(text, have, "", "/preview")
+        if not res.ok:
+            return "", ["Preview leaves out %s: %s (the owner would refuse it)." % (name, res.problems[0])]
+        return res.css, []
+
     def send_area(self):
         """Write the edited page back to area.json, zip it and send it through the drop endpoint."""
         areamode.dump_area(self.site.model, self.area_folder, self.design)
@@ -506,9 +522,14 @@ def make_handler(hub):
                 if path == "/api/area/design":
                     return self._area_json(lambda: hub.set_area_design(b.get("design")))
                 if path == "/api/site/preview":
+                    kw, notes = {}, []
                     if hub.area:
                         areamode.apply_design(hub.site.model, hub.design)
-                    res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None)
+                        css, notes = hub.area_preview_css()
+                        kw = {"extra_css": css or None, "embed_sameorigin": True}   # what the owner's real site does for this area
+                    res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None, **kw)
+                    for n in notes:
+                        res.warnings.append({"path": "design.css", "message": n})
                     return self._json(res.summary())
                 if path == "/api/area/send":
                     return self._area_json(hub.send_area)

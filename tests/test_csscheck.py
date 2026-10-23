@@ -40,6 +40,11 @@ a:hover, a:focus-visible { color: var(--accent); }
         self.assertIn('url("/preview/funkas-workshop/files/logo.jpg")', r.css)
         self.assertIn('url("/preview/funkas-workshop/files/my pic.webp")', r.css)
 
+    def test_an_empty_slug_means_the_root_of_a_preview_and_none_means_leave_it_alone(self):
+        r = csscheck.check('a{background:url("files/bg.png")}', FILES, "", "/preview")
+        self.assertIn('url("/preview/files/bg.png")', r.css)
+        self.assertIn('url("files/bg.png")', csscheck.check('a{background:url("files/bg.png")}', FILES).css)
+
     def test_text_that_only_looks_like_a_url_inside_quotes_is_left_alone(self):
         r = chk('a::after{content:"see url(files/x.png) and data: here"}')
         self.assertTrue(r.ok, r.problems)

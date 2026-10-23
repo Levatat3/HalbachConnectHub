@@ -318,5 +318,116 @@ class TestAreaDesignWindow(unittest.TestCase):
         self.assertEqual(self.req("POST", "/api/areas/create", {"name": "x"})[0], 404)
 
 
+class TestAreaPreviewIsFaithful(unittest.TestCase):
+    """The collaborator's Preview shows what the owner's real site will: their own stylesheet, and embeds that can play."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._t = tempfile.TemporaryDirectory()
+        cls.folder = Path(cls._t.name) / "page"
+        areaclient.init_folder(cls.folder)
+        (cls.folder / "files" / "bg.png").write_bytes(zk_png())
+        cls.CSS = 'body { background: #0a1b2c url("files/bg.png"); }\n.hero h1 { letter-spacing: .2em; }\n'
+        (cls.folder / "files" / "style.css").write_text(cls.CSS, encoding="utf-8")
+        doc = json.loads((cls.folder / "area.json").read_text(encoding="utf-8"))
+        doc["design"] = {"css": "files/style.css"}
+        doc["pages"][0]["blocks"].append({"type": "embed", "props": {"url": "https://funkstudio-share.example.dev/", "height": 500}})
+        (cls.folder / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+        cls.srv, cls.hub = server.serve(Path(cls._t.name) / "hub", 0, token="tok", area=True, area_folder=str(cls.folder))
+        cls.port = cls.srv.server_address[1]
+        server.run_in_thread(cls.srv)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+        cls._t.cleanup()
+
+    def req(self, method, path, body=None, token="tok"):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        h = {"Host": "127.0.0.1:%d" % self.port}
+        if token:
+            h["X-Halbach-Token"] = token
+        data = json.dumps(body).encode() if body is not None else None
+        if data:
+            h["Content-Type"] = "application/json"
+        c.request(method, path, data, h)
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        return r.status, raw
+
+    def preview(self):
+        s, raw = self.req("POST", "/api/site/preview", {})
+        self.assertEqual(s, 200, raw)
+        res = json.loads(raw)
+        self.assertTrue(res["ok"], res)
+        return res
+
+    def page_json(self):
+        import re
+        s, html = self.req("GET", "/preview/", token=None)
+        self.assertEqual(s, 200)
+        text = html.decode("utf-8")
+        return text, json.loads(re.search(r'id="hs-page">(.*?)</script>', text, re.S).group(1))
+
+    def test_the_areas_own_stylesheet_is_in_the_preview_with_its_pictures(self):
+        self.preview()
+        import re
+        html, pj = self.page_json()
+        href = re.search(r'<link rel="stylesheet" href="([^"]+)"', html).group(1)
+        s, css = self.req("GET", href, token=None)
+        css = css.decode("utf-8")
+        self.assertIn("letter-spacing: .2em", css)
+        self.assertIn('url("/preview/files/bg.png")', css)
+        self.assertLess(css.index(":root{"), css.index("letter-spacing: .2em"))        # after the theme, so it wins
+        s, png = self.req("GET", "/preview/files/bg.png", token=None)
+        self.assertEqual(s, 200)                                                         # and the picture it names is really served
+
+    def test_the_embed_gets_the_same_permission_the_real_site_gives_an_approved_embed(self):
+        self.preview()
+        html, pj = self.page_json()
+        embeds = [b for b in pj["blocks"] if b["type"] == "embed"]
+        self.assertEqual(len(embeds), 1)
+        self.assertTrue(embeds[0]["props"].get("sameorigin"))
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        c.request("GET", "/preview/", headers={"Host": "127.0.0.1:%d" % self.port})
+        r = c.getresponse()
+        r.read()
+        policy = r.getheader("Content-Security-Policy", "") or r.getheader("Content-Security-Policy-Report-Only", "")
+        self.assertIn("https://funkstudio-share.example.dev", policy)
+        c.close()
+
+    def test_a_stylesheet_the_owner_would_refuse_is_left_out_of_preview_with_the_reason(self):
+        (self.folder / "files" / "style.css").write_text('@import url("https://evil.example/x.css");\nbody{color:red}\n', encoding="utf-8")
+        try:
+            res = self.preview()
+            self.assertTrue(any("style.css" in w["message"] and "@import" in w["message"] for w in res["warnings"]), res["warnings"])
+            import re
+            html, pj = self.page_json()
+            s, css = self.req("GET", re.search(r'<link rel="stylesheet" href="([^"]+)"', html).group(1), token=None)
+            self.assertNotIn("evil.example", css.decode("utf-8"))
+            self.assertNotIn("color:red", css.decode("utf-8"))
+        finally:
+            (self.folder / "files" / "style.css").write_text(self.CSS, encoding="utf-8")
+
+    def test_the_sameorigin_flag_never_gets_into_what_is_sent(self):
+        self.preview()
+        areamode.dump_area(self.hub.site.model, self.folder, self.hub.design)
+        text = (self.folder / "area.json").read_text(encoding="utf-8")
+        self.assertNotIn("sameorigin", text)
+        self.assertIn("files/style.css", text)                                             # and the stylesheet name is kept
+
+
+def zk_png():
+    import zlib
+    import struct
+
+    def chunk(t, d):
+        c = struct.pack(">I", len(d)) + t + d
+        return c + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"\x00\x00\x00\x00")) + chunk(b"IEND", b"")
+
+
 if __name__ == "__main__":
     unittest.main()
