@@ -226,6 +226,58 @@ class TestLocalInfo(Base):
         self.assertEqual((i["version"], i["restart_pending"]), ("9.9.9", True))
 
 
+class TestNoFlashingWindow(Base):
+    """The hub refreshes its screens every few seconds; reading the commit must never start a program (a console window flashes)."""
+
+    def test_the_commit_is_read_from_the_git_files_and_no_program_is_started(self):
+        git = self.root / ".git"
+        (git / "refs" / "heads").mkdir(parents=True)
+        (git / "HEAD").write_text("ref: refs/heads/feature\n", encoding="utf-8")
+        (git / "refs" / "heads" / "feature").write_text(SHA_NEW + "\n", encoding="utf-8")
+        with mock.patch.object(update.subprocess, "run", side_effect=AssertionError("started a program")), \
+                mock.patch.object(update.subprocess, "Popen", side_effect=AssertionError("started a program")):
+            info = update.local_info(self.root)
+            again = update.local_info(self.root)
+        self.assertEqual((info["commit"], again["commit"]), (SHA_NEW, SHA_NEW))
+        self.assertFalse(info["can_apply"])
+
+    def test_every_layout_git_uses(self):
+        git = self.root / ".git"
+        git.mkdir()
+        (git / "HEAD").write_text(SHA_OLD + "\n", encoding="utf-8")                               # detached
+        self.assertEqual(update._git_commit(self.root), SHA_OLD)
+        (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")                     # only in packed-refs
+        (git / "packed-refs").write_text("# pack-refs\n%s refs/heads/other\n%s refs/heads/main\n^%s\n" % (SHA_OLD, SHA_NEW, SHA_OLD), encoding="utf-8")
+        self.assertEqual(update._git_commit(self.root), SHA_NEW)
+        (git / "HEAD").write_text("ref: refs/heads/gone\n", encoding="utf-8")
+        self.assertIsNone(update._git_commit(self.root))
+        for junk in ("ref: ../../etc/passwd", "ref: refs/../x", "garbage", "ref: refs/heads/main" + chr(0), ""):
+            (git / "HEAD").write_text(junk, encoding="utf-8")
+            self.assertIsNone(update._git_commit(self.root), repr(junk))
+
+    def test_a_linked_worktree_is_followed_to_its_own_folder_and_the_shared_refs(self):
+        main = self.tmp / "main" / ".git"
+        wt = main / "worktrees" / "wt"
+        (main / "refs" / "heads").mkdir(parents=True)
+        wt.mkdir(parents=True)
+        (wt / "HEAD").write_text("ref: refs/heads/modular\n", encoding="utf-8")
+        (wt / "commondir").write_text("../..\n", encoding="utf-8")
+        (main / "refs" / "heads" / "modular").write_text(SHA_NEW + "\n", encoding="utf-8")
+        (self.root / ".git").write_text("gitdir: %s\n" % str(wt).replace(os.sep, "/"), encoding="utf-8")
+        self.assertEqual(update._git_commit(self.root), SHA_NEW)
+
+    def test_the_self_check_hides_its_window(self):
+        seen = {}
+        real = update.subprocess.run
+
+        def spy(cmd, **kw):
+            seen.update(kw)
+            return real(cmd, **kw)
+        with mock.patch.object(update.subprocess, "run", spy):
+            update.self_check(self.root)
+        self.assertEqual(seen.get("creationflags"), update.NO_WINDOW)
+
+
 # --------------------------------------------------------------------------- the archive
 class TestArchive(Base):
     def unpack(self, data):

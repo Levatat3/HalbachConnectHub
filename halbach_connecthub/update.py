@@ -66,13 +66,62 @@ def install_root():
     return Path(__file__).resolve().parent.parent
 
 
-def _git_commit(root):
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)           # a background program must never flash a console window
+SHA40 = re.compile(r"[0-9a-f]{40}")
+
+
+def _git_dirs(root):
+    """(the folder holding HEAD, the folder holding refs) for a checkout or a linked worktree, or None."""
+    dot = Path(root) / ".git"
     try:
-        r = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5)
-        out = r.stdout.strip()
-        return out if r.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", out) else None
-    except (OSError, subprocess.SubprocessError):
+        if dot.is_dir():
+            return dot, dot
+        text = dot.read_text(encoding="utf-8").strip()                 # a worktree: ".git" is a file that points at its folder
+        if not text.startswith("gitdir:"):
+            return None
+        gd = Path(text[len("gitdir:"):].strip())
+        gd = gd if gd.is_absolute() else (Path(root) / gd)
+        common = gd
+        try:
+            c = (gd / "commondir").read_text(encoding="utf-8").strip()
+            common = (gd / c).resolve() if c else gd
+        except OSError:
+            pass
+        return gd, common
+    except OSError:
         return None
+
+
+def _git_commit(root):
+    """The commit a checkout is on, read straight from the .git files. It never starts a program: this is called every time the
+    window refreshes, and starting git from a background app flashes a console window on Windows."""
+    dirs = _git_dirs(root)
+    if not dirs:
+        return None
+    head_dir, common = dirs
+    try:
+        head = (head_dir / "HEAD").read_text(encoding="utf-8").strip()
+        if SHA40.fullmatch(head):
+            return head
+        if not head.startswith("ref:"):
+            return None
+        ref = head[4:].strip()
+        if ".." in ref or not ref.startswith("refs/"):
+            return None
+        for base in (head_dir, common):
+            f = base / ref
+            if f.is_file():
+                sha = f.read_text(encoding="utf-8").strip()
+                return sha if SHA40.fullmatch(sha) else None
+        packed = common / "packed-refs"
+        if packed.is_file():
+            for line in packed.read_text(encoding="utf-8").splitlines():
+                parts = line.split(" ", 1)
+                if len(parts) == 2 and parts[1].strip() == ref and SHA40.fullmatch(parts[0]):
+                    return parts[0]
+    except OSError:
+        pass
+    return None
 
 
 def _disk_version(root):
@@ -377,7 +426,8 @@ def self_check(path, python=None):
     """Import every module of the program at `path` in a separate, isolated Python. Returns the version it reports."""
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     try:
-        r = subprocess.run([python or sys.executable, "-I", "-B", "-c", CHECK_CODE, str(path)], capture_output=True, text=True, timeout=90, env=env)
+        r = subprocess.run([python or sys.executable, "-I", "-B", "-c", CHECK_CODE, str(path)], capture_output=True, text=True, timeout=90, env=env,
+                           stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
     except (OSError, subprocess.SubprocessError) as e:
         raise UpdateError("The new version could not be test-started (%s)." % e.__class__.__name__)
     out = (r.stdout or "").strip().splitlines()
