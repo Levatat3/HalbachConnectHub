@@ -218,6 +218,17 @@ class TestLocalInfo(Base):
         (pip_root / "halbach_connecthub").mkdir(parents=True)
         self.assertFalse(update.local_info(pip_root)["can_apply"])
 
+    def test_following_a_branch_installs_a_newer_commit_of_the_same_version_and_says_which(self):
+        tip = {"sha": SHA_NEW, "commit": {"message": "A fix\n\nbody", "committer": {"date": "2026-10-23T10:00:00Z"}}}
+        gh = FakeGitHub({api("/repos/%s/commits/main" % REPO): tip,
+                         api("/repos/%s/compare/%s...%s" % (REPO, SHA_OLD[:7], SHA_NEW)): {"status": "ahead", "commits": [{"commit": {"message": "A fix"}}]},
+                         api("/repos/%s/zipball/%s" % (REPO, SHA_NEW)): make_repo_zip(version="0.5.0")})
+        res = update.apply(self.home, SHA_NEW, opener=gh, root=self.root, channel="branch:main")
+        self.assertEqual((res["from"], res["to"], res["from_commit"], res["to_commit"]), ("0.5.0", "0.5.0", SHA_OLD[:7], SHA_NEW))
+        self.assertEqual((self.root / "README.md").read_text(encoding="utf-8"), "readme 0.5.0\n")
+        self.assertIn(SHA_NEW, (self.root / "BUILD.txt").read_text(encoding="utf-8"))
+        self.assertEqual(update.check(gh, self.root, channel="branch:main")["status"], "up-to-date")
+
     def test_the_version_on_disk_is_what_counts_after_an_update_and_before_a_restart(self):
         i = update.local_info(self.root)
         self.assertEqual(i["version"], "0.5.0")

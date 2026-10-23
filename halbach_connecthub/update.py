@@ -605,7 +605,8 @@ def apply(home, expect, opener=None, root=None, channel="release", python=None, 
             _remove(aside)
         _write_build(root, version, latest["sha"])
         _prune(home / "program-backups", KEEP_BACKUPS)
-        return {"ok": True, "from": cur["version"], "to": version, "files": nfiles, "backup": bdir.name, "restart": True}
+        return {"ok": True, "from": cur["version"], "to": version, "files": nfiles, "backup": bdir.name, "restart": True,
+                "from_commit": cur["commit"], "to_commit": latest["sha"]}
     finally:
         shutil.rmtree(work, ignore_errors=True)
         _apply_lock.release()

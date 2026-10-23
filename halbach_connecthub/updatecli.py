@@ -66,7 +66,9 @@ def main(argv):
                     print("Nothing was changed.")
                     return 0
             out = update.apply(home, res["latest"]["token"], channel=channel, log=print)
-            print("Updated Halbach %s -> %s. Quit Halbach and open it again to use it. (To go back: halbach update rollback)" % (out["from"], out["to"]))
+            what = ("%s -> %s" % (out["from"], out["to"])) if out["from"] != out["to"] or not (out.get("from_commit") and out.get("to_commit")) \
+                else ("%s (%s -> %s)" % (out["to"], out["from_commit"][:7], out["to_commit"][:7]))
+            print("Updated Halbach %s. Quit Halbach and open it again to use it. (To go back: halbach update rollback)" % what)
             return 0
         found = update.backups(home)
         if not found:
