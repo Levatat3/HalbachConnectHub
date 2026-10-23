@@ -4,6 +4,17 @@ All notable changes to Halbach ConnectHub are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); every entry below is
 derived from this repository's commit history, not written after the fact.
 
+## [Unreleased]
+
+### Added
+- **FunkThemes 2:** the bundled Funk engine is now Funk's 2026-10-22 master (82,428 bytes): the new **Spectrum**
+  effect, per-effect settings, up to two stacked effect layers and motion settings. The site accepts them with
+  strict whitelists; picture, video, web and Wallpaper Engine themes, assets and sound stay refused, and music
+  reaction is forced off on a site.
+- **Owner edit:** an area's page can be edited from the Areas screen. It waits in Review like anything the area sends.
+- **Areas: their own stylesheet (tier 2):** an owner-enabled, reviewed CSS file per area, checked as written. Anything
+  obfuscated or encrypted, any outside address and any script-like feature is refused.
+
 ## [0.5.0] - 2026-10-17
 
 ### Added

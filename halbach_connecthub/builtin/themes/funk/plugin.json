@@ -2,10 +2,10 @@
   "kind": "theme",
   "id": "funk",
   "hostapi": 1,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "builtin": true,
   "name": "FunkTheme (animated)",
-  "description": "Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain). Design it in the theme maker.",
+  "description": "Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain, Spectrum), up to two stacked effect layers and motion settings. Design it in the theme maker.",
   "vars": {
     "--bg": "#120a1f",
     "--panel": "#1d1230",

@@ -66,7 +66,7 @@ The *Drop box* block is reserved for a browser upload form and is not offered ye
 - **Solarized dark**: A low-contrast dark theme in the Solarized palette.
 - **High contrast**: Black, white and yellow for maximum readability (WCAG AAA).
 
-- **FunkTheme (animated)**: Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain), designed in his theme maker. See [FunkThemes](#funkthemes).
+- **FunkTheme (animated)**: Funk's theme engine: gradients and animated backgrounds (ASCII smoke, Matrix, Synthwave, Starfield, Rain, Spectrum, with up to two stacked effect layers and motion settings), designed in his theme maker. See [FunkThemes](#funkthemes).
 
 A theme is a set of CSS variables plus a stylesheet. **Design** lets you pick a theme and override its colours (`--bg`, `--text`, `--accent` and so on) without editing any file. The brand mark and name feed the menu and a generated icon; if your site folder has `favicon.svg`, `favicon.ico`, `favicon-32.png` or `apple-touch-icon.png`, those are used instead.
 

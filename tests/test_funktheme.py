@@ -14,9 +14,9 @@ from halbach_connecthub import siteschema as sc
 from halbach_connecthub import store as st
 
 ENGINE = Path(sb.__file__).parent / "builtin" / "themes" / "funk" / "funktheme.js"
-# Funk's engine is used exactly as he wrote it (FunkThemes 2026-10-17). If he sends a new version, update this
-# fingerprint (of the file with line endings normalised) in the same commit that replaces the file.
-ENGINE_SHA256 = "667532814e4ab9a825e43fae1e4af9c670cd069fb6319ff49d26c2ebce329dc7"
+# Funk's engine is used exactly as he wrote it (FunkThemes 2, the Claude Watch master of 2026-10-22 19:00, 82,428 bytes).
+# If he sends a new version, update this fingerprint (of the file with line endings normalised) in the same commit that replaces the file.
+ENGINE_SHA256 = "8d9a9cd4757b11ddf9de51bea1de6508bbcb0185b4a0821f6963b31fb9548c67"
 
 GOOD = {"funkTheme": 1, "angle": 135, "accent": None, "blur": 0, "fx": "ascii", "name": "Funk", "style": "gradient",
         "colors": ["#462a50", "#2f0a66"], "strength": 0.45, "fxColor": "#c604fb", "fxSpeed": 2.6, "fxAmount": 0.88}
@@ -29,8 +29,21 @@ class TestEngine(unittest.TestCase):
 
     def test_engine_makes_no_network_calls_and_runs_no_dynamic_code(self):
         src = ENGINE.read_text(encoding="utf-8")
-        for bad in ("fetch(", "XMLHttpRequest", "eval(", "new Function", "WebSocket", "sendBeacon", "importScripts"):
+        for bad in ("fetch(", "XMLHttpRequest", "eval(", "new Function", "WebSocket", "sendBeacon", "importScripts",
+                    "localStorage", "sessionStorage", "document.cookie", "getUserMedia"):
             self.assertNotIn(bad, src)
+
+    def test_the_engines_effects_and_controls_match_what_the_validator_accepts(self):
+        """If Funk adds an effect or a control, this fails until the validator's whitelist is looked at on purpose."""
+        import re
+        src = ENGINE.read_text(encoding="utf-8")
+        effects = set(re.findall(r'registerFx\("([a-z]+)"', src))
+        self.assertEqual(effects, {f for f in sc.FUNK_FX if f and f != "none"})
+        self.assertEqual(effects, set(sc.FUNK_FX_VALUES))
+        for name, spec in sc.FUNK_FX_VALUES.items():
+            block = src[src.index('registerFx("%s"' % name):]
+            block = block[:block.index("} });")]
+            self.assertEqual(set(re.findall(r"^\s+([a-z]+): \{ type:", block, re.M)), set(spec), name)
 
 
 class TestValidator(unittest.TestCase):
@@ -61,6 +74,71 @@ class TestValidator(unittest.TestCase):
         self.assertNotIn("evil", out)
         self.assertIsNone(out["tint"])
         self.assertEqual(out["blur"], 0)
+
+
+V2 = {**GOOD, "fx": "spectrum", "fxValues": {"style": "ring", "height": 1.5, "mirror": False, "peaks": True},
+      "fxLayers": [{"fx": "rain", "opacity": 0.6, "blend": "screen", "fxSpeed": 1.5, "fxAmount": 0.5, "fxColor": "#00ffcc", "fxValues": {"wind": 0.4, "lightning": False}},
+                   {"fx": "stars", "opacity": 1, "blend": "lighten", "fxValues": {"warp": 1}}],
+      "motion": {"fps": 60, "half": True, "drift": True, "pauseFullscreen": False, "listen": True}}
+
+
+class TestFunkThemes2(unittest.TestCase):
+    """FunkThemes 2: Spectrum, per-effect settings, up to two stacked effect layers and motion settings."""
+
+    def test_the_new_settings_are_accepted_and_listening_is_always_off_on_a_site(self):
+        out = sc.clean_funktheme(V2)
+        self.assertEqual(out["fx"], "spectrum")
+        self.assertEqual(out["fxValues"], {"style": "ring", "height": 1.5, "mirror": False, "peaks": True})
+        self.assertEqual([l["fx"] for l in out["fxLayers"]], ["rain", "stars"])
+        self.assertEqual(out["fxLayers"][0]["fxValues"], {"wind": 0.4, "lightning": False})
+        self.assertEqual(out["fxLayers"][1]["opacity"], 1.0)
+        self.assertEqual(out["motion"], {"fps": 60, "half": True, "drift": True, "pauseFullscreen": False, "listen": False})
+
+    def test_an_old_theme_comes_out_exactly_as_before_with_no_new_keys(self):
+        out = sc.clean_funktheme(GOOD)
+        for k in ("fxValues", "fxLayers", "motion"):
+            self.assertNotIn(k, out)
+
+    def test_defaults_fill_in_for_a_sparse_layer_and_motion(self):
+        out = sc.clean_funktheme({**GOOD, "fxLayers": [{"fx": "matrix"}], "motion": {"fps": 15}})
+        self.assertEqual(out["fxLayers"], [{"fx": "matrix", "opacity": 1.0, "blend": "normal"}])
+        self.assertEqual(out["motion"], {"fps": 15, "half": False, "drift": False, "pauseFullscreen": True, "listen": False})
+
+    def test_values_that_do_not_belong_are_dropped_and_wrong_values_are_refused(self):
+        out = sc.clean_funktheme({**GOOD, "fx": "matrix", "fxValues": {"trail": 0.2, "sun": True, "evil": "x", "url": "https://evil.example/"}})
+        self.assertEqual(out["fxValues"], {"trail": 0.2})            # 'sun' belongs to synthwave, the rest to nothing
+        bad_values = [{"trail": 2}, {"trail": "high"}, {"trail": True}]
+        for v in bad_values:
+            with self.subTest(v=v), self.assertRaises(sc.FieldError):
+                sc.clean_funktheme({**GOOD, "fx": "matrix", "fxValues": v})
+        for fx, v in (("spectrum", {"style": "bars; x"}), ("spectrum", {"height": 9}), ("spectrum", {"mirror": "yes"}), ("rain", {"wind": -1}),
+                      ("stars", {"warp": 3}), ("ascii", {"mouse": 1}), ("synthwave", {"sun": "true"})):
+            with self.subTest(fx=fx, v=v), self.assertRaises(sc.FieldError):
+                sc.clean_funktheme({**GOOD, "fx": fx, "fxValues": v})
+        with self.assertRaises(sc.FieldError):
+            sc.clean_funktheme({**GOOD, "fxValues": "x"})
+        self.assertNotIn("fxValues", sc.clean_funktheme({**GOOD, "fx": "matrix", "fxValues": {"trail": None}}))      # null = not set
+
+    def test_layers_and_motion_refusals(self):
+        three = [{"fx": "rain"}, {"fx": "stars"}, {"fx": "matrix"}]
+        bad = [{"fxLayers": three}, {"fxLayers": "rain"}, {"fxLayers": [{"fx": "none"}]}, {"fxLayers": [{"fx": "fire"}]}, {"fxLayers": [{}]},
+               {"fxLayers": ["rain"]}, {"fxLayers": [{"fx": "rain", "blend": "difference"}]}, {"fxLayers": [{"fx": "rain", "blend": "normal; x"}]},
+               {"fxLayers": [{"fx": "rain", "opacity": 0}]}, {"fxLayers": [{"fx": "rain", "opacity": 2}]}, {"fxLayers": [{"fx": "rain", "fxColor": "url(x)"}]},
+               {"fxLayers": [{"fx": "rain", "fxSpeed": 9}]}, {"fxLayers": [{"fx": "rain", "fxValues": {"wind": 5}}]},
+               {"motion": "fast"}, {"motion": {"fps": 24}}, {"motion": {"fps": True}}, {"motion": {"half": "yes"}}, {"motion": {"drift": 1}}]
+        for extra in bad:
+            with self.subTest(extra=extra), self.assertRaises(sc.FieldError):
+                sc.clean_funktheme({**GOOD, **extra})
+
+    def test_what_does_not_belong_on_a_website_is_still_refused_or_dropped(self):
+        for style in ("image", "video", "web", "link"):
+            with self.subTest(style=style), self.assertRaises(sc.FieldError):
+                sc.clean_funktheme({**GOOD, "style": style})
+        out = sc.clean_funktheme({**GOOD, "video": "asset:evil.mp4", "web": "https://evil.example/", "link": "we:123", "sound": "asset:x.mp3",
+                                  "image": "data:image/png;base64,AAAA", "assets": {"a": "b"}})
+        dumped = json.dumps(out)
+        for needle in ("evil", "asset:", "we:123", "mp3", "data:"):
+            self.assertNotIn(needle, dumped)
 
 
 class TestModelAndBuild(unittest.TestCase):
@@ -99,6 +177,17 @@ class TestModelAndBuild(unittest.TestCase):
         self.assertIn("body.hs-funk::before", css)
         headers = (self.root / "stage" / "_headers").read_text(encoding="utf-8")
         self.assertNotIn("unpkg", headers)                            # the engine needs no outside address
+
+    def test_the_new_settings_reach_the_page_and_the_layers_are_hidden_in_print(self):
+        self.m.set_theme(theme_id="funk", funk=V2)
+        res = sb.build_site(self.m, self.reg, self.store, self.root / "stage")
+        self.assertTrue(res.ok, res.errors)
+        pj = json.loads(__import__("re").search(r'id="hs-page">(.*?)</script>', (self.root / "stage" / "index.html").read_text(encoding="utf-8"), __import__("re").S).group(1))
+        self.assertEqual(pj["theme"]["funk"]["fx"], "spectrum")
+        self.assertEqual(len(pj["theme"]["funk"]["fxLayers"]), 2)
+        self.assertFalse(pj["theme"]["funk"]["motion"]["listen"])
+        css = next((self.root / "stage" / "_halbach").glob("theme.*.css")).read_text(encoding="utf-8")
+        self.assertIn("#ft-layers", css)
 
     def test_other_themes_carry_no_funk_data(self):
         res = sb.build_site(self.m, self.reg, self.store, self.root / "stage")

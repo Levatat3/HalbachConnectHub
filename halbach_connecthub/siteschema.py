@@ -343,7 +343,19 @@ def validate_props(fields, props, ctx=None):
 
 # --------------------------------------------------------------------------- FunkTheme data (a .funktheme file)
 FUNK_STYLES = ("solid", "gradient", "rainbow")
-FUNK_FX = (None, "none", "ascii", "matrix", "synthwave", "stars", "rain")
+FUNK_FX = (None, "none", "ascii", "matrix", "synthwave", "stars", "rain", "spectrum")
+# FunkThemes 2: what each effect's own controls may hold (the engine's registerFx controls), as ("bool") or (lo, hi) or a choice.
+FUNK_FX_VALUES = {
+    "ascii": {"mouse": "bool", "beats": "bool"},
+    "matrix": {"trail": (0, 1)},
+    "synthwave": {"sun": "bool"},
+    "stars": {"warp": (0, 2)},
+    "rain": {"wind": (0, 1), "lightning": "bool"},
+    "spectrum": {"style": ("bars", "ring", "wave"), "height": (0.3, 2), "mirror": "bool", "peaks": "bool"},
+}
+FUNK_BLENDS = ("normal", "screen", "lighten", "overlay", "multiply")
+FUNK_FPS = (15, 30, 60)
+MAX_FUNK_LAYERS = 2
 _HEX_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
@@ -359,6 +371,73 @@ def _funk_num(v, lo, hi, what, default):
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not (lo <= v <= hi):
         raise FieldError("%s must be a number from %s to %s" % (what, lo, hi))
     return float(v)
+
+
+def _funk_fx_values(fx, value, where):
+    """The values of one effect's own controls: only the keys that effect declares, each of the right type and range.
+    Unknown keys are dropped (a newer engine may add controls); a wrong value for a known one is refused."""
+    if value in (None, {}):
+        return {}
+    if not isinstance(value, dict):
+        raise FieldError("%s must be a set of effect settings" % where)
+    spec, out = FUNK_FX_VALUES.get(fx) or {}, {}
+    for key, rule in spec.items():
+        if key not in value:
+            continue
+        v = value[key]
+        if v is None:                                           # null means "not set": the effect's own default
+            continue
+        if rule == "bool":
+            if not isinstance(v, bool):
+                raise FieldError("%s: '%s' must be on or off" % (where, key))
+            out[key] = v
+        elif isinstance(rule[0], str):
+            if v not in rule:
+                raise FieldError("%s: '%s' must be one of %s" % (where, key, ", ".join(rule)))
+            out[key] = v
+        else:
+            out[key] = _funk_num(v, rule[0], rule[1], "%s: '%s'" % (where, key), None)
+    return out
+
+
+def _funk_layer(layer, i):
+    where = "Effect layer %d" % (i + 1)
+    if not isinstance(layer, dict):
+        raise FieldError("%s is not an object" % where)
+    fx = layer.get("fx")
+    if fx in (None, "none") or fx not in FUNK_FX:
+        raise FieldError("%s needs an effect (%s)" % (where, ", ".join(f for f in FUNK_FX if f)))
+    out = {"fx": fx, "opacity": _funk_num(layer.get("opacity"), 0.1, 1, where + " opacity", 1.0)}
+    blend = layer.get("blend", "normal")
+    if blend not in FUNK_BLENDS:
+        raise FieldError("%s blend must be one of %s" % (where, ", ".join(FUNK_BLENDS)))
+    out["blend"] = blend
+    for key, lo, hi, what in (("fxSpeed", 0.2, 3, "speed"), ("fxAmount", 0, 1, "amount")):
+        if layer.get(key) is not None:
+            out[key] = _funk_num(layer[key], lo, hi, "%s %s" % (where, what), None)
+    if layer.get("fxColor"):
+        out["fxColor"] = _funk_hex(layer["fxColor"], where + " colour")
+    vals = _funk_fx_values(fx, layer.get("fxValues"), where)
+    if vals:
+        out["fxValues"] = vals
+    return out
+
+
+def _funk_motion(value):
+    """How the background moves. `listen` (react to music) is always off on a site: there is no audio source there."""
+    if not isinstance(value, dict):
+        raise FieldError("motion must be a set of settings")
+    out = {"fps": 30, "half": False, "drift": False, "pauseFullscreen": True, "listen": False}
+    if "fps" in value:
+        if isinstance(value["fps"], bool) or value["fps"] not in FUNK_FPS:
+            raise FieldError("motion fps must be one of %s" % ", ".join(str(f) for f in FUNK_FPS))
+        out["fps"] = int(value["fps"])
+    for key in ("half", "drift", "pauseFullscreen"):
+        if key in value:
+            if not isinstance(value[key], bool):
+                raise FieldError("motion %s must be on or off" % key)
+            out[key] = value[key]
+    return out
 
 
 def clean_funktheme(value):
@@ -398,6 +477,16 @@ def clean_funktheme(value):
     out["fxSpeed"] = _funk_num(value.get("fxSpeed"), 0.2, 3, "Effect speed", 1.0)
     out["fxAmount"] = _funk_num(value.get("fxAmount"), 0, 1, "Effect amount", 0.7)
     out["fxColor"] = _funk_hex(value["fxColor"], "The effect colour") if value.get("fxColor") else None
+    vals = _funk_fx_values(out["fx"], value.get("fxValues"), "The effect")
+    if vals:
+        out["fxValues"] = vals
+    layers = value.get("fxLayers")
+    if layers not in (None, []):
+        if not isinstance(layers, list) or len(layers) > MAX_FUNK_LAYERS:
+            raise FieldError("A theme has at most %d extra effect layers" % MAX_FUNK_LAYERS)
+        out["fxLayers"] = [_funk_layer(l, i) for i, l in enumerate(layers)]
+    if value.get("motion") not in (None, {}):
+        out["motion"] = _funk_motion(value["motion"])
     return out
 
 
