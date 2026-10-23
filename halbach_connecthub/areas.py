@@ -612,7 +612,10 @@ class AreaService:
                 for s in self.submissions(aid, limit=20)]
 
     def sender_limits(self, a):
-        return {"limits": a["limits"], "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
+        limits = dict(a["limits"])
+        if a.get("custom_css"):                                # say so in the list itself, so a client that only reads the list (an older copy) also sends it
+            limits["extensions"] = sorted(set(limits.get("extensions") or []) | {"css"})
+        return {"limits": limits, "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
                 "custom_css": bool(a.get("custom_css")), "paused": a["paused"], "trust": a["trust"], "slug": a["slug"], "format": 1}
 
     # ---------------------------------------------------------------- audit

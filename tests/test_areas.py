@@ -760,6 +760,49 @@ class TestClient(DropBase):
         final = client.wait(body["id"], seconds=0)
         self.assertEqual((final["state"], final["note"]), ("rejected", "try a shorter title"))
 
+    def write_css(self, text="body { background: #123456; }\n"):
+        (self.folder / "files" / "style.css").write_text(text, encoding="utf-8")
+        doc = json.loads((self.folder / "area.json").read_text(encoding="utf-8"))
+        doc["design"] = {"css": "files/style.css"}
+        (self.folder / "area.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def test_a_stylesheet_can_be_sent_end_to_end_when_the_owner_allowed_it(self):
+        """The bug Funk's Claude found: the client refused files/style.css before the owner's checker ever saw it."""
+        self.svc.update("workshop", custom_css=True)
+        self.write_css()
+        client = areaclient.Area(self.url, "workshop", self.key)
+        lim = client.limits()
+        self.assertIn("css", lim["limits"]["extensions"])                 # the hub says so itself, so a copy already out there works
+        self.assertTrue(lim["custom_css"])
+        zip_path = self.root / "css.zip"
+        areaclient.build_zip(self.folder, zip_path, lim["limits"])         # exactly what an older client does: limits only
+        code, body = client.send_zip(zip_path)
+        self.assertEqual((code, body["state"]), (201, "pending"), body)
+
+    def test_a_newer_client_also_knows_by_itself(self):
+        self.write_css()
+        limits = dict(areaclient.DEFAULT_LIMITS)                           # a limits answer that does not mention css
+        areaclient.build_zip(self.folder, self.root / "a.zip", limits, custom_css=True)
+        with self.assertRaises(areaclient.ClientError) as cm:
+            areaclient.build_zip(self.folder, self.root / "b.zip", limits)
+        self.assertIn("stylesheet", str(cm.exception))
+
+    def test_a_stylesheet_is_still_refused_when_the_owner_has_not_allowed_it(self):
+        self.write_css()
+        client = areaclient.Area(self.url, "workshop", self.key)
+        lim = client.limits()
+        self.assertNotIn("css", lim["limits"]["extensions"])
+        self.assertFalse(lim["custom_css"])
+        with self.assertRaises(areaclient.ClientError):
+            areaclient.build_zip(self.folder, self.root / "c.zip", lim["limits"], custom_css=lim["custom_css"])
+
+    def test_the_offline_check_and_the_cli_and_the_window_all_accept_it_when_allowed(self):
+        self.write_css()
+        res = areaclient.validate_folder(self.folder, None, custom_css=True)
+        self.assertEqual(res["warnings"], [])
+        with self.assertRaises(Exception):
+            areaclient.validate_folder(self.folder, None, custom_css=False)
+
     def test_client_refuses_what_the_server_would_refuse_before_uploading(self):
         for name, data in (("files/run.exe", b"MZ"), ("files/page.html", b"<b>"), ("files/a.png.exe", b"x")):
             (self.folder / name).write_bytes(data)

@@ -74,7 +74,7 @@ def init_folder(folder):
     return folder / "area.json"
 
 
-def build_zip(folder, out_path, limits=None):
+def build_zip(folder, out_path, limits=None, custom_css=False):
     """Zip folder (area.json + files/) with the rules the owner's side will apply, so mistakes show up here first."""
     folder = Path(folder)
     limits = dict(DEFAULT_LIMITS, **(limits or {}))
@@ -86,6 +86,8 @@ def build_zip(folder, out_path, limits=None):
         raise ClientError("area.json is not valid JSON (%s)." % e)
     entries, total = [("area.json", folder / "area.json")], 0
     allowed = {e.lower() for e in limits["extensions"]}
+    if custom_css:                                              # the owner allowed this area its own stylesheet
+        allowed.add("css")
     files_dir = folder / "files"
     if files_dir.is_dir():
         for f in sorted(files_dir.rglob("*")):
@@ -94,7 +96,10 @@ def build_zip(folder, out_path, limits=None):
             if not f.is_file():
                 continue
             rel = "files/" + f.relative_to(files_dir).as_posix()
-            bad = check_name(rel) or extension_problem(rel, allowed)
+            bad = check_name(rel)
+            if not bad and rel.lower().endswith(".css") and "css" not in allowed:
+                bad = "'%s' is a stylesheet, which the owner has not allowed this area to send." % rel
+            bad = bad or extension_problem(rel, allowed)
             if bad:
                 raise ClientError(bad)
             size = f.stat().st_size
@@ -132,7 +137,7 @@ def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts
     tmp = Path(tempfile.mkdtemp(prefix="halbach-validate-"))
     try:
         zip_path, dest = tmp / "bundle.zip", tmp / "tree"
-        build_zip(folder, zip_path, limits)
+        build_zip(folder, zip_path, limits, custom_css=custom_css)
         result = validate_bundle(zip_path, dest, area, registry or Registry())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -335,7 +340,7 @@ def main(argv):
             print("This area is paused by its owner; nothing can be sent right now.")
             return 1
         tmp = Path(a.folder) / ".halbach-bundle.zip"
-        build_zip(a.folder, tmp, lim["limits"])
+        build_zip(a.folder, tmp, lim["limits"], custom_css=bool(lim.get("custom_css")))
         try:
             code, body = client.send_zip(tmp)
         finally:

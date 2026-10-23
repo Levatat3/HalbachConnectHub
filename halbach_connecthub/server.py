@@ -129,7 +129,7 @@ class Hub:
             raise ValidationError("The area is paused by its owner; nothing can be sent right now.")
         tmp = self.area_folder / ".halbach-bundle.zip"
         try:
-            areaclient.build_zip(self.area_folder, tmp, lim.get("limits"))
+            areaclient.build_zip(self.area_folder, tmp, lim.get("limits"), custom_css=bool(lim.get("custom_css")))
             code, body = client.send_zip(tmp)
         finally:
             try:
