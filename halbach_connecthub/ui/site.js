@@ -514,7 +514,7 @@
     b.appendChild(box);
 
     b.appendChild(h("div", null, section("Move the site", "Save the whole site (pages, design, settings) as one file, or load one. Your uploaded files and modules are not inside it.")));
-    var file = h("input", { type: "file", accept: ".json,application/json", style: "display:none" });
+    var file = h("input", { type: "file", accept: ".json,application/json", style: "display:none", "aria-label": "Site export file to load" });
     file.addEventListener("change", function () {
       var f = file.files[0]; if (!f) return;
       if (f.size > 2 * 1024 * 1024) return HB.toast("That file is too big to be a site export.");
@@ -545,7 +545,7 @@
           r.errors.forEach(function (e) { frameBox.appendChild(h("div", { class: "errline", text: "✖ " + e.message })); });
           return;
         }
-        var sel = h("select", null, r.pages.map(function (p) { return h("option", { value: p.path, text: p.path }); }));
+        var sel = h("select", { "aria-label": "Page to preview" }, r.pages.map(function (p) { return h("option", { value: p.path, text: p.path }); }));
         var fr = h("iframe", { class: "pview", title: "Preview", src: "/preview" + r.pages[0].path });
         fr.style.width = previewWidth ? previewWidth + "px" : "100%";
         sel.addEventListener("change", function () { fr.src = "/preview" + sel.value; });

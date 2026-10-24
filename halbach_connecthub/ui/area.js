@@ -376,6 +376,17 @@
     }).catch(function (e) { b.disabled = false; b.textContent = "Send to the site"; fail(e); });
   });
 
+  // A row is a title and a field side by side, not a <label>: name each field after its row so screen readers can read it.
+  function nameFields() {
+    document.querySelectorAll(".r input, .r select, .r textarea").forEach(function (f) {
+      if (f.getAttribute("aria-label") || f.title) return;
+      var t = f.closest(".r"), b = t && t.querySelector("b");
+      if (b && b.textContent.trim()) f.setAttribute("aria-label", b.textContent.trim());
+    });
+  }
+  var nameTimer = null;
+  new MutationObserver(function () { clearTimeout(nameTimer); nameTimer = setTimeout(nameFields, 80); }).observe(document.body, { childList: true, subtree: true });
+
   loadLimits();
   loadDesign();
   load();

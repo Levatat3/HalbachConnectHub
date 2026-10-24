@@ -625,6 +625,19 @@
                 saveWindowTheme: saveWindowTheme,
                 api: api, toast: toast, fail: fail, esc: esc, refreshSoon: function () { return refresh(); }, dialog: dialog, closeDialog: closeDialog };
 
+  // A settings row is a title and a field side by side, not a <label>: give each field the row's title as its name so
+  // screen readers (and "click the name to focus") work on every panel, including ones drawn later.
+  function nameFields() {
+    document.querySelectorAll(".r input, .r select, .r textarea").forEach(function (f) {
+      if (f.type === "hidden" || f.getAttribute("aria-label") || f.getAttribute("aria-labelledby") || f.title || (f.id && document.querySelector('label[for="' + f.id + '"]'))) return;
+      var t = f.closest(".r"), b = t && t.querySelector("b");
+      if (b && b.textContent.trim()) f.setAttribute("aria-label", b.textContent.trim());
+    });
+  }
+  var nameTimer = null;
+  new MutationObserver(function () { clearTimeout(nameTimer); nameTimer = setTimeout(nameFields, 80); }).observe(document.body, { childList: true, subtree: true });
+  nameFields();
+
   refresh();
   api("/api/publish/status").then(function (st) { if (st.state === "running") { busy = { preview: false }; render(); pollPublish(); } }).catch(function () {});
   // picks up edits inside watched folders; leaves the open panel alone so typing isn't lost
