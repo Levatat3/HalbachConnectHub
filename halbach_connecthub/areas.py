@@ -467,11 +467,12 @@ class AreaService:
     def _changes(self, aid, res):
         """A short diff against what is live now: pages and files added, changed, removed."""
         cur = self.current_tree(aid)
-        old_files, old_pages = {}, set()
+        old_files, old_pages, old_design = {}, set(), {}
         if cur:
             try:
                 old_doc = json.loads((cur / "area.json").read_text(encoding="utf-8"))
                 old_pages = {p["name"] for p in old_doc["pages"]}
+                old_design = old_doc.get("design") or {}
                 for f in (cur / "files").rglob("*"):
                     if f.is_file():
                         old_files["files/" + f.relative_to(cur / "files").as_posix()] = _sha256(f)
@@ -479,9 +480,12 @@ class AreaService:
                 pass
         new_files = {k: v["sha256"] for k, v in res["files"].items()}
         new_pages = {p["name"] for p in res["doc"]["pages"]}
+        new_design = res["doc"].get("design") or {}
+        look = {"brand": "name and logo", "theme": "theme", "vars": "colours and width", "layout": "menu layout", "funk": "Funk background", "css": "stylesheet"}
+        design_changed = [look.get(k, k) for k in look if old_design.get(k) != new_design.get(k)]
         return {"files_added": sorted(set(new_files) - set(old_files))[:50], "files_removed": sorted(set(old_files) - set(new_files))[:50],
                 "files_changed": sorted(k for k in new_files if k in old_files and old_files[k] != new_files[k])[:50],
-                "pages_added": sorted(new_pages - old_pages), "pages_removed": sorted(old_pages - new_pages), "first": cur is None}
+                "pages_added": sorted(new_pages - old_pages), "pages_removed": sorted(old_pages - new_pages), "design_changed": design_changed, "first": cur is None}
 
     # ---------------------------------------------------------------- review
     def _next_version(self, aid):

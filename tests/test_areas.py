@@ -305,6 +305,13 @@ class TestOwnerEdit(Base):
         self.assertEqual(c["version"], "v0001")
         self.assertEqual(c["doc"]["pages"][0]["blocks"][2]["props"]["markdown"], "one")
 
+    def test_the_review_card_says_which_parts_of_the_look_changed(self):
+        self.go_live()
+        doc = self.svc.content("workshop")["doc"]
+        self.assertEqual(self.svc.owner_edit("workshop", doc)["changes"]["design_changed"], [])      # same page, same look
+        doc["design"] = {"theme": "neutral-dark", "vars": {"--bg": "#112233"}}
+        self.assertEqual(self.svc.owner_edit("workshop", doc)["changes"]["design_changed"], ["theme", "colours and width"])
+
     def test_an_edit_waits_in_review_and_changes_nothing_live_until_approved(self):
         self.go_live()
         doc = self.svc.content("workshop")["doc"]
