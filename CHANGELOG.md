@@ -18,6 +18,19 @@ derived from this repository's commit history, not written after the fact.
 - **Owner edit:** an area's page can be edited from the Areas screen. It waits in Review like anything the area sends.
 - **Areas: their own stylesheet (tier 2):** an owner-enabled, reviewed CSS file per area, checked as written. Anything
   obfuscated or encrypted, any outside address and any script-like feature is refused.
+- **Collaborator editor:** a panel for the Funk theme background (colours, effect, two extra layers, motion), page width
+  presets for a sub-site, and a Preview that now shows the area's logo picture, its own stylesheet and playable embeds,
+  as the owner's real site will.
+
+### Fixed
+- A collaborator could not send a stylesheet even when the owner had allowed one.
+- The updater started `git` on every refresh, which flashed a console window on Windows; it now reads the `.git` files.
+- A rollback left the last update check in place (it said "up to date" for the copy that had just been replaced), and a failed
+  rollback left its work folder behind. One shared undo now restores moved files even if one of them cannot be put back.
+- A banner at the top of the window (update available, restart needed) pushed the Publish bar out of view.
+- Settings showed Stop and Start for the tunnel together; now only the one that applies.
+- The review card showed a blank "pages added:" for an area's front page; it now says "front page".
+- On phones the "Sites" menu trigger was smaller to tap than the other menu items.
 
 ## [0.5.0] - 2026-10-17
 
