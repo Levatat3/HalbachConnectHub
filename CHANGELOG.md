@@ -6,6 +6,8 @@ derived from this repository's commit history, not written after the fact.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-24
+
 ### Added
 - **FunkThemes 2:** the bundled Funk engine is now Funk's 2026-10-22 master (82,428 bytes): the new **Spectrum**
   effect, per-effect settings, up to two stacked effect layers and motion settings. The site accepts them with
@@ -134,6 +136,7 @@ derived from this repository's commit history, not written after the fact.
 - Local control panel foundation: a loopback web server, a JSON state file, static
   and live module concepts, and the window UI.
 
+[0.6.0]: https://github.com/Levatat3/HalbachConnectHub/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Levatat3/HalbachConnectHub/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Levatat3/HalbachConnectHub/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Levatat3/HalbachConnectHub/compare/v0.2.0...v0.3.0

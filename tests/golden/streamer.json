@@ -1,5 +1,5 @@
 {
- "404.html": "85af3283f8c19536df4e120f83b398f35553b02010143e54d72cba614fd46133",
+ "404.html": "18155a71e500dcee5a9c12b3dcde269c38a7610b980a81b5329c5f676aa25c21",
  "_halbach/blocks/github-projects.55fb1c0633.js": "55fb1c0633f93db5cc6c69d0b3b99218a61013c1a3e03a9de029f9cca5bf191d",
  "_halbach/blocks/hero.dce92d240d.js": "dce92d240d1cb7a61af1b13606b5f3e4e93cd2f4af691fad36e8ed5a2e85b43c",
  "_halbach/blocks/links.12ec8b6c43.js": "12ec8b6c43d6975e27582b6bb39c69d85ca5d3be99a492731fddd526d2421afd",
@@ -7,14 +7,14 @@
  "_halbach/blocks/twitch.dbc632f801.js": "dbc632f80193b322b60a9a5598fe9d20538836e55bfb0017cf652fb2c1038aa9",
  "_halbach/blocks/youtube.24c53ed8fe.js": "24c53ed8fe9d8e5848a21f6dfe39b4aae4fd998bef302851eff05b42b69ac473",
  "_halbach/runtime.c6a091e221.js": "c6a091e2211d60190bfb9c02808f8df1dbc79e21596fe6cc0fc7cf2bc0786df8",
- "_halbach/theme.ccf11044be.css": "ccf11044beda2e50e0e34db853a2a4dafc635b4920be945a84f55e65a394379b",
+ "_halbach/theme.ac08b8070a.css": "ac08b8070a20adbe1b0ba5cbe10417025b182fe428bc0b3f32e6382c8b44d48b",
  "_headers": "819bcc15f2454fe832841beaae8f4d8d69da9c7dda12c96b361c91715d7bcb63",
- "about/index.html": "f98fb6c7577df1960d2419b5886dfc2de0b07b8dad17e5d21878fe7dcc5d1ef0",
+ "about/index.html": "7376c099a3aaf95d6d8026d96bacbbcba9e601921319365b038215dfb055551c",
  "favicon.svg": "c1ed9b5a252b940e3ddcbfd84d88c53a3ab2c6a75c4e62cf728f2905f6d8f1d4",
- "index.html": "cc4bf4875fbefab51688db3e51239b567304b780ac44f419749b2f0c1ea88225",
- "live/index.html": "1531b999b073c7d1defce3ec74c73381b875cc01d827fd1314c59b37d63740ca",
+ "index.html": "2d351999bb18d1222baf071a2c373e282738ac3b01ecdcb5c0daf921fc770900",
+ "live/index.html": "887edbf8e4268c725e7edf48d93915f78a28180ac0ca8d78bb6d3d861ae167da",
  "manifest.json": "1c4a8cdfac78ac10b5042f7ff172edf390b0bbf28becac8fe79688ffbe2bcaca",
- "projects/index.html": "430572ee5cf4165109205b0d0306099cb0a4ed713aec392f07371eb2ac744d09",
+ "projects/index.html": "159b300e4f986b0d4aacbf84312c5846e6c982bc6d82ac70342980a2c94078a0",
  "robots.txt": "16ceb5ee3e0dc13aa9adf31a3ebbe45a1d965b8c2b9f72eaf84e5911e140ed95",
- "videos/index.html": "87e74a25d15597f2186b9084555e44648691c92a265cfb3d7c817ce05ae9c2df"
+ "videos/index.html": "0da6e5ca490f106d9c278d4f803152c9c6d4aebfd491d2f3ae2bdbc360c55ed7"
 }

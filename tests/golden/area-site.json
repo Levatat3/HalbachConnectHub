@@ -1,5 +1,5 @@
 {
- "404.html": "5444df487428fa11851753992d00e5e87c5f1fa6bb1d8ba401ed79185ec770ff",
+ "404.html": "603d9ed7dcc94b381aa59c2138c1c7096f9896092c099466de088a7a6f5b8511",
  "_halbach/blocks/cards.fe8a40d7e0.js": "fe8a40d7e0e2a4687aa8cb19ded41c4875d3d0a2e45655adffbfe42c55643826",
  "_halbach/blocks/github-projects.55fb1c0633.js": "55fb1c0633f93db5cc6c69d0b3b99218a61013c1a3e03a9de029f9cca5bf191d",
  "_halbach/blocks/hero.dce92d240d.js": "dce92d240d1cb7a61af1b13606b5f3e4e93cd2f4af691fad36e8ed5a2e85b43c",
@@ -8,14 +8,14 @@
  "_halbach/blocks/links.12ec8b6c43.js": "12ec8b6c43d6975e27582b6bb39c69d85ca5d3be99a492731fddd526d2421afd",
  "_halbach/blocks/text.7de2f558dc.js": "7de2f558dc16316e5ee3c6ddb0b5121e85678176d60b8a9752ab9e36ff5ecd60",
  "_halbach/runtime.c6a091e221.js": "c6a091e2211d60190bfb9c02808f8df1dbc79e21596fe6cc0fc7cf2bc0786df8",
- "_halbach/theme.ccf11044be.css": "ccf11044beda2e50e0e34db853a2a4dafc635b4920be945a84f55e65a394379b",
+ "_halbach/theme.ac08b8070a.css": "ac08b8070a20adbe1b0ba5cbe10417025b182fe428bc0b3f32e6382c8b44d48b",
  "_headers": "4d687f5a3976d18803dbd91e41c65fd42aa9b63b2717271eaac5a3af0fa2e22d",
- "about/index.html": "366c74668ff0fed599af4c5f2d6f0d9b0a0b4c916497584ce7fe4be47dcb0815",
+ "about/index.html": "4f91a3ea5e43988ff1aa4cc39dfc8a4861a4db30b9e6900af45f388a82bd944e",
  "favicon.svg": "c1ed9b5a252b940e3ddcbfd84d88c53a3ab2c6a75c4e62cf728f2905f6d8f1d4",
- "index.html": "0039bf9dd1a96610564324072dbd8d266587abdb582d60de6a649de85f376d48",
+ "index.html": "9d9d8fe0ee4ed22a5a3f420d399ce82201d19b453a4ae6f5a283a6ca7d13e595",
  "manifest.json": "1c4a8cdfac78ac10b5042f7ff172edf390b0bbf28becac8fe79688ffbe2bcaca",
- "projects/index.html": "5439cbee5b560de80f1d37dd278c987b43222eaf7114c36ad3b2e36f8afcf30d",
+ "projects/index.html": "9b4455d0b7e034d6e8b1bafbac70e50033347502a371f3bfb6469a8441d5c769",
  "robots.txt": "16ceb5ee3e0dc13aa9adf31a3ebbe45a1d965b8c2b9f72eaf84e5911e140ed95",
  "workshop/files/pic.png": "e39abab5e8dc0a724f59e977cd222394830f92225af63778ee71eefad60b4050",
- "workshop/index.html": "679b0ea0809455c6d643d926701bb26e614e90803f3d187f9221d296c8c627b0"
+ "workshop/index.html": "e0a58ea92b6b33b1c227b353650d20e9431d434452eac3b19f17c5e5b0f31707"
 }
