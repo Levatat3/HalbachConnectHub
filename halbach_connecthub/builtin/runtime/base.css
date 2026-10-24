@@ -121,7 +121,7 @@ body[data-nav="side"] .hs-footer { grid-column: 1 / -1; }
 /* Touch widths (375px phones, 768px tablets): taller menu links, list links and file
    links so every tap target is at least about 40px high. */
 @media (max-width: 768px) {
-  .hs-nav a { padding: 10px 14px; }
+  .hs-nav a, .hs-sites > summary { padding: 10px 14px; }
   .hs-links.hs-list a { display: inline-block; padding: 10px 12px; }
   .hs-files a { display: inline-block; padding: 8px 0; }
 }
