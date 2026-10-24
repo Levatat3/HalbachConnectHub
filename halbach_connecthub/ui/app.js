@@ -263,6 +263,9 @@
     var t = LV.tunnel || {};
     $("#tunState").textContent = t.running ? (t.connected ? "Connected" : "Starting…") : (t.installed ? "Stopped" : "cloudflared not found");
     $("#tunSub").textContent = t.running ? ((t.lines || []).slice(-1)[0] || "") : "Live modules only work while the tunnel is running.";
+    var stop = document.querySelector('[data-act="tunnelStop"]'), start = document.querySelector('[data-act="tunnelStart"]');
+    if (stop) stop.hidden = !t.running;                         // Stop only while there is something to stop
+    if (start) start.hidden = !!t.running;
     $("#tunSteps").textContent = (t.setup || []).map(function (x, i) { return (i + 1) + ". " + x; }).join("\n");
   }
 
