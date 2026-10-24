@@ -51,7 +51,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="halbach", description="Halbach ConnectHub: choose what your site shows.", formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8780, help="local port (default 8780; 0 = any free port)")
     ap.add_argument("--live-port", type=int, default=8782, help="port for the live hub (default 8782)")
-    ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub)")
+    ap.add_argument("--home", help="where to keep state (default: %%LOCALAPPDATA%%\\HalbachConnectHub, or an older ConnectHub folder if you already have one)")
     ap.add_argument("--no-open", action="store_true", help="don't open a window")
     ap.add_argument("--area", help="open the collaborator's restricted editor for this folder (area.json + files/), instead of the owner's window")
     ap.epilog = ("To send something for review from a script or chat:  halbach submit <folder|file> --name NAME\n"
