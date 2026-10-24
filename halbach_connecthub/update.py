@@ -475,6 +475,17 @@ def _remove(p):
             pass
 
 
+def _undo(done):
+    """Put every moved item back, newest first. One item that cannot be restored never stops the others from being restored."""
+    for cur, aside, had in reversed(done):
+        _remove(cur)
+        if had and aside.exists():
+            try:
+                os.replace(aside, cur)
+            except OSError:
+                pass
+
+
 def _swap_in(root, staged, items, tag):
     """Move each current item aside and the new one into place. On any failure everything already moved is put back."""
     done = []
@@ -493,13 +504,7 @@ def _swap_in(root, staged, items, tag):
                 raise
             done.append((cur, aside, had))
     except OSError as e:
-        for cur, aside, had in reversed(done):
-            _remove(cur)
-            if had and aside.exists():
-                try:
-                    os.replace(aside, cur)
-                except OSError:
-                    pass
+        _undo(done)
         raise UpdateError("Windows would not let the program files be replaced (%s). Nothing was changed; close anything using the Halbach folder and try again." % e.__class__.__name__)
     return done
 
@@ -596,10 +601,7 @@ def apply(home, expect, opener=None, root=None, channel="release", python=None, 
         try:
             self_check(root, python)
         except UpdateError:
-            for cur_p, aside, had in reversed(done):                      # the installed copy does not start: put the old files back
-                _remove(cur_p)
-                if had and aside.exists():
-                    os.replace(aside, cur_p)
+            _undo(done)                                                   # the installed copy does not start: put the old files back
             raise UpdateError("The new version did not start after it was installed, so the old version was put back. Nothing was lost.")
         for _cur, aside, _had in done:
             _remove(aside)
@@ -637,16 +639,17 @@ def rollback(home, root=None, python=None, which=None):
             for name, _d in items:                                           # swap from a copy so the backup itself stays
                 _copy_in(staged / name, work / name)
             done = _swap_in(root, work, items, tag)
+        except UpdateError:
+            shutil.rmtree(work, ignore_errors=True)                          # the swap itself failed and has already undone itself
+            raise
         except (OSError, shutil.Error) as e:
             shutil.rmtree(work, ignore_errors=True)
             raise UpdateError("The earlier version could not be put back (%s). Nothing was changed." % e.__class__.__name__)
         try:
             self_check(root, python)
         except UpdateError:
-            for cur_p, aside, had in reversed(done):
-                _remove(cur_p)
-                if had and aside.exists():
-                    os.replace(aside, cur_p)
+            _undo(done)
+            shutil.rmtree(work, ignore_errors=True)
             raise UpdateError("The earlier version did not start, so the current one was kept.")
         for _cur, aside, _had in done:
             _remove(aside)

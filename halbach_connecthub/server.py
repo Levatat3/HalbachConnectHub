@@ -12,6 +12,7 @@ import secrets
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse
@@ -188,12 +189,13 @@ class Hub:
         res = update.apply(self.store.home, expect, opener=getattr(self, "update_opener", None), channel=channel,
                            log=lambda m: self.store.log("info", m))
         self.store.log("info", "Halbach updated %s -> %s (restart to use it)" % (res["from"], res["to"]))
-        update.save_check(self.store.home, {"status": "up-to-date", "checked": int(__import__("time").time()), "channel": channel,
+        update.save_check(self.store.home, {"status": "up-to-date", "checked": int(time.time()), "channel": channel,
                                             "latest": None, "error": "", "current": update.local_info(), "can_apply": True, "why_not": ""})
         return res
 
     def update_rollback(self):
         res = update.rollback(self.store.home)
+        update.save_check(self.store.home, {})                          # what the last check said no longer fits the copy that is on disk
         self.store.log("info", "Halbach went back to %s (restart to use it)" % res["to"])
         return res
 

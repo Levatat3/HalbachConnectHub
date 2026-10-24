@@ -596,6 +596,12 @@ class TestHub(unittest.TestCase):
         s, j = self.req("POST", "/api/update/rollback", {})
         self.assertEqual(s, 400)
 
+    def test_an_emptied_check_is_due_again_and_reads_as_never_checked(self):
+        self.req("POST", "/api/update/check", {})
+        update.save_check(self.hub.store.home, {})                                         # what a rollback leaves behind
+        self.assertTrue(update.due(self.hub.store.home))
+        self.assertEqual(self.hub.update_summary()["status"], "never")
+
     def test_settings_for_the_channel_and_the_daily_check_are_validated(self):
         self.assertEqual(self.req("POST", "/api/settings", {"update_channel": "branch:modular-site", "update_check": False})[0], 200)
         s = self.req("GET", "/api/state")[1]
