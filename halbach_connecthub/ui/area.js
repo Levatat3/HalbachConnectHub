@@ -149,6 +149,11 @@
     theme.value = d.theme || "";
     var nav = h("select", { "aria-label": "Menu layout" }, [["", "The main site's layout"], ["top", "Menu across the top"], ["side", "Menu down the side"], ["none", "No menu"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
     nav.value = lay.nav || "";
+    var WIDTHS = [["", "The theme's width"], ["640px", "Narrow"], ["860px", "Medium"], ["1100px", "Wide"], ["1400px", "Extra wide"], ["100%", "Full width"]];
+    var cur = v["--maxw"] || "";
+    if (!WIDTHS.some(function (o) { return o[0] === cur; })) WIDTHS.push([cur, "Custom (" + cur + ")"]);       // a width set another way is kept, not lost
+    var width = h("select", { "aria-label": "Page width" }, WIDTHS.map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
+    width.value = cur;
     var err = h("div", { class: "err" });
     var funkCtl = funkPanel(d.funk || {}, drow);
     function syncFunk() { funkCtl.el.style.display = theme.value === "funk" ? "" : "none"; }
@@ -157,14 +162,14 @@
       drow("Site name", "Shown in your menu bar and the page title.", fName), drow("Short mark", "1 to 4 letters, shown in the box beside the name.", fMark),
       drow("Logo", "A picture in your files folder (png, jpg, gif or webp). Replaces the mark.", fLogo),
       drow("Tagline", "", fTag), drow("Footer", "", fFoot), drow("Theme", "Only themes the owner allows are listed.", theme), funkCtl.el,
-      drow("Accent colour", "A colour such as #ff8800.", fAccent), drow("Background colour", "", fBg), drow("Text colour", "", fText), drow("Layout", "", nav),
+      drow("Accent colour", "A colour such as #ff8800.", fAccent), drow("Background colour", "", fBg), drow("Text colour", "", fText), drow("Layout", "", nav), drow("Page width", "How wide your content may be.", width),
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save the look", "primary", function () {
         var design = {}, brand = {};
         [["name", fName], ["mark", fMark], ["tagline", fTag], ["footer", fFoot], ["logo", fLogo]].forEach(function (p) { if (p[1].value.trim()) brand[p[0]] = p[1].value.trim(); });
         if (Object.keys(brand).length) design.brand = brand;
         if (theme.value) design.theme = theme.value;
         var vars = {};
-        [["--accent", fAccent], ["--bg", fBg], ["--text", fText]].forEach(function (p) { if (p[1].value.trim()) vars[p[0]] = p[1].value.trim(); });
+        [["--accent", fAccent], ["--bg", fBg], ["--text", fText], ["--maxw", width]].forEach(function (p) { if (p[1].value.trim()) vars[p[0]] = p[1].value.trim(); });
         if (Object.keys(vars).length) design.vars = vars;
         if (nav.value) design.layout = { nav: nav.value };
         if (theme.value === "funk") design.funk = funkCtl.get();
