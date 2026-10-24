@@ -197,8 +197,7 @@
     var msg = "A newer Halbach is available (" + (lat.version || lat.name) + "). Open Settings → Updates to look at it.";
     if (b) { b.textContent = msg; return; }
     b = document.createElement("div");
-    b.id = "updateBanner"; b.setAttribute("role", "status");
-    b.style.cssText = "padding:8px 16px;background:#0b3a57;color:#fff;font-size:14px;text-align:center";
+    b.id = "updateBanner"; b.className = "topnote info"; b.setAttribute("role", "status");
     b.textContent = msg;
     var rb = document.getElementById("restartBanner");
     document.body.insertBefore(b, rb ? rb.nextSibling : document.body.firstChild);
@@ -237,8 +236,7 @@
     if (!show) { if (b) b.remove(); return; }
     if (b) return;
     b = document.createElement("div");
-    b.id = "restartBanner"; b.setAttribute("role", "status");
-    b.style.cssText = "position:sticky;top:0;z-index:60;padding:10px 16px;background:#7a4a00;color:#fff;font-size:14px;text-align:center";
+    b.id = "restartBanner"; b.className = "topnote warn"; b.setAttribute("role", "status");
     b.textContent = "Halbach was updated on this PC. Quit it and open it again to use the new version. Until then, some settings may not save.";
     document.body.insertBefore(b, document.body.firstChild);
   }
