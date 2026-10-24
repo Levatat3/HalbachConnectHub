@@ -150,10 +150,13 @@
     var nav = h("select", { "aria-label": "Menu layout" }, [["", "The main site's layout"], ["top", "Menu across the top"], ["side", "Menu down the side"], ["none", "No menu"]].map(function (o) { return h("option", { value: o[0], text: o[1] }); }));
     nav.value = lay.nav || "";
     var err = h("div", { class: "err" });
+    var funkCtl = funkPanel(d.funk || {}, drow);
+    function syncFunk() { funkCtl.el.style.display = theme.value === "funk" ? "" : "none"; }
+    theme.addEventListener("change", syncFunk); syncFunk();
     r.appendChild(h("div", { class: "set", style: "max-width:860px" },
       drow("Site name", "Shown in your menu bar and the page title.", fName), drow("Short mark", "1 to 4 letters, shown in the box beside the name.", fMark),
       drow("Logo", "A picture in your files folder (png, jpg, gif or webp). Replaces the mark.", fLogo),
-      drow("Tagline", "", fTag), drow("Footer", "", fFoot), drow("Theme", "Only themes the owner allows are listed.", theme),
+      drow("Tagline", "", fTag), drow("Footer", "", fFoot), drow("Theme", "Only themes the owner allows are listed.", theme), funkCtl.el,
       drow("Accent colour", "A colour such as #ff8800.", fAccent), drow("Background colour", "", fBg), drow("Text colour", "", fText), drow("Layout", "", nav),
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save the look", "primary", function () {
         var design = {}, brand = {};
@@ -164,9 +167,77 @@
         [["--accent", fAccent], ["--bg", fBg], ["--text", fText]].forEach(function (p) { if (p[1].value.trim()) vars[p[0]] = p[1].value.trim(); });
         if (Object.keys(vars).length) design.vars = vars;
         if (nav.value) design.layout = { nav: nav.value };
-        if (d.funk && theme.value === "funk") design.funk = d.funk;
+        if (theme.value === "funk") design.funk = funkCtl.get();
         api("/api/area/design", "POST", { design: design }).then(function (res) { DESIGN = res; toast("Saved. Press Preview to see it."); render(); }).catch(function (e) { showErr(err, e); });
       }))));
+  }
+
+  // The Funk theme's background settings: colours, a moving effect, up to two extra effect layers, and how it moves.
+  // Plain numbers, colours and effect names only; the owner's hub checks every value again (siteschema.clean_funktheme).
+  var FUNK_FX = ["none", "ascii", "matrix", "synthwave", "stars", "rain", "spectrum"];
+  var FUNK_BLENDS = ["normal", "screen", "lighten", "overlay", "multiply"];
+  function funkPanel(f, drow) {
+    function num(val, min, max, step, ph) {
+      var i = h("input", { type: "number", min: min, max: max, step: step, placeholder: ph || "" }); i.value = val == null ? "" : val; return i;
+    }
+    function pick(opts, val) {
+      var s = h("select", null, opts.map(function (o) { return h("option", { value: String(o), text: String(o) }); })); s.value = String(val); return s;
+    }
+    function txt(val, ph, label) { var i = h("input", { type: "text", placeholder: ph || "", "aria-label": label }); i.value = val || ""; return i; }
+    function list(v) { return String(v).split(/[\s,]+/).filter(Boolean); }
+    function nz(i) { return i.value === "" ? undefined : Number(i.value); }
+    var style = pick(["solid", "gradient", "rainbow"], f.style || "gradient");
+    var colors = txt((f.colors || []).join(", "), "#101418, #3a1c71", "Colours");
+    var angle = num(f.angle, 0, 360, 5, "135"), strength = num(f.strength, 0, 1, 0.05, "0.5");
+    var accent = txt((f.accent || []).join(", "), "#ff8800", "Accent colours");
+    var fx = pick(FUNK_FX, f.fx || "none");
+    var speed = num(f.fxSpeed, 0.2, 3, 0.1, "1"), amount = num(f.fxAmount, 0, 1, 0.05, "0.7"), fxColor = txt(f.fxColor, "#ffffff", "Effect colour");
+    var mo = f.motion || {};
+    var fps = pick([15, 30, 60], mo.fps || 30);
+    var half = sw(!!mo.half, function () {}), drift = sw(!!mo.drift, function () {}), pauseFs = sw(mo.pauseFullscreen !== false, function () {});
+    var old = f.fxLayers || [], layers = [0, 1].map(function (i) {
+      var l = old[i] || {};
+      return { lay: l, fx: pick(FUNK_FX, l.fx || "none"), blend: pick(FUNK_BLENDS, l.blend || "normal"), opacity: num(l.opacity, 0.1, 1, 0.05, "1"),
+        speed: num(l.fxSpeed, 0.2, 3, 0.1, "1"), amount: num(l.fxAmount, 0, 1, 0.05, "0.7"), color: txt(l.fxColor, "#ffffff", "Layer colour") };
+    });
+    var rows = [
+      drow("Background style", "How the colours below are drawn.", style),
+      drow("Colours", "Up to 8, separated by commas, such as #101418, #3a1c71.", colors),
+      drow("Angle", "Direction of the gradient, 0 to 360.", angle),
+      drow("Strength", "How strongly the colours show, 0 to 1.", strength),
+      drow("Accent colours", "One or two colours for buttons and links (optional).", accent),
+      drow("Effect", "A moving background effect.", fx),
+      drow("Effect speed", "0.2 to 3.", speed), drow("Effect amount", "0 to 1.", amount), drow("Effect colour", "Optional.", fxColor)];
+    layers.forEach(function (L, i) {
+      rows.push(h("div", { class: "r" }, h("b", { text: "Extra effect layer " + (i + 1) }), h("small", { text: "Optional. Blends on top of the effect above." })));
+      rows.push(drow("Layer effect", "", L.fx), drow("Blend", "", L.blend), drow("Opacity", "0.1 to 1.", L.opacity),
+        drow("Layer speed", "0.2 to 3.", L.speed), drow("Layer amount", "0 to 1.", L.amount), drow("Layer colour", "Optional.", L.color));
+    });
+    rows.push(drow("Frame rate", "Lower is easier on slow computers.", fps), drow("Half resolution", "Draw smaller and scale up.", half),
+      drow("Drift", "Slowly move the whole background.", drift), drow("Pause when fullscreen", "Stop drawing behind fullscreen video.", pauseFs));
+    var box = h("div", { class: "funkpanel" }, h("div", { class: "r" }, h("b", { text: "Your background (Funk theme)" })), rows);
+    return {
+      el: box,
+      get: function () {
+        var out = { funkTheme: 1, name: f.name || "My background", style: style.value, colors: list(colors.value), fx: fx.value };
+        [["angle", angle], ["strength", strength], ["fxSpeed", speed], ["fxAmount", amount]].forEach(function (p) { var n = nz(p[1]); if (n !== undefined) out[p[0]] = n; });
+        if (list(accent.value).length) out.accent = list(accent.value);
+        if (fxColor.value.trim()) out.fxColor = fxColor.value.trim();
+        if (f.fx === fx.value && f.fxValues) out.fxValues = f.fxValues;               // the effect's own fine settings stay as they were
+        var ls = [];
+        layers.forEach(function (L) {
+          if (L.fx.value === "none") return;
+          var o = { fx: L.fx.value, blend: L.blend.value };
+          [["opacity", L.opacity], ["fxSpeed", L.speed], ["fxAmount", L.amount]].forEach(function (p) { var n = nz(p[1]); if (n !== undefined) o[p[0]] = n; });
+          if (L.color.value.trim()) o.fxColor = L.color.value.trim();
+          if (L.lay.fx === L.fx.value && L.lay.fxValues) o.fxValues = L.lay.fxValues;
+          ls.push(o);
+        });
+        if (ls.length) out.fxLayers = ls;
+        out.motion = { fps: Number(fps.value), half: half.firstChild.checked, drift: drift.firstChild.checked, pauseFullscreen: pauseFs.firstChild.checked };
+        return out;
+      }
+    };
   }
 
   function blockPicker(p, allow) {
