@@ -60,7 +60,7 @@ def load_area(folder, model, theme="neutral-dark"):
     return doc
 
 
-def apply_design(model, design):
+def apply_design(model, design, folder=None, url_base="/preview"):
     """Show the area's own design in the window's preview: its brand, theme, colours and menu layout.
 
     The editor models the area as a one-site page list; this puts the owner-approved look on it so Preview matches
@@ -70,6 +70,11 @@ def apply_design(model, design):
     for k, v in (d.get("brand") or {}).items():
         if k in ("name", "mark", "tagline", "footer") and v:
             data["brand"][k] = v
+    logo = (d.get("brand") or {}).get("logo")
+    if logo and folder and (Path(folder) / logo).is_file():       # a picture that is really in files/ replaces the mark, as on the real site
+        data["brand"]["logo"] = "%s/%s" % (url_base.rstrip("/"), logo)
+    else:
+        data["brand"].pop("logo", None)
     tid = d.get("theme")
     data["theme"]["id"] = tid if tid and model.registry.theme(tid) else "neutral-dark"
     data["theme"]["vars"] = dict(d.get("vars") or {})

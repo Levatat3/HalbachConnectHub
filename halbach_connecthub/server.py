@@ -524,7 +524,7 @@ def make_handler(hub):
                 if path == "/api/site/preview":
                     kw, notes = {}, []
                     if hub.area:
-                        areamode.apply_design(hub.site.model, hub.design)
+                        areamode.apply_design(hub.site.model, hub.design, hub.area_folder)
                         css, notes = hub.area_preview_css()
                         kw = {"extra_css": css or None, "embed_sameorigin": True}   # what the owner's real site does for this area
                     res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None, **kw)

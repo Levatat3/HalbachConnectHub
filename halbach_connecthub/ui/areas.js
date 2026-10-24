@@ -93,7 +93,7 @@
         if (c) {
           var parts = [];
           if (c.first) parts.push("first content for this area");
-          ["pages_added", "pages_removed", "files_added", "files_changed", "files_removed"].forEach(function (k) { if (c[k] && c[k].length) parts.push(k.replace("_", " ") + ": " + c[k].slice(0, 6).join(", ") + (c[k].length > 6 ? "…" : "")); });
+          ["pages_added", "pages_removed", "files_added", "files_changed", "files_removed"].forEach(function (k) { if (c[k] && c[k].length) parts.push(k.replace(/_/g, " ") + ": " + c[k].slice(0, 6).map(function (n) { return n === "" ? "front page" : n; }).join(", ") + (c[k].length > 6 ? "…" : "")); });
           line.appendChild(h("div", { class: "hint", style: "white-space:pre-line", text: parts.join("\n") || "no changes from what is live" }));
         }
         (s.warnings || []).forEach(function (w) { line.appendChild(h("div", { class: "prob", text: "⚠ " + w })); });

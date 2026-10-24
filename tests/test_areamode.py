@@ -384,6 +384,22 @@ class TestAreaPreviewIsFaithful(unittest.TestCase):
         s, png = self.req("GET", "/preview/files/bg.png", token=None)
         self.assertEqual(s, 200)                                                         # and the picture it names is really served
 
+    def test_the_logo_replaces_the_mark_in_the_preview_when_the_picture_is_there(self):
+        s, raw = self.req("POST", "/api/area/design", {"design": {"brand": {"name": "Funka", "logo": "files/bg.png"}}})
+        self.assertEqual(s, 200, raw)
+        try:
+            self.preview()
+            html, pj = self.page_json()
+            self.assertIn('<img class="hs-logo" src="/preview/files/bg.png"', html)
+            self.assertEqual(self.req("GET", "/preview/files/bg.png", token=None)[0], 200)
+            s, raw = self.req("POST", "/api/area/design", {"design": {"brand": {"name": "Funka", "logo": "files/missing.png"}}})
+            self.preview()
+            html, pj = self.page_json()
+            self.assertNotIn("hs-logo", html)                                             # no such file: the mark, not a broken picture
+            self.assertIn("hs-mark", html)
+        finally:
+            self.req("POST", "/api/area/design", {"design": {}})
+
     def test_the_embed_gets_the_same_permission_the_real_site_gives_an_approved_embed(self):
         self.preview()
         html, pj = self.page_json()
