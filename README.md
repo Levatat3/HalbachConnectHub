@@ -20,7 +20,7 @@ Drop a folder in, switch it on, press **Publish**. Edits inside a folder you hav
 - **Modules (0.1-0.3):** static modules (a file or folder uploaded to Cloudflare Pages) and live modules (a service on this PC, reached through a tunnel). Per-module options, a Pets view with its own tab, a drop-off inbox for chats and tools, an activity log, and nothing switched on by default.
 - **Publishing (0.2):** content-hashed scripts and stylesheets, a `manifest.json`, a test publish to a private preview address, and a post-deploy check that the live site shows the new build.
 - **Modular site (0.4):** let Halbach build the whole site — pages, blocks, themes, menu, redirects, a preview with the real security headers, history with restore, and export/import. Classic mode stays the default. See **[docs/MODULAR.md](docs/MODULAR.md)**.
-- **Collaboration (0.5):** **areas** (someone else sends a reviewed zip through your tunnel; they never get a key of yours) and **linked sites** (other https sites as cards, menu links or pages). Collaborators can also edit and preview their page in a window (`halbach --area <folder>`) and send it from there. See **[docs/AREAS.md](docs/AREAS.md)**.
+- **Collaboration (0.5):** **areas** (someone else sends a reviewed zip through your tunnel; they never get a key of yours) and **linked sites** (other https sites as cards, menu links or pages). Collaborators can also edit and preview their page in a window (`halbach --area <folder>`) and send it from there. An area can be a small site of its own: its own menu, name, logo, colours, theme, width and (if you allow it) a reviewed stylesheet, and you can edit its page yourself. See **[docs/AREAS.md](docs/AREAS.md)**.
 - **Updates:** Settings → Updates (or `halbach update check | apply | rollback`) looks on GitHub for a newer version, shows what changed, and installs it only after you confirm: checked, test-started, backed up, undoable, and your sites, areas, keys and settings are never touched. See **[docs/UPDATES.md](docs/UPDATES.md)**.
 - **FunkThemes (0.5):** an animated theme engine and theme maker by Funk, used unmodified, with a "Powered by FunkThemes" credit. See **[third_party/funkthemes](third_party/funkthemes/README.md)**.
 
@@ -122,7 +122,7 @@ A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](exampl
 
 ## Tests
 
-485 tests cover the model, the builder (including the generated headers), the preview route, the importer and the command line.
+629 tests cover the model, the builder (including the generated headers), the preview route, the importer, areas and their stylesheet checker, the updater and the command line.
 
 ```
 python -m unittest discover -s tests -t .
