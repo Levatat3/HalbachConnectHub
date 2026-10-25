@@ -24,6 +24,7 @@ import threading
 import time
 import zipfile
 
+from . import apppages
 from . import siteschema as sc
 from .bundle import ALLOWABLE_BLOCKS, DEFAULT_BLOCKS, DEFAULT_LIMITS, KNOWN_EXT, BundleError, validate_bundle
 from .store import ValidationError
@@ -161,7 +162,7 @@ class AreaService:
     def view(self, a):
         subs = self.submissions(a["id"], limit=200)
         return {"id": a["id"], "name": a["name"], "slug": a["slug"], "enabled": a["enabled"], "paused": a["paused"], "trust": a["trust"],
-                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "themes": a.get("themes") or [], "custom_css": bool(a.get("custom_css")), "created": a["created"], "auto": a.get("auto"),
+                "nav": a["nav"], "limits": a["limits"], "blocks": a["blocks"], "embed_hosts": a.get("embed_hosts") or [], "themes": a.get("themes") or [], "custom_css": bool(a.get("custom_css")), "custom_pages": bool(a.get("custom_pages")), "created": a["created"], "auto": a.get("auto"),
                 "key": {"hint": (a.get("key") or {}).get("hint"), "created": (a.get("key") or {}).get("created"),
                         "last_used": (a.get("key") or {}).get("last_used"), "active": bool(a.get("key"))},
                 "current": a.get("current"), "versions": self.versions(a["id"]),
@@ -194,7 +195,7 @@ class AreaService:
             chosen = [b for b in (blocks or DEFAULT_BLOCKS) if b in ALLOWABLE_BLOCKS]
             key = new_passphrase()
             area = {"id": slug, "name": name, "slug": slug, "enabled": True, "paused": False, "trust": trust, "nav": bool(nav),
-                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "themes": [], "custom_css": False, "created": int(self.clock()), "current": None,
+                    "limits": _clamp_limits(limits), "blocks": chosen, "embed_hosts": [], "themes": [], "custom_css": False, "custom_pages": False, "created": int(self.clock()), "current": None,
                     "key": {"hash": hash_key(key), "created": int(self.clock()), "last_used": None, "hint": key[-5:].replace("-", "")[-4:]}}
             self.areas.append(area)
             self._save()
@@ -235,7 +236,7 @@ class AreaService:
                 themes = self._clean_theme_ids(kw["themes"])
             if "name" in kw:
                 a["name"] = sc.clean_line(kw["name"], 40) or a["name"]
-            for k in ("enabled", "paused", "nav", "custom_css"):
+            for k in ("enabled", "paused", "nav", "custom_css", "custom_pages"):
                 if k in kw:
                     a[k] = bool(kw[k])
             if "trust" in kw:
@@ -400,7 +401,13 @@ class AreaService:
             meta["changes"] = self._changes(aid, res)
             self._write_meta(aid, sid, meta)
             self.audit(aid, ip_hash, "received", meta["size"], "%d files%s" % (meta["files"], " (edited by the owner)" if origin == "owner" else ""))
-            if a["trust"] in ("trusted", "auto") and not a["paused"]:
+            ch = meta["changes"]
+            code = ch["app_changed"] or any(n.startswith(apppages.APP_DIR + "/") for n in ch["files_added"] + ch["files_changed"] + ch["files_removed"])
+            if code:                                                # code never goes live unread, whatever the trust level
+                meta["warnings"] = (meta["warnings"] + ["This changes the area's own pages (code), so it always waits for the owner to read it, even in a trusted area."])[:20]
+                meta["needs_reading"] = True
+                self._write_meta(aid, sid, meta)
+            elif a["trust"] in ("trusted", "auto") and not a["paused"]:
                 return self.approve(aid, sid, note="approved automatically (%s area)" % a["trust"], by="auto")
             return meta
 
@@ -424,7 +431,8 @@ class AreaService:
                 except OSError:
                     css = ""
             return {"doc": doc, "version": a.get("current"), "themes": list(a.get("themes") or []), "blocks": list(a["blocks"]),
-                    "custom_css": bool(a.get("custom_css")), "css": css}
+                    "custom_css": bool(a.get("custom_css")), "css": css, "custom_pages": bool(a.get("custom_pages")),
+                    "app_files": sorted(apppages.tree_files(tree)) if tree and doc.get("app") else []}
 
     def owner_edit(self, aid, doc, css=None):
         """The owner changes an area's page from this side. The edited page goes through the same checks and the same
@@ -458,6 +466,9 @@ class AreaService:
                                 z.write(f, "files/" + f.relative_to(tree / "files").as_posix())
                     if css is not None and css.strip():
                         z.writestr("files/style.css", css)
+                    if tree and doc.get("app"):                                                      # the area's own pages travel with the edit unchanged
+                        for name, f in apppages.tree_files(tree).items():
+                            z.write(f, name)
                 meta = self.ingest(aid, zp, ip_hash="owner", origin="owner")
             if meta["state"] == "invalid":
                 shutil.rmtree(self._sub_dir(aid, meta["id"]), ignore_errors=True)       # a refused edit leaves nothing behind
@@ -467,15 +478,18 @@ class AreaService:
     def _changes(self, aid, res):
         """A short diff against what is live now: pages and files added, changed, removed."""
         cur = self.current_tree(aid)
-        old_files, old_pages, old_design = {}, set(), {}
+        old_files, old_pages, old_design, old_app = {}, set(), {}, None
         if cur:
             try:
                 old_doc = json.loads((cur / "area.json").read_text(encoding="utf-8"))
                 old_pages = {p["name"] for p in old_doc["pages"]}
                 old_design = old_doc.get("design") or {}
+                old_app = old_doc.get("app")
                 for f in (cur / "files").rglob("*"):
                     if f.is_file():
                         old_files["files/" + f.relative_to(cur / "files").as_posix()] = _sha256(f)
+                for name, f in apppages.tree_files(cur).items():
+                    old_files[name] = _sha256(f)
             except (OSError, ValueError, KeyError):
                 pass
         new_files = {k: v["sha256"] for k, v in res["files"].items()}
@@ -485,9 +499,37 @@ class AreaService:
         design_changed = [look.get(k, k) for k in look if old_design.get(k) != new_design.get(k)]
         return {"files_added": sorted(set(new_files) - set(old_files))[:50], "files_removed": sorted(set(old_files) - set(new_files))[:50],
                 "files_changed": sorted(k for k in new_files if k in old_files and old_files[k] != new_files[k])[:50],
-                "pages_added": sorted(new_pages - old_pages), "pages_removed": sorted(old_pages - new_pages), "design_changed": design_changed, "first": cur is None}
+                "pages_added": sorted(new_pages - old_pages), "pages_removed": sorted(old_pages - new_pages), "design_changed": design_changed,
+                "app_changed": (res["doc"].get("app") != old_app), "first": cur is None}
 
     # ---------------------------------------------------------------- review
+    SOURCE_EXT = {"html", "js", "css", "json", "txt", "md"}
+    SOURCE_MAX = 400 * 1024
+
+    def source(self, aid, sid, path):
+        """The text of one file of a submission, so the owner can read code before approving it. Only text types, only inside the
+        submission's own folder, never more than SOURCE_MAX bytes."""
+        with self.lock:
+            self._must(aid)
+            meta = self._read_meta(aid, sid)
+            if not meta:
+                raise ValidationError("No such submission.")
+            if not isinstance(path, str) or not (path.startswith("app/") or path.startswith("files/")) or ".." in path.split("/") or "\\" in path:
+                raise ValidationError("That is not a file of the submission.")
+            if path.rsplit(".", 1)[-1].lower() not in self.SOURCE_EXT:
+                raise ValidationError("Only text files can be read here.")
+            base = (self._sub_dir(aid, sid) / "tree").resolve()
+            f = (base / path).resolve()
+            try:
+                f.relative_to(base)
+            except ValueError:
+                raise ValidationError("That is not a file of the submission.")
+            if not f.is_file():
+                raise ValidationError("That file is not in the submission.")
+            if f.stat().st_size > self.SOURCE_MAX:
+                raise ValidationError("That file is too large to read here.")
+            return {"path": path, "text": f.read_text(encoding="utf-8", errors="replace"), "size": f.stat().st_size}
+
     def _next_version(self, aid):
         vs = self.versions(aid)
         return "v%04d" % (int(vs[-1][1:]) + 1 if vs else 1)
@@ -606,7 +648,7 @@ class AreaService:
                 if tree:
                     out.append({"id": a["id"], "slug": a["slug"], "name": a["name"], "nav": a["nav"], "tree": tree,
                                 "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
-                                "custom_css": bool(a.get("custom_css"))})
+                                "custom_css": bool(a.get("custom_css")), "custom_pages": bool(a.get("custom_pages"))})
         return out
 
     # ---------------------------------------------------------------- the sender's view
@@ -620,7 +662,8 @@ class AreaService:
         if a.get("custom_css"):                                # say so in the list itself, so a client that only reads the list (an older copy) also sends it
             limits["extensions"] = sorted(set(limits.get("extensions") or []) | {"css"})
         return {"limits": limits, "blocks": a["blocks"], "embed_hosts": list(a.get("embed_hosts") or []), "themes": list(a.get("themes") or []),
-                "custom_css": bool(a.get("custom_css")), "paused": a["paused"], "trust": a["trust"], "slug": a["slug"], "format": 1}
+                "custom_css": bool(a.get("custom_css")), "custom_pages": bool(a.get("custom_pages")), "paused": a["paused"], "trust": a["trust"],
+                "slug": a["slug"], "format": 1}
 
     # ---------------------------------------------------------------- audit
     def audit(self, aid, who, what, size, detail):

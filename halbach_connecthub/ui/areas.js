@@ -99,6 +99,8 @@
         (s.warnings || []).forEach(function (w) { line.appendChild(h("div", { class: "prob", text: "⚠ " + w })); });
         if (s.note) line.appendChild(h("div", { class: "hint", text: "Note: " + s.note }));
       }
+      var appFiles = (s.file_list || []).filter(function (f) { return /^app\//.test(f.path); });
+      if (appFiles.length && s.state !== "invalid") line.appendChild(h("div", { class: "prob", text: "Contains their own pages: " + appFiles.length + " file(s), including code that runs on your domain inside a browser sandbox. Read it before you approve." }));
       if (s.state === "pending") {
         line.appendChild(h("div", { class: "row", style: "margin-top:10px" },
           btn("Preview it", "", function () {
@@ -107,12 +109,14 @@
               window.open("/preview/" + a.slug + "/", "_blank", "noopener");
             }).catch(HB.fail);
           }),
+          appFiles.length ? btn("Read their code…", "", function () { readCode(a, s, appFiles); }) : null,
           h("span", { style: "flex:1" }),
           btn("Reject…", "", function () {
             var note = prompt("A note for the sender (they can read it):", "");
             if (note !== null) post("/api/areas/" + a.id + "/reject", { sid: s.id, note: note }, "Rejected.");
           }),
           btn("Approve", "primary", function () {
+            if (appFiles.length && !confirm("This includes code (their own pages) that will run on your domain inside a sandbox. Have you read it, and are you happy with it?")) return;
             var what = a.trust === "auto"
               ? "Approve this? It becomes the area's live content and goes live on the site by itself within about five minutes."
               : "Approve this? It becomes the area's live content at your next Publish.";
@@ -121,6 +125,23 @@
       }
       box.appendChild(line);
     });
+  }
+
+  // Read the text of a submitted page, script or stylesheet before approving it. Text only (textContent), never run or rendered.
+  function readCode(a, s, appFiles) {
+    var names = appFiles.map(function (f) { return f.path; }).filter(function (n) { return /\.(html|js|css|json|txt)$/i.test(n); });
+    names.sort(function (x, y) { var ix = /\/index\.html$/.test(x) ? 0 : 1, iy = /\/index\.html$/.test(y) ? 0 : 1; return ix - iy || (x < y ? -1 : 1); });    // the page the menu opens first
+    var pick = h("select", { "aria-label": "File to read", style: "max-width:100%" }, names.map(function (n) { return h("option", { value: n, text: n }); }));
+    var view = h("pre", { class: "code", style: "max-height:420px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;margin-top:8px", text: "" });
+    function show() {
+      view.textContent = "Loading…";
+      HB.api("/api/areas/" + a.id + "/source", "POST", { sid: s.id, path: pick.value }).then(function (r) { view.textContent = r.text; }).catch(function (e) { view.textContent = e.message; });
+    }
+    pick.addEventListener("change", show);
+    HB.dialog("Their code", h("div", null,
+      h("p", { class: "hint", style: "margin:0 0 8px", text: "This is exactly what will be published. Pictures are not listed. It is shown as text and never run here." }),
+      names.length ? pick : h("p", { class: "empty", text: "No readable files." }), view), null);
+    if (names.length) show();
   }
 
   function versionsPanel(box, a) {
@@ -194,6 +215,7 @@
         : h("div", { class: "hint", text: "This area has no themes ticked (Settings → Their own look), so a look set here would be ignored. Tick one first." }),
       cssBox ? h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Their stylesheet (CSS)" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "Checked as written: no scripts, no outside addresses, only their own pictures, nothing obfuscated or encrypted. Leave it empty for none. Saving still waits for your review." }), cssBox)) : null,
+      (c.app_files && c.app_files.length) ? h("div", { class: "hint", style: "margin:0 0 8px", text: "Their own pages (" + c.app_files.length + " files in app/) are carried over unchanged. They cannot be edited here; they come from what the area sends." }) : null,
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "The page itself (advanced)" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "The whole area.json. Change anything the area's rules allow." }), ta)),
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save for review", "primary", function () {
@@ -232,6 +254,7 @@
     });
     var themeBoxes = ((DATA && DATA.themes) || []).map(function (t) { var i = h("input", { type: "checkbox", checked: (a.themes || []).indexOf(t.id) >= 0 }); return [t.id, t.label, i]; });
     var css = sw(!!a.custom_css, function () {});
+    var pagesSw = sw(!!a.custom_pages, function () {});
     var embedHosts = h("input", { type: "text", placeholder: "player.example.com, other.example.org", style: "width:100%" });
     embedHosts.value = (a.embed_hosts || []).join(", ");
     var err = h("div", { class: "err" });
@@ -245,6 +268,7 @@
         h("small", { style: "display:block;margin:2px 0 6px", text: "Tick the themes this area may choose from. With none ticked it keeps your site's look. With some ticked, its owner can set a name, logo, colours, theme and layout for their site (plain values only, never scripts), and you still review every change before it goes live." }),
         h("div", { class: "row", style: "flex-wrap:wrap" }, themeBoxes.length ? themeBoxes.map(function (p) { return h("label", { class: "hint", style: "margin-right:12px" }, p[2], " " + p[1]); }) : h("span", { class: "hint", text: "No themes are available." })))),
       row("Their own stylesheet (CSS)", "Lets them send one CSS file for their site. It is checked when it arrives and again at every build: no scripts, no outside addresses, only their own pictures, and anything obfuscated or encrypted is refused. You still review it before it goes live.", css),
+      row("Their own pages (HTML, CSS, JavaScript)", "Lets them send a small site of their own, shown from a link in their menu. It runs inside a browser sandbox: it cannot use your site's storage or cookies, cannot send anything anywhere, and can load only its own files. You read the code before it goes live (even if this area is trusted); anything packed, hidden or encoded is refused, and it is checked again at every build. Only switch this on for someone you trust.", pagesSw),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Sites they may embed" }),
         h("small", { style: "display:block;margin:2px 0 6px", text: "Needs the 'embed' block ticked above. Exact host names only (no wildcards); each is shown inside their page in a frame that cannot reach the rest of your site. Leave empty to allow none." }), embedHosts)),
       h("div", { class: "r" }, h("div", { style: "width:100%" }, h("b", { text: "Limits" }), limRow)),
@@ -253,7 +277,7 @@
       }), btn("Save", "primary", function () {
         var limits = {}; Object.keys(lim).forEach(function (k) { limits[k] = parseInt(lim[k].value, 10); });
         post("/api/areas/" + a.id + "/update", { name: name.value, enabled: en.firstChild.checked, paused: pa.firstChild.checked, nav: nav.firstChild.checked, trust: trust.value,
-          blocks: blockBoxes.filter(function (p) { return p[1].checked; }).map(function (p) { return p[0]; }), embed_hosts: embedHosts.value, custom_css: css.firstChild.checked, themes: themeBoxes.filter(function (p) { return p[2].checked; }).map(function (p) { return p[0]; }), limits: limits }, "Area saved.").catch(function (e) { err.textContent = e.message; });
+          blocks: blockBoxes.filter(function (p) { return p[1].checked; }).map(function (p) { return p[0]; }), embed_hosts: embedHosts.value, custom_css: css.firstChild.checked, custom_pages: pagesSw.firstChild.checked, themes: themeBoxes.filter(function (p) { return p[2].checked; }).map(function (p) { return p[0]; }), limits: limits }, "Area saved.").catch(function (e) { err.textContent = e.message; });
       }))));
   }
   function row(title, small, control) { return h("div", { class: "r" }, h("div", null, h("b", { text: title }), small ? h("small", { text: small }) : null), h("span", { style: "flex:1" }), control); }

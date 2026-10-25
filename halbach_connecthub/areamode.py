@@ -103,6 +103,12 @@ def dump_area(model, folder, design=None):
     doc = {"format": 1, "title": title, "description": desc, "pages": out_pages}
     if design:
         doc["design"] = design
+    try:                                                    # the window does not edit the area's own pages (app/); saving must not lose their section
+        app = json.loads((folder / "area.json").read_text(encoding="utf-8")).get("app")
+    except (OSError, ValueError, AttributeError):
+        app = None
+    if app:
+        doc["app"] = app
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "files").mkdir(parents=True, exist_ok=True)
     (folder / "area.json").write_text(json.dumps(doc, indent=2), encoding="utf-8")

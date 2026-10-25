@@ -4,6 +4,7 @@ A bundle holds exactly:
     area.json          {"format": 1, "title", "description", "pages": [{"name", "title", "blocks": [...]}]}
                        (or a single page as "blocks": [...] at the top level)
     files/<path>       pictures and documents the blocks refer to as "files/<path>"
+    app/<path>         (only when the owner allows it) the area's own pages: html, scripts, stylesheets, data and pictures
 
 Nothing is ever extracted with extractall: each entry is checked, then streamed with a hard cap into a temporary
 folder that is only renamed into place when the whole bundle passed. Stdlib only.
@@ -20,7 +21,7 @@ import unicodedata
 import zipfile
 import zlib
 
-from . import csscheck
+from . import apppages, csscheck
 from . import siteschema as sc
 
 FORMAT = 1
@@ -47,7 +48,7 @@ DANGEROUS_PARTS = {"html", "htm", "xhtml", "js", "mjs", "svg", "xml", "swf", "ex
 RESERVED_NAMES = {"con", "prn", "aux", "nul"} | {"com%d" % i for i in range(1, 10)} | {"lpt%d" % i for i in range(1, 10)}
 SEGMENT_RE = re.compile(r"^[A-Za-z0-9_()+,@~\-][A-Za-z0-9 _.()+,@~\-]*$")
 BAD_UNICODE = re.compile("[​-‏‪-‮⁦-⁩﻿\u0000-\u001f\u007f]")
-TOP_KEYS = {"format", "title", "description", "pages", "blocks", "design"}
+TOP_KEYS = {"format", "title", "description", "pages", "blocks", "design", "app"}
 FILE_REF = re.compile(r"files/[A-Za-z0-9_()+,@~/. \-]+")
 
 
@@ -337,6 +338,14 @@ def check_content(path, rel, ext, limits, warnings):
         except UnicodeDecodeError:
             return "'%s' is not UTF-8 text" % _show(rel)
         return None if len(data) <= csscheck.MAX_CSS_BYTES else "'%s' is larger than %d KB" % (_show(rel), csscheck.MAX_CSS_BYTES // 1024)
+    if ext in ("html", "js", "json"):                                       # the deep checks run once every file is known (apppages.check_tree)
+        try:
+            with open(path, "rb") as f:
+                data = f.read(apppages.MAX_TEXT_BYTES + 1)
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            return "'%s' is not UTF-8 text" % _show(rel)
+        return None if len(data) <= apppages.MAX_TEXT_BYTES else "'%s' is larger than %d KB" % (_show(rel), apppages.MAX_TEXT_BYTES // 1024)
     if ext in ("md", "txt"):
         if b"\x00" in head:
             return "'%s' is not a text file" % _show(rel)
@@ -380,13 +389,21 @@ def inspect_archive(zf, limits):
             raise BundleError("Two files have the same name once capitals are ignored: '%s'." % _show(name))
         seen.add(key)
         if name != "area.json":
-            if not name.startswith("files/"):
-                raise BundleError("'%s' is not allowed. A bundle holds only area.json and a files/ folder." % _show(name))
-            if name.lower().endswith(".css") and "css" not in allowed:
-                raise BundleError("'%s' is a stylesheet, which the owner has not allowed this area to send." % _show(name))
-            bad = extension_problem(name, allowed)
-            if bad:
-                raise BundleError(bad)
+            if name.startswith(apppages.APP_DIR + "/"):
+                if not limits.get("app_pages"):
+                    raise BundleError("'%s' is part of the area's own pages, which the owner has not allowed this area to send." % _show(name))
+                bad = apppages.name_problem(name)
+                if bad:
+                    raise BundleError(bad)
+            elif not name.startswith("files/"):
+                raise BundleError("'%s' is not allowed. A bundle holds only area.json, a files/ folder%s." % (
+                    _show(name), " and an app/ folder" if limits.get("app_pages") else ""))
+            else:
+                if name.lower().endswith(".css") and "css" not in allowed:
+                    raise BundleError("'%s' is a stylesheet, which the owner has not allowed this area to send." % _show(name))
+                bad = extension_problem(name, allowed)
+                if bad:
+                    raise BundleError(bad)
         if info.file_size > int(limits.get("max_file_mb", 50)) * 1024 * 1024:
             raise BundleError("'%s' is larger than %d MB." % (_show(name), int(limits.get("max_file_mb", 50))))
         if info.file_size > RATIO_FLOOR and info.compress_size > 0 and info.file_size / info.compress_size > MAX_RATIO:
@@ -396,6 +413,8 @@ def inspect_archive(zf, limits):
         out.append((info, name))
     if sum(1 for _, n in out if n != "area.json") > max_files:
         raise BundleError("The bundle has too many files (the limit is %d)." % max_files)
+    if sum(1 for _, n in out if n.startswith(apppages.APP_DIR + "/")) > apppages.MAX_APP_FILES:
+        raise BundleError("The area's own pages have too many files (the limit is %d)." % apppages.MAX_APP_FILES)
     if total > int(limits.get("max_bundle_mb", 80)) * 1024 * 1024:
         raise BundleError("The bundle is larger than %d MB once unpacked." % int(limits.get("max_bundle_mb", 80)))
     if total > RATIO_FLOOR and packed > 0 and total / packed > MAX_RATIO:
@@ -536,7 +555,7 @@ def parse_area_doc(raw, area, registry, files, warnings, root=None):
                 sc.validate_slug(pname)
         except sc.FieldError as e:
             raise BundleError("Page %d: %s" % (pi + 1, e))
-        if pname in names or pname in ("files",):
+        if pname in names or pname in ("files", apppages.APP_DIR):
             raise BundleError("Two pages share the name '%s' (or it is reserved)." % pname)
         names.add(pname)
         blocks_in = rp.get("blocks")
@@ -586,7 +605,7 @@ def parse_area_doc(raw, area, registry, files, warnings, root=None):
             if logo and logo not in files:
                 errors.append("design: the logo %s is not in the bundle" % _show(logo))
     css_name = design.get("css")
-    for n in sorted(f for f in files if f.lower().endswith(".css")):
+    for n in sorted(f for f in files if f.startswith("files/") and f.lower().endswith(".css")):
         if n != css_name:
             errors.append("%s is not used: name it in design.css (an area has one stylesheet)" % _show(n))
     if css_name:
@@ -599,11 +618,27 @@ def parse_area_doc(raw, area, registry, files, warnings, root=None):
                 res = csscheck.check(fh.read().decode("utf-8"), set(files), area["slug"])
             errors += ["%s: %s" % (_show(css_name), p) for p in res.problems]
             warnings += ["%s: %s" % (_show(css_name), w) for w in res.warnings]
+    app = None
+    app_files = [f for f in files if f.startswith(apppages.APP_DIR + "/")]
+    if doc.get("app") not in (None, {}) or app_files:
+        if not area.get("custom_pages"):
+            warnings.append("The 'app' section was ignored: the owner has not enabled own pages for this area.")
+        else:
+            app, errs = apppages.clean_app(doc.get("app"), files)
+            errors += errs
+            if root is None:
+                errors.append("app: the area's own pages cannot be checked here")
+            else:
+                checked = apppages.check_tree(root)
+                errors += checked.problems
+                warnings += checked.warnings
     if errors:
         raise BundleError(errors[:8])
     out = {"format": FORMAT, "title": title, "description": desc, "pages": pages}
     if design:
         out["design"] = design
+    if app:
+        out["app"] = app
     return out
 
 
@@ -617,6 +652,7 @@ def validate_bundle(zip_path, dest, area, registry, existing_bytes=0):
     limits = dict(DEFAULT_LIMITS, **(area.get("limits") or {}))
     if area.get("custom_css"):                                  # a stylesheet is only a possible file type when the owner allowed it
         limits["extensions"] = sorted(set(limits.get("extensions") or []) | {"css"})
+    limits["app_pages"] = bool(area.get("custom_pages"))          # the area's own pages (app/) likewise
     area = dict(area, limits=limits)
     tmp = str(dest) + ".part"
     shutil.rmtree(tmp, ignore_errors=True)

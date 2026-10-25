@@ -92,6 +92,7 @@
       }))));
 
     designSection(r);
+    pagesSection(r);
 
     // blocks
     r.appendChild(h("div", { class: "row", style: "margin:26px 0 12px" }, h("h2", { class: "h2", style: "margin:0", text: "Content" }), h("span", { style: "flex:1" }),
@@ -243,6 +244,38 @@
         return out;
       }
     };
+  }
+
+  // ---------------------------------------------------------------- the area's own pages (an app/ folder next to area.json)
+  function pagesSection(r) {
+    var pg = DESIGN && DESIGN.pages;
+    if (!pg || (!pg.files && !pg.app && pg.allowed !== true)) return;
+    r.appendChild(h("div", { class: "row", style: "margin:26px 0 12px" }, h("h2", { class: "h2", style: "margin:0", text: "Your own pages" })));
+    var box = h("div", { class: "set", style: "max-width:860px" });
+    r.appendChild(box);
+    if (pg.allowed === false) {
+      box.appendChild(h("div", { class: "r" }, h("div", null, h("b", { text: "Not allowed for this area" }),
+        h("small", { text: "The owner has not turned on own pages for this area, so your app folder cannot be sent. Ask the owner to allow it, or move the folder away." }))));
+      return;
+    }
+    if (!pg.files) {
+      box.appendChild(h("div", { class: "r" }, h("div", null, h("b", { text: "You may have your own pages" }),
+        h("small", { text: "Put HTML, scripts, stylesheets, data (JSON) and pictures in a folder called app next to area.json, then add \"app\": {\"entry\": \"app/index.html\", \"label\": \"Play\"} to area.json. " +
+          "They run in a browser sandbox: no storage or cookies, no forms, no outside addresses, only your own files. The owner reads your code before it goes live, and hidden, packed or encoded code is refused." }))));
+      return;
+    }
+    box.appendChild(h("div", { class: "r" }, h("div", null, h("b", { text: pg.files + " file" + (pg.files === 1 ? "" : "s") + " in your app folder" }),
+      h("small", { text: pg.app ? "Menu link: \"" + pg.app.label + "\", opens " + pg.app.entry + ". " + (pg.allowed === null ? "Not connected, so the owner's rules are not known yet." : "The owner allows own pages.")
+        : "area.json has no \"app\" section yet, so these files would be refused. Add \"app\": {\"entry\": \"app/index.html\", \"label\": \"Play\"}." })),
+      h("span", { style: "flex:1" }),
+      pg.app ? btn("Preview my pages", "primary", function () {
+        api("/api/site/preview", "POST", {}).then(function (res) {
+          if (res.errors && res.errors.length) { toast("Fix the problems first: " + res.errors[0].message); return; }
+          var bad = (res.warnings || []).filter(function (w) { return /own pages/.test(w.message); })[0];
+          if (bad) { toast(bad.message); return; }
+          window.open("/preview/" + pg.app.entry, "_blank");
+        }).catch(fail);
+      }) : null));
   }
 
   function blockPicker(p, allow) {

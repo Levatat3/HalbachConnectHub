@@ -23,6 +23,8 @@ A **new passphrase** makes the old one stop working immediately. **Revoke** stop
 - **Trusted**: a valid submission is approved automatically (still checked, still a saved version, still needs your Publish).
 - **Auto**: a valid submission is approved *and published automatically* - at most one automatic publish every five minutes, no matter how fast submissions arrive. It goes out through the same Publish pipeline, so the area's content can only ever land under its own address. A standing banner in the window shows which areas publish by themselves, and **Freeze it** there (or pause the area, or switch its trust back) cancels the waiting publish at once and returns it to review. If the live site does not confirm a new automatic build, everything that publish pushed is put back, the area is frozen, and the previous content is deployed once more.
 
+**Code is the exception:** when an area is allowed its own pages (HTML and JavaScript, see below), any change to them waits for you to read it, even in a Trusted or Auto area.
+
 **Auto-publish is experimental and off by default.** It is gated behind the `auto_publish_enabled` setting (off unless you turn it on). Leave it off unless you have reviewed the threat model in `docs/SECURITY-REVIEW.md`.
 
 ## For the collaborator (for example Funk)
@@ -102,7 +104,31 @@ An area is a small site of its own under your domain, not a few blocks inside yo
   - Also: a size limit (100 KB), balanced brackets, at most 6 levels of nesting, UTF-8 text, and the file must be the one named in `design.css` (an area has one stylesheet, and the file is not published as a separate file).
 
   If you later switch the setting off, the stylesheet is left out with a warning at the next Publish. Visitors see none of this: they just see the page, with no prompts or warnings.
-- **Coming next (planned, not built):** the area's own HTML/CSS/JS pages served as sandboxed documents. The same rule will apply: **anything obfuscated or encrypted is blocked**, so everything you review is readable.
+- **Their own pages: see the next section.** It is off unless you switch it on, area by area.
+
+### Their own pages (tier 3: HTML, CSS and JavaScript), if you allow it
+In **Areas → Settings → Their own pages**, switch it on. The area may then send a small site of its own in an `app/` folder next to `area.json`:
+
+```
+area.json        "app": { "entry": "app/index.html", "label": "Tool shelf" }
+app/index.html   plain pages, plus about.html, tools/index.html ...
+app/main.js      scripts (plain scripts, loaded with <script src="main.js">)
+app/style.css    stylesheets (loaded with <link rel="stylesheet" href="style.css">)
+app/data/*.json  data the scripts read with fetch("data/items.json")
+app/img/*.png    pictures (png, jpg, gif, webp)
+```
+Everything is addressed relative to the page that uses it (`img/logo.png`, `../style.css`), and must stay inside `app/`. The area's menu gets one extra link (the `label`) that opens the `entry` page. The pages are published at `/<area>/app/` exactly as they were checked.
+
+- **What visitors' browsers do with them.** Every file under `/<area>/app/` is sent with a security header that puts the pages in a **browser sandbox**: they get no access to your site's storage or cookies (`localStorage` and cookies throw an error), cannot submit forms, cannot open pop-ups, can load **only files from your own site** and can send nothing anywhere else (no outside scripts, pictures, fonts or network calls). Links to other sites work as plain links in the same tab. The header is always enforced, whatever mode your site's own policy is in, and your site's policy is detached for these paths so the two cannot combine into something neither meant. (Shown working on Cloudflare Pages and in Chrome: the page's scripts and data files load; an outside fetch and an outside picture are blocked; storage and cookies are blocked.)
+- **What the owner reads.** A change to an area's own pages (any file in `app/`, or the `app` section) **never goes live automatically, even in a trusted or auto area**: it waits in Review. The review card says so, lists the files, and **Read their code…** shows the text of each file exactly as it will be published (as text, never run). Approving asks you to confirm you have read it.
+- **What is checked, as written (and again at every build).** The same rule as for stylesheets: anything the owner cannot read is refused.
+  - *Pages:* only a fixed list of plain tags; no forms, frames, objects, `<base>`, SVG, audio or video; no inline event handlers (`onclick`...): add listeners in a script; nothing may load from outside (`src` and `href` are the area's own files, except a plain link `<a href="https://...">`); no password or file inputs; links may not open a new tab (a sandbox blocks it).
+  - *Scripts:* no packed or one-line files, long encoded strings, strings of character codes or `_0x1234` names; no `eval`, no building code from text, no `atob`, no modules (plain scripts only); no WebSocket, XMLHttpRequest, workers or beacons; no outside address written into a script; no code that sends the visitor elsewhere (`location = ...`, `window.open`). Reading the address (`location.search`) is fine.
+  - *Stylesheets and styles:* the stylesheet rules above, with pictures taken from the area's own `app/` files.
+  - *Files:* html, js, css, json, txt, png, jpg, gif, webp only; at most 200 files, 300 KB per text file; names are checked like everything else. Pictures have their camera data removed as usual.
+- **If you switch it off later**, or a file stops passing the checks, the pages are left out of the next build with a warning, and the menu link goes with them.
+- **The honest limits.** The checks keep code readable and refuse the obvious tricks; they cannot prove that arbitrary JavaScript is harmless. What contains it is the sandbox and the header. A page that follows the rules can still **look like your site** (it is on your domain), show misleading text, link visitors elsewhere, or use their processor. It can **read the public files of your site** (static files are readable across origins), so never put anything private on the site. Switch this on only for someone you trust, and read what they send.
+- **Preview.** The collaborator's window has a **Your own pages** section and a **Preview my pages** button, served with the same header; your own review preview does too.
 
 ### Embedding another site (owner-gated)
 The `embed` block shows another site inside the page in a frame. It is **off by default** and needs two things from the owner, in the area's **Settings**: tick `embed` under *Blocks they may use*, and list the exact hosts under *Sites they may embed* (for example `funkstudio-share.example.workers.dev`).

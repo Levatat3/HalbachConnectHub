@@ -21,8 +21,9 @@ import secrets
 import shutil
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
-from . import csscheck, publisher
+from . import apppages, csscheck, publisher
 from .siteschema import RESERVED_SLUGS, FieldError, clean_area_design, embed_url_host
 from .store import MAX_FILES, MAX_FILE_BYTES, collect_files
 
@@ -149,7 +150,24 @@ RELAXED_MODULE_CSP = ("default-src 'self' https: data: blob: 'unsafe-inline' 'wa
                       "base-uri 'self'; frame-ancestors 'self'")
 
 
-def build_headers(csp, csp_mode, area_rules=()):
+def app_origins(store, base_url, url_base):
+    """The addresses an area's own pages may load their own files from: this site's, nothing else. A local preview is served
+    from the hub itself; a deployed build from the site's domain and its Cloudflare Pages addresses (including preview ones)."""
+    if url_base:
+        return ["http://127.0.0.1:*", "http://localhost:*"]
+    st = getattr(store, "state", None) or {}
+    cfg = st.get("settings") or {}
+    out = []
+    for host in (urlparse(base_url or "").hostname, cfg.get("domain")):
+        if host and re.match(r"^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$", host.lower()):
+            out.append("https://" + host.lower())
+    proj = cfg.get("project")
+    if proj and re.match(r"^[a-z0-9-]{1,58}$", proj):
+        out += ["https://%s.pages.dev" % proj, "https://*.%s.pages.dev" % proj]
+    return list(dict.fromkeys(out))
+
+
+def build_headers(csp, csp_mode, area_rules=(), app_paths=(), app_hosts=()):
     name = {"enforce": "Content-Security-Policy", "report-only": "Content-Security-Policy-Report-Only"}.get(csp_mode)
     lines = ["/*"]
     if name:
@@ -164,6 +182,12 @@ def build_headers(csp, csp_mode, area_rules=()):
             # Someone else's content: only what its blocks need, and nothing in its files folder can ever run.
             lines += ["/%s/*" % slug, "  ! %s" % name, "  %s: %s" % (name, area_csp), "",
                       "/%s/files/*" % slug, "  ! %s" % name, "  %s: default-src 'none'; sandbox" % name, ""]
+    for base in app_paths:
+        # An area's own pages: sandboxed (no storage, no forms, own files only). Always enforced, whatever mode the site's policy is in,
+        # and the site's policy is detached so the two cannot combine into something neither meant.
+        lines += ["%s/app/*" % base, "  ! Content-Security-Policy", "  ! Content-Security-Policy-Report-Only",
+                  "  Content-Security-Policy: %s" % apppages.app_csp(app_hosts),
+                  "  Access-Control-Allow-Origin: *", ""]           # a sandboxed page reads its own data files across an opaque origin, so they must allow it
     return "\n".join(lines)
 
 
@@ -174,12 +198,14 @@ def _sites_menu_html(sites):
     return '<details class="hs-sites"><summary>Sites</summary><div class="hs-sites-menu">%s</div></details>' % items
 
 
-def _area_nav_html(area_pages, current_id, url_base, back_name):
+def _area_nav_html(area_pages, current_id, url_base, back_name, app=None):
     """A sub-site's own menu: its own pages, then a way back to the main site. Never the main site's tabs."""
     out = []
     for p in area_pages:
         cur = ' aria-current="page"' if p["id"] == current_id else ""
         out.append('<a data-page="%s" href="%s"%s>%s</a>' % (html.escape(p["id"]), html.escape(url_base + page_path(p)), cur, html.escape(p["label"])))
+    if app:
+        out.append('<a class="hs-app" href="%s">%s</a>' % (html.escape(app["path"], quote=True), html.escape(app["label"])))
     out.append('<a class="hs-back" href="%s/">&larr; %s</a>' % (html.escape(url_base), html.escape(back_name)))
     return "".join(out)
 
@@ -237,11 +263,13 @@ def _shell(model, title, desc, head_extra, body_main, nav, page_json, runtime_ur
 
 
 # --------------------------------------------------------------------------- the build
-def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, include_drafts=False, areas=None, extra_css=None, embed_sameorigin=False):
+def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, include_drafts=False, areas=None, extra_css=None, embed_sameorigin=False,
+               area_app_dir=None):
     """Build the whole site into stage_dir. Returns a BuildResult; check .ok before deploying.
 
     extra_css (already checked) is appended to the site theme's stylesheet, and embed_sameorigin gives embed frames the same-origin
-    permission an area's approved embeds get on the real site. Both are for a collaborator's local preview only."""
+    permission an area's approved embeds get on the real site. area_app_dir is a collaborator's folder whose app/ pages are
+    published at /app/ with their sandbox header. All three are for a collaborator's local preview only."""
     res = BuildResult()
     data = model.data
     stage = Path(stage_dir)
@@ -274,6 +302,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     area_pages, area_types, area_frames = [], {}, {}
     area_designs, area_shell, area_page_list, sites_list = {}, {}, {}, []
     area_css = {}
+    area_app, app_paths = {}, []                               # areas whose own pages (tier 3) are published, and where they live
     model_slugs = {p["slug"] for p in data["pages"]}
     for ar in (areas or []):
         slug = ar["slug"]
@@ -308,6 +337,23 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                 design = {k: v for k, v in design.items() if k != "css"}
             else:
                 area_css[ar["id"]] = chk.css
+        app_info = None
+        if doc.get("app"):                                      # the area's own pages are checked again here too: the owner may have switched them off since
+            tree_root = Path(ar["tree"])
+            if not ar.get("custom_pages"):
+                res.warnings.append({"path": "areas/" + ar["id"], "message": "The own pages of area '%s' were left out because the area is no longer allowed to have them." % ar["name"]})
+            else:
+                chk = apppages.check_tree(tree_root)
+                spec = doc["app"] if isinstance(doc["app"], dict) else {}
+                entry = spec.get("entry")
+                if not chk.ok or entry not in apppages.tree_files(tree_root):
+                    res.warnings.append({"path": "areas/" + ar["id"], "message": "The own pages of area '%s' were left out: %s" % (
+                        ar["name"], chk.problems[0] if chk.problems else "the entry page is missing")})
+                else:
+                    app_info = {"entry": entry, "label": str(spec.get("label") or "Pages")[:apppages.MAX_LABEL], "path": url_base + "/" + slug + "/" + (entry[:-len("index.html")] if entry.endswith("/index.html") else entry)}      # a folder's own address: Cloudflare would only redirect to it
+                    area_app[ar["id"]] = app_info
+                    app_paths.append("/" + slug)
+                    res.warnings += [{"path": "areas/" + ar["id"], "message": "own pages: " + w} for w in chk.warnings]
         area_designs[ar["id"]] = design
         dbrand = design.get("brand") or {}
         bname = dbrand.get("name") or ar["name"]
@@ -316,7 +362,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                       "tagline": dbrand.get("tagline") or "", "home": url_base + "/" + slug + "/",
                       "logo": (url_base + "/" + slug + "/" + dbrand["logo"]) if dbrand.get("logo") else None},
             "settings": dict(data["settings"], nav_style=(design.get("layout") or {}).get("nav") or data["settings"]["nav_style"]),
-            "slug": slug}
+            "slug": slug, "app": app_info}
         area_page_list[ar["id"]] = []
         for i, pg in enumerate(doc.get("pages", [])):
             blocks = []
@@ -483,6 +529,27 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(f, dest)
+        if ar["id"] in area_app:                                # the area's own pages, only at /<slug>/app/ (and only after the checks above passed)
+            app_base = (stage / ar["slug"] / "app").resolve()
+            for name, f in apppages.tree_files(ar["tree"]).items():
+                dest = (stage / ar["slug"] / name).resolve()
+                try:
+                    dest.relative_to(app_base)
+                except ValueError:
+                    res.errors.append({"path": "areas/" + ar["id"], "message": "A file in area '%s' would land outside the area's folder." % ar["name"]})
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest)
+    if area_app_dir:                                            # a collaborator's own preview: their folder's app/ at /app/
+        chk = apppages.check_tree(area_app_dir)
+        if chk.ok and apppages.tree_files(area_app_dir):
+            for name, f in apppages.tree_files(area_app_dir).items():
+                dest = stage / name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest)
+            app_paths.append("")
+        elif not chk.ok:
+            res.warnings.append({"path": "app", "message": "Preview leaves out your own pages: %s (the owner would refuse them)." % chk.problems[0]})
     if res.errors:
         return res
 
@@ -583,7 +650,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         canonical = (base_url + path) if base_url else None
         main_fallback = '<noscript><p class="hs-empty">This page needs JavaScript to show its content.</p></noscript>'
         if shell_model:
-            nav_html = _area_nav_html(area_page_list[p["area"]], p["id"], url_base, brand["name"])
+            nav_html = _area_nav_html(area_page_list[p["area"]], p["id"], url_base, brand["name"], shell_model.get("app"))
             page_desc = p["description"] or shell_model["brand"].get("tagline", "")
         else:
             nav_html = _nav_html(data, pages, p["id"], url_base, sites_list)
@@ -626,7 +693,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
         if ar["id"] in area_types:
             area_rules.append((ar["slug"], assemble_csp(registry, sorted(area_types[ar["id"]]), [], [area_designs.get(ar["id"], {}).get("theme") or site_theme], live_base, settings["analytics"],
                                                                   sorted(area_frames.get(ar["id"], ())))))
-    headers = build_headers(csp, settings["csp"], area_rules)
+    headers = build_headers(csp, settings["csp"], area_rules, app_paths, app_origins(store, base_url, url_base))
     rules = sum(1 for ln in headers.splitlines() if ln and not ln.startswith(" "))
     if rules > HEADER_RULE_LIMIT or any(len(ln) > HEADER_LINE_LIMIT for ln in headers.splitlines()):
         res.errors.append({"path": "headers", "message": "The security policy is too long for Cloudflare Pages (a header line over 2,000 characters). Use fewer embedded sites."})

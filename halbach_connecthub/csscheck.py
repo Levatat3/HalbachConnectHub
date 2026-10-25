@@ -8,6 +8,7 @@ outside addresses at all (a picture may only be one of the area's own files), no
 check(text, files, slug) -> Result(problems, warnings, css). With a slug the returned css has its picture addresses
 turned into the area's own absolute addresses, ready for the builder. Stdlib only.
 """
+import posixpath
 import re
 
 MAX_CSS_BYTES = 100 * 1024
@@ -19,6 +20,7 @@ MAX_COMMENT = 3000
 MAX_DEPTH = 6
 OK_AT = {"media", "supports", "keyframes", "-webkit-keyframes", "layer", "container", "font-face", "property"}
 IMAGE_URL = re.compile(r"^files/[A-Za-z0-9_()+,@~/. \-]+\.(?:png|jpe?g|gif|webp)$", re.I)
+APP_IMAGE_URL = re.compile(r"^[A-Za-z0-9_()+,@~/. \-]+\.(?:png|jpe?g|gif|webp)$", re.I)       # a page of the area's own app: a relative picture, no scheme
 BAD_CHARS = re.compile("[​-‏‪-‮⁦-⁩﻿\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 FORBIDDEN_FN = re.compile(r"(?<![a-z0-9_-])(image-set|-webkit-image-set|image|src|cross-fade|-webkit-cross-fade|element|-moz-element|paint|attr|expression)\s*\(", re.I)
 FORBIDDEN_WORDS = re.compile(r"-moz-binding|(?<![a-z0-9_-])behavior\s*:|javascript\s*:|vbscript\s*:|(?<![a-z0-9_-])data\s*:", re.I)
@@ -93,8 +95,25 @@ def _mask(text, problems):
     return "".join(code), strings
 
 
-def check(text, files=None, slug=None, url_base=""):
-    """Check one stylesheet. files = the set of "files/..." names that exist in the bundle (None = do not check they exist)."""
+def _app_picture(raw, rel_base, files):
+    """For a stylesheet that belongs to an area's own pages (tier 3): the picture it names, relative to the stylesheet, must be
+    one of the area's own app/ files. Returns a problem sentence or None."""
+    if "\\" in raw or not APP_IMAGE_URL.match(raw) or raw.startswith("/") or "//" in raw:
+        return "only a picture from this area's own pages (url(\"images/name.png\")) can be used"
+    target = posixpath.normpath(posixpath.join(rel_base, raw))
+    if not target.startswith("app/") or ".." in target.split("/"):
+        return "that picture is outside the area's own pages"
+    if files is not None and target not in files:
+        return "that picture is not in the bundle"
+    return None
+
+
+def check(text, files=None, slug=None, url_base="", rel_base=None):
+    """Check one stylesheet. files = the set of names that exist in the bundle (None = do not check they exist).
+
+    By default this is an area's one stylesheet (pictures are "files/..." and get the area's address). With rel_base (the folder of
+    the stylesheet inside the bundle, such as "app/css") it is a stylesheet of the area's own pages: pictures are relative paths
+    that must stay inside app/, and nothing is rewritten."""
     res = Result()
     pr, wr = res.problems, res.warnings
     if not isinstance(text, str):
@@ -152,6 +171,11 @@ def check(text, files=None, slug=None, url_base=""):
             quote, raw = strings[int(m.group(1))]
         else:
             quote, raw = '"', m.group(2)
+        if rel_base is not None:
+            why = _app_picture(raw, rel_base, files)
+            if why:
+                pr.append("url(%s) is not allowed: %s" % (_short(raw), why))
+            continue
         if "\\" in raw or not IMAGE_URL.match(raw) or any(seg in ("", ".", "..") for seg in raw.split("/")):
             pr.append("url(%s) is not allowed: only a picture from this area's files folder (url(\"files/name.png\")) can be used" % _short(raw))
             continue
@@ -166,7 +190,7 @@ def check(text, files=None, slug=None, url_base=""):
         wr.append("uses a very high z-index (%s), which can cover parts of the page" % m.group(1))
     if pr:
         return res
-    base = (url_base + "/" + (slug + "/" if slug else "")) if slug is not None else ""     # slug "" = the root of a preview
+    base = (url_base + "/" + (slug + "/" if slug else "")) if slug is not None and rel_base is None else ""     # slug "" = the root of a preview
     out, last = [], 0
     for (a, b), raw in sorted(replaced.items()):
         out.append(code[last:a])

@@ -6,6 +6,12 @@ derived from this repository's commit history, not written after the fact.
 
 ## [Unreleased]
 
+### Added
+- **Areas: their own pages (tier 3):** an owner-enabled (off by default) `app/` folder of HTML, scripts, stylesheets, data and pictures,
+  linked from the area's menu and published sandboxed at `/<area>/app/`: no storage or cookies, no forms, own files only. Checked as written
+  (hidden, packed or encoded code is refused), again at every build, and always held for the owner to read, even in a trusted area. The owner
+  can read the code from the review card. See `docs/AREAS.md`.
+
 ## [0.6.0] - 2026-10-24
 
 ### Added

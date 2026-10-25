@@ -28,7 +28,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from . import csscheck
+from . import apppages, csscheck
 from .bundle import BundleError, check_name, extension_problem, DEFAULT_LIMITS, validate_bundle
 from .registry import Registry
 from .store import home_dir
@@ -75,8 +75,9 @@ def init_folder(folder):
     return folder / "area.json"
 
 
-def build_zip(folder, out_path, limits=None, custom_css=False):
-    """Zip folder (area.json + files/) with the rules the owner's side will apply, so mistakes show up here first."""
+def build_zip(folder, out_path, limits=None, custom_css=False, custom_pages=False):
+    """Zip folder (area.json + files/, and app/ when the owner allows the area's own pages) with the rules the owner's side will
+    apply, so mistakes show up here first."""
     folder = Path(folder)
     limits = dict(DEFAULT_LIMITS, **(limits or {}))
     if not (folder / "area.json").is_file():
@@ -108,6 +109,28 @@ def build_zip(folder, out_path, limits=None, custom_css=False):
                 raise ClientError("%s is larger than %d MB." % (rel, int(limits["max_file_mb"])))
             total += size
             entries.append((rel, f))
+    app_dir = folder / apppages.APP_DIR
+    if app_dir.is_dir() and any(app_dir.rglob("*")):
+        if not custom_pages:
+            raise ClientError("The owner has not allowed this area its own pages, so the app folder cannot be sent. Remove it, or ask the owner to allow it.")
+        n_app = 0
+        for f in sorted(app_dir.rglob("*")):
+            if f.is_symlink():
+                raise ClientError("%s is a link; links are not allowed." % f.name)
+            if not f.is_file():
+                continue
+            rel = apppages.APP_DIR + "/" + f.relative_to(app_dir).as_posix()
+            bad = check_name(rel) or apppages.name_problem(rel)
+            if bad:
+                raise ClientError(bad)
+            size = f.stat().st_size
+            if size > int(limits["max_file_mb"]) * 1024 * 1024:
+                raise ClientError("%s is larger than %d MB." % (rel, int(limits["max_file_mb"])))
+            n_app += 1
+            if n_app > apppages.MAX_APP_FILES:
+                raise ClientError("The app folder has more than %d files." % apppages.MAX_APP_FILES)
+            total += size
+            entries.append((rel, f))
     if len(entries) - 1 > int(limits["max_files"]):
         raise ClientError("That is more than %d files." % int(limits["max_files"]))
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -124,7 +147,7 @@ def build_zip(folder, out_path, limits=None, custom_css=False):
     return size
 
 
-def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts=None, themes=None, custom_css=False):
+def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts=None, themes=None, custom_css=False, custom_pages=False):
     """Offline check: zip the folder and run the owner's exact validator over it, without contacting anyone.
 
     Returns {"pages", "blocks", "files", "warnings"}. Raises ClientError (the folder cannot even be zipped) or
@@ -132,13 +155,13 @@ def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts
     """
     limits = dict(DEFAULT_LIMITS, **(limits or {}))
     area = {"slug": "area", "limits": limits, "embed_hosts": list(embed_hosts or []), "themes": list(themes or []),
-            "custom_css": bool(custom_css)}                                             # the real slug only matters for URLs, not for the rules
+            "custom_css": bool(custom_css), "custom_pages": bool(custom_pages)}                                             # the real slug only matters for URLs, not for the rules
     if blocks:
         area["blocks"] = list(blocks)
     tmp = Path(tempfile.mkdtemp(prefix="halbach-validate-"))
     try:
         zip_path, dest = tmp / "bundle.zip", tmp / "tree"
-        build_zip(folder, zip_path, limits, custom_css=custom_css)
+        build_zip(folder, zip_path, limits, custom_css=custom_css, custom_pages=custom_pages)
         result = validate_bundle(zip_path, dest, area, registry or Registry())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -304,18 +327,18 @@ def main(argv):
                 except (OSError, ValueError) as e:
                     raise ClientError("Could not read the limits file (%s)." % e)
             blocks = hosts = themes = None
-            css_ok = False
+            css_ok = pages_ok = False
             rules_from = "the default rules (not connected, so this area's own settings are not known)"
             if not a.limits:
                 try:                                                  # connected: check against THIS area's rules (its blocks, embed hosts, limits)
                     info = _resolve(a).limits()
                     limits, blocks, hosts = info.get("limits"), info.get("blocks"), info.get("embed_hosts")
-                    themes, css_ok = info.get("themes"), bool(info.get("custom_css"))
+                    themes, css_ok, pages_ok = info.get("themes"), bool(info.get("custom_css")), bool(info.get("custom_pages"))
                     rules_from = "this area's own rules"
                 except ClientError:
                     pass
             try:
-                summary = validate_folder(a.folder, limits, blocks=blocks, embed_hosts=hosts, themes=themes, custom_css=css_ok)
+                summary = validate_folder(a.folder, limits, blocks=blocks, embed_hosts=hosts, themes=themes, custom_css=css_ok, custom_pages=pages_ok)
             except BundleError as e:
                 print("This folder would be refused:")
                 for r in e.reasons:
@@ -341,7 +364,7 @@ def main(argv):
             print("This area is paused by its owner; nothing can be sent right now.")
             return 1
         tmp = Path(a.folder) / ".halbach-bundle.zip"
-        build_zip(a.folder, tmp, lim["limits"], custom_css=bool(lim.get("custom_css")))
+        build_zip(a.folder, tmp, lim["limits"], custom_css=bool(lim.get("custom_css")), custom_pages=bool(lim.get("custom_pages")))
         try:
             code, body = client.send_zip(tmp)
         finally:

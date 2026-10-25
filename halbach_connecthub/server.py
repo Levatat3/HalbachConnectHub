@@ -102,11 +102,30 @@ class Hub:
         except (ValidationError, areaclient.ClientError):
             return [t["id"] for t in self.site.registry.catalog("theme") if t.get("enabled", True)], False, True
 
+    def pages_allowed(self):
+        """Whether the owner lets this area have its own pages (tier 3): True or False, or None when not connected (unknown)."""
+        try:
+            return bool(self.area_client().limits().get("custom_pages"))
+        except (ValidationError, areaclient.ClientError):
+            return None
+
+    def area_pages_view(self):
+        """The area's own pages as the window shows them: the app section of area.json, how many files app/ holds, and the owner's say."""
+        folder = self.area_folder
+        files = 0
+        if folder and (folder / "app").is_dir():
+            files = sum(1 for f in (folder / "app").rglob("*") if f.is_file() and not f.is_symlink())
+        try:
+            spec = json.loads((folder / "area.json").read_text(encoding="utf-8")).get("app") if folder else None
+        except (OSError, ValueError, AttributeError):
+            spec = None
+        return {"app": spec if isinstance(spec, dict) else None, "files": files, "allowed": self.pages_allowed()}
+
     def area_design_view(self):
         themes, from_owner, _css = self._design_rules()
         catalog = {t["id"]: t.get("label") or t["id"] for t in self.site.registry.catalog("theme")}
         return {"design": self.design, "themes": [{"id": t, "label": catalog.get(t, t)} for t in themes if t in catalog],
-                "enabled": bool(themes), "from_owner": from_owner}
+                "enabled": bool(themes), "from_owner": from_owner, "pages": self.area_pages_view()}
 
     def set_area_design(self, raw):
         themes, from_owner, css_ok = self._design_rules()
@@ -146,7 +165,7 @@ class Hub:
             raise ValidationError("The area is paused by its owner; nothing can be sent right now.")
         tmp = self.area_folder / ".halbach-bundle.zip"
         try:
-            areaclient.build_zip(self.area_folder, tmp, lim.get("limits"), custom_css=bool(lim.get("custom_css")))
+            areaclient.build_zip(self.area_folder, tmp, lim.get("limits"), custom_css=bool(lim.get("custom_css")), custom_pages=bool(lim.get("custom_pages")))
             code, body = client.send_zip(tmp)
         finally:
             try:
@@ -490,7 +509,7 @@ def make_handler(hub):
                     aid, act = m_area.groups()
                     ar = hub.areas
                     if act == "update":
-                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks", "embed_hosts", "themes", "custom_css") if k in b})})
+                        return self._json({"area": ar.update(aid, **{k: b[k] for k in ("name", "enabled", "paused", "trust", "nav", "limits", "blocks", "embed_hosts", "themes", "custom_css", "custom_pages") if k in b})})
                     if act == "regenerate":
                         key = ar.regenerate_key(aid)
                         return self._json({"key": key})
@@ -500,6 +519,8 @@ def make_handler(hub):
                     if act == "delete":
                         ar.delete(aid)
                         return self._json({"ok": True})
+                    if act == "source":                                              # read a submitted file's text before approving it
+                        return self._json(ar.source(aid, b.get("sid"), b.get("path")))
                     if act == "approve":
                         return self._json({"submission": ar.approve(aid, b.get("sid"), note=b.get("note", ""))})
                     if act == "reject":
@@ -529,6 +550,11 @@ def make_handler(hub):
                         areamode.apply_design(hub.site.model, hub.design, hub.area_folder)
                         css, notes = hub.area_preview_css()
                         kw = {"extra_css": css or None, "embed_sameorigin": True}   # what the owner's real site does for this area
+                        if hub.area_folder and (hub.area_folder / "app").is_dir():
+                            if hub.pages_allowed() is False:
+                                notes.append("Preview leaves out your own pages: the owner has not allowed this area to have them.")
+                            else:
+                                kw["area_app_dir"] = hub.area_folder
                     res = hub.site.build_preview(area_preview=(b["area"], b["sid"]) if b.get("area") and b.get("sid") else None, **kw)
                     for n in notes:
                         res.warnings.append({"path": "design.css", "message": n})
