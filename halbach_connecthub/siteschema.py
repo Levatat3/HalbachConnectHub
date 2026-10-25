@@ -9,7 +9,7 @@ import re
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 SEGMENT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
-RESERVED_SLUGS = frozenset({"modules", "assets", "plugins", "_halbach", "api", "admin", "404", "robots", "sitemap", "preview"})
+RESERVED_SLUGS = frozenset({"modules", "assets", "plugins", "_halbach", "api", "admin", "404", "robots", "sitemap", "preview", "app"})
 MAX_SLUG_DEPTH = 3
 MAX_URL = 2000
 FIELD_TYPES = frozenset({"text", "longtext", "markdown", "url", "number", "bool", "select", "list-text", "links",

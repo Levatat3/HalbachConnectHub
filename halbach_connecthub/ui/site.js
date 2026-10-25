@@ -499,6 +499,54 @@
       h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save settings", "primary", function () {
         act("settings", { base_url: base.value, lang: lang.value, csp: csp.value, analytics: an.value, indexable: idx.firstChild.checked }, "Settings saved.").catch(function (e) { showErr(err, e); });
       }))));
+    ownPages(b);
+  }
+
+  // ---------------------------------------------------------------- your own pages (plain html, css and js in the hub's site/app folder)
+  function ownPages(b) {
+    var s = SS.model.settings, err = h("div", { class: "err" }), listBox = h("div", { class: "set", style: "max-width:860px;padding:0 6px" });
+    var on = sw(!!s.own_pages, function () {}), label = h("input", { type: "text", value: s.own_pages_label || "Pages", maxlength: 40, style: "width:200px", "aria-label": "Menu name" });
+    b.appendChild(h("div", null, section("Your own pages", "Write a page, a tool or a small app yourself in HTML, CSS and JavaScript. It gets one menu link and lives at /app/ on your site. It runs in a browser sandbox: no cookies or storage, no forms, and it can only load its own files. The same checks as for a collaborator apply, so the code stays readable.")));
+    b.appendChild(h("div", { class: "set", style: "max-width:860px" },
+      row("Switch on your own pages", "Off by default. Nothing is published until app/index.html exists.", on),
+      row("Menu name", "The link in your site's menu.", label),
+      h("div", { class: "r" }, err, h("span", { style: "flex:1" }), btn("Save", "primary", function () {
+        act("settings", { own_pages: on.firstChild.checked, own_pages_label: label.value }, "Saved. Rebuild the preview to see it.").catch(function (e) { showErr(err, e); });
+      }))));
+    b.appendChild(listBox);
+    function show(v) {
+      listBox.textContent = "";
+      listBox.appendChild(h("div", { class: "r" }, h("div", { style: "flex:1;min-width:0" }, h("b", { text: v.files.length ? v.files.length + " file" + (v.files.length === 1 ? "" : "s") : "No files yet" }),
+        h("small", { text: "Folder: " + v.dir + "  (pictures are added by putting them there; up to " + v.max_files + " files, " + v.max_kb + " KB per text file)" })),
+        btn("New file…", "", function () {
+          var name = prompt("File name (in the app folder):", v.has_entry ? "app/style.css" : "app/index.html");
+          if (name) edit(name.indexOf("app/") === 0 ? name : "app/" + name, "");
+        })));
+      v.files.forEach(function (f) {
+        listBox.appendChild(h("div", { class: "r" }, h("div", { style: "flex:1;min-width:0" }, h("b", { text: f.path }), h("small", { text: Math.max(1, Math.round(f.size / 1024)) + " KB" })),
+          f.text ? btn("Edit", "", function () { HB.api("/api/site/own/read", "POST", { path: f.path }).then(function (r) { edit(f.path, r.text); }).catch(HB.fail); }) : null,
+          btn("Delete", "ghost", function () { if (confirm("Delete " + f.path + "?")) HB.api("/api/site/own/delete", "POST", { path: f.path }).then(refresh).catch(HB.fail); })));
+      });
+      v.problems.forEach(function (p) { listBox.appendChild(h("div", { class: "prob", style: "padding:6px 14px", text: "✖ " + p })); });
+      v.warnings.forEach(function (w) { listBox.appendChild(h("div", { class: "hint", style: "padding:2px 14px", text: "• " + w })); });
+      if (!v.problems.length && v.files.length && !v.has_entry) listBox.appendChild(h("div", { class: "prob", style: "padding:6px 14px", text: "There is no app/index.html yet: that is the page the menu link opens." }));
+    }
+    function refresh() { return HB.api("/api/site/own").then(show).catch(function (e) { listBox.textContent = e.message; }); }
+    function edit(path, text) {
+      var ta = h("textarea", { rows: 20, spellcheck: false, "aria-label": "Contents of " + path, style: "width:100%;box-sizing:border-box;font-family:ui-monospace,Consolas,monospace;font-size:12px" });
+      ta.value = text;
+      var out = h("div", { class: "err" });
+      HB.dialog(path, h("div", null, ta, out), "Save", function () {
+        return HB.api("/api/site/own/write", "POST", { path: path, text: ta.value }).then(function (v) {
+          show(v);
+          var mine = v.problems.filter(function (p) { return p.indexOf(path + ":") === 0; });
+          var real = mine.filter(function (p) { return p.indexOf("is not in the app folder") < 0; });   // a page may point at a file written next
+          if (real.length) { out.textContent = "Saved, but this file has a problem: " + real[0]; return false; }
+          HB.toast("Saved."); return true;
+        }).catch(function (e) { showErr(out, e); return false; });
+      });
+    }
+    refresh();
   }
 
   // ---------------------------------------------------------------- history

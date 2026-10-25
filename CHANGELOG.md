@@ -6,6 +6,11 @@ derived from this repository's commit history, not written after the fact.
 
 ## [Unreleased]
 
+### Added
+- **Your own pages for the main site:** switch on Site > Settings > Your own pages (off by default) to write HTML, CSS and JavaScript pages
+  yourself in the hub's `site/app` folder, with a built-in file editor. Published at `/app/` with one menu link, in the same sandbox and
+  with the same readability checks as a collaborator's own pages. The address `/app/` is now reserved. See `docs/MODULAR.md`.
+
 ## [0.6.0] - 2026-10-24
 
 ### Added

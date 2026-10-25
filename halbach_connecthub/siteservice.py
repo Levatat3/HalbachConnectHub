@@ -5,13 +5,14 @@ exactly as it was, and each accepted edit is saved with a history snapshot. Stdl
 """
 
 import copy
+import os
 import threading
 import time
 from pathlib import Path
 
 import json
 
-from . import legacyimport, linkedsites, quality, sitebuilder
+from . import apppages, bundle, legacyimport, linkedsites, quality, sitebuilder
 from .publisher import classify
 from .registry import Registry
 from .sitemodel import MODEL_VERSION, ModelError, SiteModel, diff_models
@@ -91,6 +92,7 @@ class SiteService:
         errors, warnings = self.model.validate(self.module_index())
         if not errors:
             warnings = self._merge(warnings, quality.check_site(self.model, self.theme_vars()))
+            warnings = self._merge(warnings, self.own_warnings())
         return {"errors": errors, "warnings": warnings}
 
     def view(self):
@@ -192,7 +194,7 @@ class SiteService:
             m.set_theme(theme_id=a.get("id"), vars=a.get("vars"), mode=a.get("mode"), funk=a.get("funk"))
             return "theme changed"
         if action == "settings":
-            m.set_settings(**{k: a[k] for k in ("lang", "base_url", "csp", "analytics", "search", "nav_style", "indexable") if k in a})
+            m.set_settings(**{k: a[k] for k in ("lang", "base_url", "csp", "analytics", "search", "nav_style", "indexable", "own_pages", "own_pages_label") if k in a})
             return "settings changed"
         if action == "redirects":
             m.set_redirects(a.get("redirects") or [])
@@ -217,6 +219,95 @@ class SiteService:
             m.restore(a.get("n"))
             return None
         raise ModelError("Unknown action '%s'" % action)
+
+    # ---------------------------------------------------------------- the owner's own pages (settings -> Your own pages)
+    # Plain files in <hub>/site/app/. They are not part of site.json (so not in History or the site export); the folder is the source.
+    def own_root(self):
+        return self.model.dir
+
+    @staticmethod
+    def _mine(text):
+        """The checks speak of a collaborator's bundle; for the owner's own folder say so in the owner's words."""
+        return text.replace("is not in the bundle", "is not in the app folder").replace("the area's own pages", "your own pages")
+
+    def own_warnings(self):
+        if not self.model.data["settings"].get("own_pages"):
+            return []
+        chk = apppages.check_tree(self.own_root())
+        out = [{"path": "own pages", "message": "Your own pages: " + self._mine(p)} for p in chk.problems[:5]]
+        if not chk.problems and apppages.APP_DIR + "/index.html" not in apppages.tree_files(self.own_root()):
+            out.append({"path": "own pages", "message": "Your own pages are switched on but have no front page (app/index.html), so they are not published."})
+        return out
+
+    def own_view(self):
+        root = self.own_root()
+        files = apppages.tree_files(root)
+        chk = apppages.check_tree(root)
+        s = self.model.data["settings"]
+        return {"on": bool(s.get("own_pages")), "label": s.get("own_pages_label") or "Pages", "dir": str(root / apppages.APP_DIR),
+                "files": [{"path": n, "size": f.stat().st_size, "text": n.rsplit(".", 1)[-1].lower() in apppages.TEXT_EXT} for n, f in files.items()],
+                "problems": [self._mine(p) for p in chk.problems[:20]], "warnings": [self._mine(w) for w in chk.warnings[:20]], "has_entry": apppages.APP_DIR + "/index.html" in files,
+                "max_files": apppages.MAX_APP_FILES, "max_kb": apppages.MAX_TEXT_BYTES // 1024}
+
+    def _own_path(self, rel, must_exist):
+        """The file inside <hub>/site/app/ that a name refers to. Raises ModelError for anything outside it or not allowed."""
+        rel = str(rel or "")
+        bad = bundle.check_name(rel)
+        if bad or not rel.startswith(apppages.APP_DIR + "/"):
+            raise ModelError("Files for your own pages live in the app folder (app/index.html, app/style.css ...). " + (bad or ""))
+        bad = apppages.name_problem(rel)
+        if bad:
+            bad = self._mine(bad)
+            raise ModelError(bad[0].upper() + bad[1:])
+        base = (self.own_root() / apppages.APP_DIR).resolve()
+        target = (self.own_root() / rel).resolve()
+        try:
+            target.relative_to(base)
+        except ValueError:
+            raise ModelError("That file would be outside the app folder.")
+        if target.is_symlink() or (must_exist and not target.is_file()):
+            raise ModelError("There is no such file.")
+        return target
+
+    def own_read(self, rel):
+        target = self._own_path(rel, True)
+        if target.suffix.lower().lstrip(".") not in apppages.TEXT_EXT:
+            raise ModelError("Only text files can be opened here. Pictures are added by putting them in the app folder.")
+        if target.stat().st_size > apppages.MAX_TEXT_BYTES:
+            raise ModelError("That file is larger than %d KB." % (apppages.MAX_TEXT_BYTES // 1024))
+        try:
+            return {"path": rel, "text": target.read_text(encoding="utf-8")}
+        except (OSError, UnicodeDecodeError):
+            raise ModelError("That file cannot be read as text.")
+
+    def own_write(self, rel, text):
+        """Save one text file. It is saved even when the checks have something to say (a page may point at a stylesheet written
+        next); the answer lists every problem, and a site with problems in its own pages leaves them out of the build."""
+        target = self._own_path(rel, False)
+        if target.suffix.lower().lstrip(".") not in apppages.TEXT_EXT:
+            raise ModelError("Only text files can be saved here (html, js, css, json, txt).")
+        if not isinstance(text, str):
+            raise ModelError("The file's text is missing.")
+        data = text.replace("\r\n", "\n").encode("utf-8")
+        if len(data) > apppages.MAX_TEXT_BYTES:
+            raise ModelError("That file is larger than %d KB." % (apppages.MAX_TEXT_BYTES // 1024))
+        with self.lock:
+            if not target.exists() and len(apppages.tree_files(self.own_root())) >= apppages.MAX_APP_FILES:
+                raise ModelError("The limit is %d files." % apppages.MAX_APP_FILES)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_name(target.name + ".tmp")
+            tmp.write_bytes(data)
+            os.replace(tmp, target)
+            return self.own_view()
+
+    def own_delete(self, rel):
+        target = self._own_path(rel, True)
+        with self.lock:
+            target.unlink()
+            for d in (target.parent, target.parent.parent):          # tidy folders this left empty (never the app folder itself)
+                if d != self.own_root() / apppages.APP_DIR and d.is_dir() and not any(d.iterdir()):
+                    d.rmdir()
+            return self.own_view()
 
     # ---------------------------------------------------------------- building
     def build(self, stage, preview=False, area_preview=None, **build_kw):

@@ -406,6 +406,8 @@ def make_handler(hub):
                 return self._json({"rows": hub.areas.audit_log(m_audit.group(1))})
             if path == "/api/site":
                 return self._json(hub.site.view())
+            if path == "/api/site/own":
+                return self._json(hub.site.own_view())
             if path == "/api/area/design":
                 return self._area_json(hub.area_design_view)
             if path == "/api/area/limits":
@@ -559,6 +561,13 @@ def make_handler(hub):
                     return self._json(res.summary())
                 if path == "/api/area/send":
                     return self._area_json(hub.send_area)
+                if path in ("/api/site/own/read", "/api/site/own/write", "/api/site/own/delete"):
+                    own = hub.site
+                    if path.endswith("read"):
+                        return self._json(own.own_read(b.get("path")))
+                    if path.endswith("write"):
+                        return self._json(own.own_write(b.get("path"), b.get("text")))
+                    return self._json(own.own_delete(b.get("path")))
                 if path.startswith("/api/site/"):
                     return self._json(hub.site.apply(path[len("/api/site/"):], b))
                 if path == "/api/settings":

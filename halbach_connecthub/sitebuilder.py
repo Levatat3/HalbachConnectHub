@@ -210,7 +210,7 @@ def _area_nav_html(area_pages, current_id, url_base, back_name, app=None):
     return "".join(out)
 
 
-def _nav_html(model, pages, current_id, url_base, sites=()):
+def _nav_html(model, pages, current_id, url_base, sites=(), own=None):
     out = []
     for p in pages:
         if not p["nav"]:
@@ -221,6 +221,8 @@ def _nav_html(model, pages, current_id, url_base, sites=()):
     for link in model.get("nav_links", []):
         ext = ' target="_blank" rel="noopener noreferrer"' if re.match(r"^https?:", link["url"]) else ""
         out.append('<a href="%s"%s>%s</a>' % (html.escape(link["url"]), ext, html.escape(link["label"])))
+    if own:
+        out.append('<a class="hs-app" href="%s">%s</a>' % (html.escape(own["path"], quote=True), html.escape(own["label"])))
     if sites:
         out.append(_sites_menu_html(sites))
     return "".join(out)
@@ -304,6 +306,21 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     area_css = {}
     area_app, app_paths = {}, []                               # areas whose own pages (tier 3) are published, and where they live
     model_slugs = {p["slug"] for p in data["pages"]}
+    own_app = None                                              # the owner's own pages (settings), published at /app/ like an area's, same sandbox
+    if data["settings"].get("own_pages"):
+        own_root = Path(model.dir)
+        own_entry = apppages.APP_DIR + "/index.html"
+        chk = apppages.check_tree(own_root)
+        if "app" in model_slugs:
+            res.errors.append({"path": "settings", "message": "Your own pages want the address /app/, which a page of yours already uses. Rename that page."})
+        elif not chk.ok:
+            res.warnings.append({"path": "own pages", "message": "Your own pages were left out: %s" % chk.problems[0]})
+        elif own_entry not in apppages.tree_files(own_root):
+            res.warnings.append({"path": "own pages", "message": "Your own pages are switched on but have no front page, so they were left out. Add app/index.html."})
+        else:
+            own_app = {"label": (str(data["settings"].get("own_pages_label") or "Pages").strip() or "Pages")[:apppages.MAX_LABEL], "path": url_base + "/app/"}
+            app_paths.append("")
+            res.warnings += [{"path": "own pages", "message": w} for w in chk.warnings]
     for ar in (areas or []):
         slug = ar["slug"]
         if slug in model_slugs or slug in RESERVED_SLUGS or slug in RESERVED_TOP or not slug:
@@ -497,7 +514,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             top = rel.split("/")[0]
             if top.lower() in LEGACY_TOP:
                 continue
-            if top in RESERVED_TOP:
+            if top in RESERVED_TOP or (top == "app" and own_app):
                 res.errors.append({"path": "files/" + rel, "message": "The site folder uses '%s', which Halbach reserves. Rename it." % top})
                 continue
             if top in slugs and (len(rel.split("/")) == 1 or rel.split("/")[1].lower() == "index.html"):
@@ -540,6 +557,11 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                     continue
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dest)
+    if own_app:                                                 # the owner's own pages, only at /app/ (checked above)
+        for name, f in apppages.tree_files(model.dir).items():
+            dest = stage / name
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, dest)
     if area_app_dir:                                            # a collaborator's own preview: their folder's app/ at /app/
         chk = apppages.check_tree(area_app_dir)
         if chk.ok and apppages.tree_files(area_app_dir):
@@ -547,7 +569,8 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
                 dest = stage / name
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dest)
-            app_paths.append("")
+            if "" not in app_paths:
+                app_paths.append("")
         elif not chk.ok:
             res.warnings.append({"path": "app", "message": "Preview leaves out your own pages: %s (the owner would refuse them)." % chk.problems[0]})
     if res.errors:
@@ -653,7 +676,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
             nav_html = _area_nav_html(area_page_list[p["area"]], p["id"], url_base, brand["name"], shell_model.get("app"))
             page_desc = p["description"] or shell_model["brand"].get("tagline", "")
         else:
-            nav_html = _nav_html(data, pages, p["id"], url_base, sites_list)
+            nav_html = _nav_html(data, pages, p["id"], url_base, sites_list, own_app)
             page_desc = p["description"] or brand.get("tagline", "")
         text = _shell(shell_model or data, full_title, page_desc, [], main_fallback,
                       nav_html, json_for_script(page_json),
@@ -666,7 +689,7 @@ def build_site(model, registry, store, stage_dir, url_base="", extra_dir=None, i
     # ---- 404
     nf = _shell(data, "Not found | " + brand["name"], "", [],
                 '<h1 class="hs-title">Not found</h1><p class="hs-lede">That page is not here. <a href="%s/">Go to the home page</a>.</p>' % html.escape(url_base),
-                _nav_html(data, pages, None, url_base, sites_list), "", url_base + "/" + runtime_name, url_base + "/" + themes[site_theme]["css"],
+                _nav_html(data, pages, None, url_base, sites_list, own_app), "", url_base + "/" + runtime_name, url_base + "/" + themes[site_theme]["css"],
                 url_base, True, None, icons, credit=(site_theme == "funk"))
     total_bytes += _write(stage / "404.html", nf)
 

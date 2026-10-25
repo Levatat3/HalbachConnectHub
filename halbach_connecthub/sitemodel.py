@@ -43,7 +43,7 @@ def default_model(theme="neutral-dark"):
         "brand": {"name": "MY SITE", "mark": "H", "tagline": "", "handle": "", "footer": "", "icon": {"mode": "generated", "file": None}},
         "theme": {"id": theme, "vars": {}, "mode": "auto"},
         "settings": {"lang": "en", "base_url": "", "csp": "report-only", "analytics": "cloudflare", "search": False,
-                     "nav_style": "top", "indexable": True},
+                     "nav_style": "top", "indexable": True, "own_pages": False, "own_pages_label": "Pages"},
         "pages": [],
         "collections": [],
         "redirects": [],
@@ -275,9 +275,14 @@ class SiteModel:
                     if kw[k] not in opts:
                         raise ModelError("%s must be one of: %s" % (k, ", ".join(opts)))
                     s[k] = kw[k]
-            for k in ("search", "indexable"):
+            for k in ("search", "indexable", "own_pages"):
                 if k in kw:
                     s[k] = bool(kw[k])
+            if "own_pages_label" in kw:
+                label = sc.clean_line(kw["own_pages_label"], 40)
+                if not label:
+                    raise ModelError("The menu name for your own pages cannot be empty")
+                s["own_pages_label"] = label
             self.data["settings"] = s
             return s
 

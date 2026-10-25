@@ -88,6 +88,12 @@ Scripts and stylesheets get content-hashed names, so a changed file can never be
 
 The policy has three modes in **Site settings**: *Report only* (browsers log problems but block nothing), *Enforce*, and *Off*. Start in report-only, open every page in Preview, then switch to Enforce. Pages in your site folder and your static modules (which may use inline scripts) get a more relaxed policy under `/modules/*`, and they run in a sandboxed frame without access to your site's storage. Your own pages embedded from a path on the same site (the Forge viewer, for example) run as normal.
 
+## Your own pages (HTML, CSS and JavaScript)
+
+Blocks cover most pages. For something blocks cannot do (a small tool, a game, a calculator), switch on **Site > Settings > Your own pages**. It is off by default. You then write plain files in the `site/app` folder of the hub's data folder (the Settings box shows the exact path): `index.html` is the front page, and `style.css`, `main.js`, `data/*.json` and pictures (png, jpg, gif, webp) sit beside it. The built-in editor opens, saves and deletes the text files; pictures are added by putting them in the folder. The pages are published at `/app/` with one menu link (you choose its name).
+
+They are published exactly like a collaborator's own pages (see `docs/AREAS.md`, "Their own pages"): in a browser sandbox with no cookies or storage, no forms and no outside loading, with a security header that is always enforced. The same readability checks apply (no packed or encoded code, no `eval`, no outside addresses written into scripts), because the sandbox is what contains the code and the checks keep it honest. If a file fails the checks or there is no `index.html`, the pages are left out of the build with a warning and the rest of the site still publishes. The files are not part of the site export or History; the folder is the source, so back it up with the rest of your hub data. The address `/app/` is reserved: a page of yours cannot use it.
+
 ## Redirects and the menu
 
 **Menu & redirects** holds extra menu links to other sites and a redirect list (old address to new address), so links you shared keep working after you rename or remove a page. Redirects are limited to what Cloudflare Pages allows (2,000 and 100 KB).
