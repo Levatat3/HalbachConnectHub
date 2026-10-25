@@ -6,15 +6,13 @@ derived from this repository's commit history, not written after the fact.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-24
+
 ### Added
 - **Areas: their own pages (tier 3):** an owner-enabled (off by default) `app/` folder of HTML, scripts, stylesheets, data and pictures,
   linked from the area's menu and published sandboxed at `/<area>/app/`: no storage or cookies, no forms, own files only. Checked as written
   (hidden, packed or encoded code is refused), again at every build, and always held for the owner to read, even in a trusted area. The owner
   can read the code from the review card. See `docs/AREAS.md`.
-
-## [0.6.0] - 2026-10-24
-
-### Added
 - **FunkThemes 2:** the bundled Funk engine is now Funk's 2026-10-22 master (82,428 bytes): the new **Spectrum**
   effect, per-effect settings, up to two stacked effect layers and motion settings. The site accepts them with
   strict whitelists; picture, video, web and Wallpaper Engine themes, assets and sound stay refused, and music

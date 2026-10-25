@@ -122,7 +122,7 @@ A ready-made Claude Code skill, [`examples/claude-skill/halbach-publish`](exampl
 
 ## Tests
 
-629 tests cover the model, the builder (including the generated headers), the preview route, the importer, areas and their stylesheet checker, the updater and the command line.
+700 tests cover the model, the builder (including the generated headers), the preview route, the importer, areas and their stylesheet checker, the updater and the command line.
 
 ```
 python -m unittest discover -s tests -t .

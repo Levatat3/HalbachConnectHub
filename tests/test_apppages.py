@@ -360,6 +360,26 @@ class TestOwnerSide(unittest.TestCase):
         relabelled = self.send(app_entries(app={"entry": "app/index.html", "label": "Other"}))
         self.assertEqual(relabelled["state"], "pending")
 
+    def test_an_owner_edit_still_works_after_the_switch_is_turned_off_and_shows_the_pages_as_removed(self):
+        self.svc.update("workshop", custom_pages=True)
+        self.svc.approve("workshop", self.send(app_entries())["id"])
+        self.svc.update("workshop", custom_pages=False)
+        content = self.svc.content("workshop")
+        edited = self.svc.owner_edit("workshop", content["doc"])
+        self.assertEqual(edited["state"], "pending", edited.get("reasons"))
+        self.assertIn("app/main.js", edited["changes"]["files_removed"])
+        self.assertTrue(edited["changes"]["app_changed"])
+        self.assertTrue(edited["needs_reading"])                                              # dropping code is a change to it too
+
+    def test_the_gate_looks_at_every_change_not_only_the_first_fifty_the_card_lists(self):
+        self.svc.update("workshop", custom_pages=True, trust="trusted")
+        many = [("files/note%03d.txt" % i, b"x") for i in range(60)]
+        first = self.send(app_entries(extra=many))
+        self.svc.approve("workshop", first["id"])
+        changed = self.send(app_entries(drop=("app/main.js",), extra=many + [("app/main.js", JS + b"// more")]))
+        self.assertEqual(changed["state"], "pending")
+        self.assertTrue(changed["changes"]["app_touched"])
+
     def test_approved_pages_reach_the_builder_only_while_the_switch_is_on(self):
         self.svc.update("workshop", custom_pages=True)
         self.svc.approve("workshop", self.send(app_entries())["id"])

@@ -110,7 +110,7 @@ def build_zip(folder, out_path, limits=None, custom_css=False, custom_pages=Fals
             total += size
             entries.append((rel, f))
     app_dir = folder / apppages.APP_DIR
-    if app_dir.is_dir() and any(app_dir.rglob("*")):
+    if app_dir.is_dir() and any(f.is_file() or f.is_symlink() for f in app_dir.rglob("*")):
         if not custom_pages:
             raise ClientError("The owner has not allowed this area its own pages, so the app folder cannot be sent. Remove it, or ask the owner to allow it.")
         n_app = 0

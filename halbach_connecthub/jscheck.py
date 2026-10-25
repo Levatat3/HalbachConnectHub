@@ -37,7 +37,7 @@ BANNED = [
     (re.compile(r"\[\s*[\"']constructor[\"']\s*\]|\.\s*constructor\s*\.\s*constructor"), "reaching Function through constructor is not allowed"),
     (re.compile(r"(?<![\w$.])(?:(?:window|document|self|top|parent|globalThis)\s*\.\s*)?location\s*(?:\.\s*(?:href|assign|replace)\s*)?(?:=(?!=)|\()"),
      "sending the visitor to another address from a script is not allowed (put a link in the page instead)"),
-    (re.compile(r"\bwindow\s*\.\s*open\s*\(|(?<![\w$.])open\s*\(|\bdocument\s*\.\s*open\s*\("), "opening windows from a script is not allowed"),
+    (re.compile(r"\bwindow\s*\.\s*open\s*\(|(?<![\w$.])open\s*\(|\bdocument\s*\.\s*open\s*\("), "opening windows from a script is not allowed (a function of your own named open( is refused too: give it another name)"),
     (re.compile(r"\b(?:top|parent)\s*\.\s*(?:location|document)\b"), "reaching outside the page is not allowed"),
 ]
 HEXNAME = re.compile(r"\b_0x[0-9a-fA-F]{3,}\b")

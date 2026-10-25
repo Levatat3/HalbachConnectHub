@@ -94,22 +94,20 @@ class Hub:
         return areaclient.Area(conn["url"], conn["area"], conn["key"])
 
     def _design_rules(self):
-        """(allowed theme ids, whether they come from the owner, whether the owner allows an own stylesheet).
+        """(allowed theme ids, whether they come from the owner, whether the owner allows an own stylesheet, whether it allows own
+        pages: True or False, or None when not connected). One question to the owner answers all of it.
         Offline, every installed theme and a stylesheet are allowed for the preview."""
         try:
             info = self.area_client().limits()
-            return list(info.get("themes") or []), True, bool(info.get("custom_css"))
+            return list(info.get("themes") or []), True, bool(info.get("custom_css")), bool(info.get("custom_pages"))
         except (ValidationError, areaclient.ClientError):
-            return [t["id"] for t in self.site.registry.catalog("theme") if t.get("enabled", True)], False, True
+            return [t["id"] for t in self.site.registry.catalog("theme") if t.get("enabled", True)], False, True, None
 
     def pages_allowed(self):
         """Whether the owner lets this area have its own pages (tier 3): True or False, or None when not connected (unknown)."""
-        try:
-            return bool(self.area_client().limits().get("custom_pages"))
-        except (ValidationError, areaclient.ClientError):
-            return None
+        return self._design_rules()[3]
 
-    def area_pages_view(self):
+    def area_pages_view(self, allowed):
         """The area's own pages as the window shows them: the app section of area.json, how many files app/ holds, and the owner's say."""
         folder = self.area_folder
         files = 0
@@ -119,16 +117,16 @@ class Hub:
             spec = json.loads((folder / "area.json").read_text(encoding="utf-8")).get("app") if folder else None
         except (OSError, ValueError, AttributeError):
             spec = None
-        return {"app": spec if isinstance(spec, dict) else None, "files": files, "allowed": self.pages_allowed()}
+        return {"app": spec if isinstance(spec, dict) else None, "files": files, "allowed": allowed}
 
     def area_design_view(self):
-        themes, from_owner, _css = self._design_rules()
+        themes, from_owner, _css, pages_ok = self._design_rules()
         catalog = {t["id"]: t.get("label") or t["id"] for t in self.site.registry.catalog("theme")}
         return {"design": self.design, "themes": [{"id": t, "label": catalog.get(t, t)} for t in themes if t in catalog],
-                "enabled": bool(themes), "from_owner": from_owner, "pages": self.area_pages_view()}
+                "enabled": bool(themes), "from_owner": from_owner, "pages": self.area_pages_view(pages_ok)}
 
     def set_area_design(self, raw):
-        themes, from_owner, css_ok = self._design_rules()
+        themes, from_owner, css_ok, _pages = self._design_rules()
         if from_owner and not themes and not css_ok:
             raise ValidationError("The owner has not enabled custom designs for this area.")
         raw = dict(raw or {})

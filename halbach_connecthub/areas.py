@@ -402,7 +402,7 @@ class AreaService:
             self._write_meta(aid, sid, meta)
             self.audit(aid, ip_hash, "received", meta["size"], "%d files%s" % (meta["files"], " (edited by the owner)" if origin == "owner" else ""))
             ch = meta["changes"]
-            code = ch["app_changed"] or any(n.startswith(apppages.APP_DIR + "/") for n in ch["files_added"] + ch["files_changed"] + ch["files_removed"])
+            code = ch["app_changed"] or ch["app_touched"]
             if code:                                                # code never goes live unread, whatever the trust level
                 meta["warnings"] = (meta["warnings"] + ["This changes the area's own pages (code), so it always waits for the owner to read it, even in a trusted area."])[:20]
                 meta["needs_reading"] = True
@@ -444,9 +444,11 @@ class AreaService:
         if css is not None and not isinstance(css, str):
             raise ValidationError("The stylesheet must be text.")
         with self.lock:
-            self._must(aid)
+            a = self._must(aid)
             tree = self.current_tree(aid)
             doc = dict(doc)
+            if not a.get("custom_pages"):                           # switched off: an edit cannot carry the pages, so it leaves them out (the card shows them removed)
+                doc.pop("app", None)
             if css is not None:
                 design = dict(doc.get("design") or {})
                 if css.strip():
@@ -493,6 +495,7 @@ class AreaService:
             except (OSError, ValueError, KeyError):
                 pass
         new_files = {k: v["sha256"] for k, v in res["files"].items()}
+        app_touched = any(k.startswith(apppages.APP_DIR + "/") and old_files.get(k) != new_files.get(k) for k in set(old_files) | set(new_files))
         new_pages = {p["name"] for p in res["doc"]["pages"]}
         new_design = res["doc"].get("design") or {}
         look = {"brand": "name and logo", "theme": "theme", "vars": "colours and width", "layout": "menu layout", "funk": "Funk background", "css": "stylesheet"}
@@ -500,7 +503,7 @@ class AreaService:
         return {"files_added": sorted(set(new_files) - set(old_files))[:50], "files_removed": sorted(set(old_files) - set(new_files))[:50],
                 "files_changed": sorted(k for k in new_files if k in old_files and old_files[k] != new_files[k])[:50],
                 "pages_added": sorted(new_pages - old_pages), "pages_removed": sorted(old_pages - new_pages), "design_changed": design_changed,
-                "app_changed": (res["doc"].get("app") != old_app), "first": cur is None}
+                "app_changed": (res["doc"].get("app") != old_app), "app_touched": app_touched, "first": cur is None}
 
     # ---------------------------------------------------------------- review
     SOURCE_EXT = {"html", "js", "css", "json", "txt", "md"}

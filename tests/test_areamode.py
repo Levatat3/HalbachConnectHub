@@ -306,7 +306,7 @@ class TestAreaDesignWindow(unittest.TestCase):
 
     def test_when_the_owner_allowed_no_themes_the_panel_says_so_and_refuses(self):
         from unittest import mock
-        with mock.patch.object(self.hub, "_design_rules", return_value=([], True, False)):
+        with mock.patch.object(self.hub, "_design_rules", return_value=([], True, False, False)):
             view = json.loads(self.req("GET", "/api/area/design")[1])
             self.assertFalse(view["enabled"])
             s, raw = self.req("POST", "/api/area/design", {"design": self.GOOD})
