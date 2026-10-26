@@ -11,6 +11,12 @@ derived from this repository's commit history, not written after the fact.
   yourself in the hub's `site/app` folder, with a built-in file editor. Published at `/app/` with one menu link, in the same sandbox and
   with the same readability checks as a collaborator's own pages. The address `/app/` is now reserved. See `docs/MODULAR.md`.
 
+### Fixed
+- **A card link under the wrong key is an error, not silence:** a card written with `href` (or `link`, `to`, `target`, `path`, `address`, `uri`)
+  used to lose its link without a word. It is now refused with "links with url or page", naming the key.
+- **The offline check uses the area's real address:** `halbach area validate` (when connected) and `validate_folder(..., slug=...)` now judge a link
+  to the area's own pages (`/<area>/music/`) as the hub does, instead of refusing it against a stand-in address.
+
 ## [0.6.0] - 2026-10-24
 
 ### Added

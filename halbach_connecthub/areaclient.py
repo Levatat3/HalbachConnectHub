@@ -17,6 +17,7 @@ import argparse
 import getpass
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -147,14 +148,18 @@ def build_zip(folder, out_path, limits=None, custom_css=False, custom_pages=Fals
     return size
 
 
-def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts=None, themes=None, custom_css=False, custom_pages=False):
+def validate_folder(folder, limits=None, registry=None, blocks=None, embed_hosts=None, themes=None, custom_css=False, custom_pages=False, slug=None):
     """Offline check: zip the folder and run the owner's exact validator over it, without contacting anyone.
 
     Returns {"pages", "blocks", "files", "warnings"}. Raises ClientError (the folder cannot even be zipped) or
     BundleError (the bundle would be refused; .reasons says why). Nothing is left behind in the temp folder.
+
+    slug is the area's real address when it is known (the owner's limits answer has it): links to the area's own pages
+    (/<slug>/music/) are then judged as the hub will judge them. Without it a stand-in is used and such links are refused.
     """
     limits = dict(DEFAULT_LIMITS, **(limits or {}))
-    area = {"slug": "area", "limits": limits, "embed_hosts": list(embed_hosts or []), "themes": list(themes or []),
+    slug = slug if isinstance(slug, str) and re.match(r"^[a-z0-9][a-z0-9-]{0,39}$", slug) else "area"
+    area = {"slug": slug, "limits": limits, "embed_hosts": list(embed_hosts or []), "themes": list(themes or []),
             "custom_css": bool(custom_css), "custom_pages": bool(custom_pages)}                                             # the real slug only matters for URLs, not for the rules
     if blocks:
         area["blocks"] = list(blocks)
@@ -328,17 +333,19 @@ def main(argv):
                     raise ClientError("Could not read the limits file (%s)." % e)
             blocks = hosts = themes = None
             css_ok = pages_ok = False
+            slug = None
             rules_from = "the default rules (not connected, so this area's own settings are not known)"
             if not a.limits:
                 try:                                                  # connected: check against THIS area's rules (its blocks, embed hosts, limits)
                     info = _resolve(a).limits()
                     limits, blocks, hosts = info.get("limits"), info.get("blocks"), info.get("embed_hosts")
                     themes, css_ok, pages_ok = info.get("themes"), bool(info.get("custom_css")), bool(info.get("custom_pages"))
+                    slug = info.get("slug")
                     rules_from = "this area's own rules"
                 except ClientError:
                     pass
             try:
-                summary = validate_folder(a.folder, limits, blocks=blocks, embed_hosts=hosts, themes=themes, custom_css=css_ok, custom_pages=pages_ok)
+                summary = validate_folder(a.folder, limits, blocks=blocks, embed_hosts=hosts, themes=themes, custom_css=css_ok, custom_pages=pages_ok, slug=slug)
             except BundleError as e:
                 print("This folder would be refused:")
                 for r in e.reasons:

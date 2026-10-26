@@ -220,6 +220,9 @@ def _clean_value(field, value, ctx):
             card = {"title": clean_line(item.get("title"), 100), "text": clean_line(item.get("text"), 300)}
             if not card["title"]:
                 raise FieldError("Every card needs a title")
+            for wrong in ("href", "link", "to", "target", "path", "address", "uri"):    # a link under another name used to vanish without a word
+                if item.get(wrong):
+                    raise FieldError("Card '%s' links with url or page, not '%s'" % (card["title"], wrong))
             page, url = clean_line(item.get("page"), 40), clean_url(item.get("url"))
             if page:
                 if not ctx.page_ok(page):
